@@ -413,6 +413,169 @@ export type Database = {
           },
         ]
       }
+      home_example_categories: {
+        Row: {
+          accent: string | null
+          created_at: string
+          data_type: string
+          is_active: boolean
+          key: string
+          label: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          accent?: string | null
+          created_at?: string
+          data_type: string
+          is_active?: boolean
+          key: string
+          label: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          accent?: string | null
+          created_at?: string
+          data_type?: string
+          is_active?: boolean
+          key?: string
+          label?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      home_example_examples: {
+        Row: {
+          category_key: string
+          created_at: string
+          id: string
+          image_urls: string[]
+          is_active: boolean
+          prompt: string
+          sort_order: number
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          category_key: string
+          created_at?: string
+          id?: string
+          image_urls?: string[]
+          is_active?: boolean
+          prompt: string
+          sort_order?: number
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          category_key?: string
+          created_at?: string
+          id?: string
+          image_urls?: string[]
+          is_active?: boolean
+          prompt?: string
+          sort_order?: number
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "home_example_examples_category_key_fkey"
+            columns: ["category_key"]
+            isOneToOne: false
+            referencedRelation: "home_example_categories"
+            referencedColumns: ["key"]
+          },
+        ]
+      }
+      home_discovery_categories: {
+        Row: {
+          created_at: string
+          is_active: boolean
+          key: string
+          label: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          is_active?: boolean
+          key: string
+          label: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          is_active?: boolean
+          key?: string
+          label?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      home_discovery_cases: {
+        Row: {
+          author_avatar_url: string
+          author_name: string
+          case_url: string
+          category_key: string
+          cover_image_url: string
+          created_at: string
+          id: string
+          is_active: boolean
+          like_count: number
+          seed_prompt: string
+          sort_order: number
+          title: string
+          updated_at: string
+          view_count: number
+        }
+        Insert: {
+          author_avatar_url: string
+          author_name: string
+          case_url: string
+          category_key: string
+          cover_image_url: string
+          created_at?: string
+          id: string
+          is_active?: boolean
+          like_count?: number
+          seed_prompt: string
+          sort_order?: number
+          title: string
+          updated_at?: string
+          view_count?: number
+        }
+        Update: {
+          author_avatar_url?: string
+          author_name?: string
+          case_url?: string
+          category_key?: string
+          cover_image_url?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          like_count?: number
+          seed_prompt?: string
+          sort_order?: number
+          title?: string
+          updated_at?: string
+          view_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "home_discovery_cases_category_key_fkey"
+            columns: ["category_key"]
+            isOneToOne: false
+            referencedRelation: "home_discovery_categories"
+            referencedColumns: ["key"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null

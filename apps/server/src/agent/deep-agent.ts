@@ -8,7 +8,7 @@ import type { ServerEnv } from "../config/env.js";
 import type { ConnectionManager } from "../ws/connection-manager.js";
 import { createAgentBackendFactory } from "./backends/index.js";
 import { LOOMIC_SYSTEM_PROMPT } from "./prompts/loomic-main.js";
-import { createImageSubAgent, createVideoSubAgent } from "./sub-agents.js";
+import { createVideoSubAgent } from "./sub-agents.js";
 import { createMainAgentTools } from "./tools/index.js";
 import type { PersistImageFn, SubmitImageJobFn } from "./tools/image-generate.js";
 
@@ -74,13 +74,7 @@ export function createLoomicDeepAgent(options: {
     model: resolvedModel,
     name: "loomic",
     ...(options.store ? { store: options.store } : {}),
-    subagents: [
-      createImageSubAgent({
-        ...(options.persistImage ? { persistImage: options.persistImage } : {}),
-        ...(options.submitImageJob ? { submitImageJob: options.submitImageJob } : {}),
-      }),
-      createVideoSubAgent(),
-    ],
+    subagents: [createVideoSubAgent()],
     systemPrompt,
     tools: createMainAgentTools(backendFactory, {
       createUserClient,

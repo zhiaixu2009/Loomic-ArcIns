@@ -41,4 +41,11 @@ describe("LOOMIC_SYSTEM_PROMPT", () => {
     expect(LOOMIC_SYSTEM_PROMPT).toContain("<human_brand_kit_mentions>");
     expect(LOOMIC_SYSTEM_PROMPT).toContain("必须使用或必须参考");
   });
+
+  it("keeps image generation on the main agent tool path", () => {
+    expect(LOOMIC_SYSTEM_PROMPT).toContain("多张图片或复杂图片工作流");
+    expect(LOOMIC_SYSTEM_PROMPT).toContain("主代理自行规划");
+    expect(LOOMIC_SYSTEM_PROMPT).toContain("直接多次调用 generate_image");
+    expect(LOOMIC_SYSTEM_PROMPT).not.toContain("委派给 image_generate 子代理");
+  });
 });

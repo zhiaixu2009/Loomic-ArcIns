@@ -8,7 +8,9 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Trash2 } from "lucide-react";
+import { HomeDiscoveryGallery } from "@/components/home-discovery-gallery";
 import { DeleteProjectDialog } from "@/components/delete-project-dialog";
+import { HomeExampleBrowser } from "@/components/home-example-browser";
 import { HomePrompt, type HomePromptHandle } from "@/components/home-prompt";
 import { LoadingScreen } from "@/components/loading-screen";
 import { LoomicLogo } from "@/components/icons/loomic-logo";
@@ -17,12 +19,20 @@ import { useCreateProject } from "@/hooks/use-create-project";
 import { useDeleteProject } from "@/hooks/use-delete-project";
 import { useImageAttachments } from "@/hooks/use-image-attachments";
 import { useAuth } from "@/lib/auth-context";
+import { loadHomeDiscoveryCategories } from "@/lib/home-discovery-library";
+import {
+  homeDiscoverySeedCategories,
+  type HomeDiscoverySelection,
+} from "@/lib/home-discovery-seeds";
+import { loadHomeExampleCategories } from "@/lib/home-example-library";
+import {
+  homeExampleSeedCategories,
+  type HomeExampleSelection,
+} from "@/lib/home-example-seeds";
 import { ApiAuthError, fetchProjects } from "@/lib/server-api";
 
 /** Maximum number of recent projects shown on the home page. */
 const RECENT_PROJECTS_LIMIT = 4;
-
-const EXAMPLE_PROMPT = "帮我设计一个现代简约的品牌 Logo";
 
 // ---------------------------------------------------------------------------
 // Animation variants
@@ -47,27 +57,9 @@ const cardItem = {
     opacity: 1,
     y: 0,
     scale: 1,
-    transition: { duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] },
+    transition: { duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] as const },
   },
 };
-
-// ---------------------------------------------------------------------------
-// Sparkle icon for the example pill
-// ---------------------------------------------------------------------------
-function SparkleIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 16 16"
-      fill="currentColor"
-      xmlns="http://www.w3.org/2000/svg"
-      role="img"
-      aria-label="sparkle"
-    >
-      <path d="M8 0a.5.5 0 0 1 .473.337l1.524 4.416 4.416 1.524a.5.5 0 0 1 0 .946l-4.416 1.524-1.524 4.416a.5.5 0 0 1-.946 0L5.003 8.747.587 7.223a.5.5 0 0 1 0-.946l4.416-1.524L6.527.337A.5.5 0 0 1 8 0Z" />
-    </svg>
-  );
-}
 
 // ---------------------------------------------------------------------------
 // Date formatter (reused from project-list.tsx convention)
@@ -95,6 +87,14 @@ export default function HomePage() {
     useDeleteProject({ onDeleted: handleDeleted });
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [projectsLoading, setProjectsLoading] = useState(true);
+  const [homeDiscoveryCategories, setHomeDiscoveryCategories] = useState(
+    homeDiscoverySeedCategories,
+  );
+  const [homeExampleCategories, setHomeExampleCategories] = useState(
+    homeExampleSeedCategories,
+  );
+  const [selectedExample, setSelectedExample] =
+    useState<HomeExampleSelection | null>(null);
 
   const promptRef = useRef<HomePromptHandle>(null);
 
@@ -149,6 +149,34 @@ export default function HomePage() {
     loadProjects();
   }, [loadProjects]);
 
+  useEffect(() => {
+    if (!session) {
+      return;
+    }
+
+    let cancelled = false;
+
+    void Promise.all([
+      loadHomeExampleCategories(),
+      loadHomeDiscoveryCategories(),
+    ])
+      .then(([exampleCategories, discoveryCategories]) => {
+        if (cancelled) {
+          return;
+        }
+
+        setHomeExampleCategories(exampleCategories);
+        setHomeDiscoveryCategories(discoveryCategories);
+      })
+      .catch((error) => {
+        console.warn("[home] failed to load home page seed content", error);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [session]);
+
   // -----------------------------------------------------------------------
   // Prompt submit → create project → navigate to canvas
   // -----------------------------------------------------------------------
@@ -158,6 +186,7 @@ export default function HomePage() {
       attachments?: ReadyAttachment[],
       imageGenerationPreference?: ImageGenerationPreference,
     ) => {
+      setSelectedExample(null);
       clearAttachments();
       createNewProject({
         prompt,
@@ -170,12 +199,21 @@ export default function HomePage() {
     [createNewProject, clearAttachments],
   );
 
-  // -----------------------------------------------------------------------
-  // Pill click → fill prompt
-  // -----------------------------------------------------------------------
-  const handlePillClick = useCallback(() => {
-    promptRef.current?.fill(EXAMPLE_PROMPT);
+  const handleExampleSelect = useCallback((selection: HomeExampleSelection) => {
+    setSelectedExample(selection);
+    promptRef.current?.fill(selection.prompt);
   }, []);
+
+  const handleExampleClear = useCallback(() => {
+    setSelectedExample(null);
+  }, []);
+
+  const handleDiscoverySelect = useCallback(
+    (selection: HomeDiscoverySelection) => {
+      createNewProject({ prompt: selection.prompt });
+    },
+    [createNewProject],
+  );
 
   // -----------------------------------------------------------------------
   // Render
@@ -216,21 +254,17 @@ export default function HomePage() {
             onRemoveAttachment={removeAttachment}
             isUploading={isUploading}
             readyAttachments={readyAttachments}
+            selectedSeed={selectedExample}
+            onClearSelectedSeed={handleExampleClear}
           />
         </motion.div>
 
-        {/* Example pill */}
-        <motion.div variants={fadeUp} custom={4} className="mt-3 flex items-center gap-2">
-          <motion.button
-            type="button"
-            onClick={handlePillClick}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            className="inline-flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted"
-          >
-            <SparkleIcon className="h-3 w-3" />
-            设计
-          </motion.button>
+        <motion.div variants={fadeUp} custom={4} className="w-full">
+          <HomeExampleBrowser
+            categories={homeExampleCategories}
+            selectedExample={selectedExample}
+            onExampleSelect={handleExampleSelect}
+          />
         </motion.div>
       </motion.div>
 
@@ -333,6 +367,11 @@ export default function HomePage() {
           </motion.div>
         )}
       </div>
+
+      <HomeDiscoveryGallery
+        categories={homeDiscoveryCategories}
+        onCaseSelect={handleDiscoverySelect}
+      />
 
       {/* Delete confirmation dialog */}
       <DeleteProjectDialog

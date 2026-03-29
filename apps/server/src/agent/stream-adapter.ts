@@ -37,9 +37,9 @@ type AdaptDeepAgentStreamOptions = {
  * Sub-agent parent tool names whose inner tools should have their
  * artifacts suppressed (the parent re-emits them with placement).
  */
-const SUB_AGENT_PARENT_TOOLS = new Set(["image_generate", "video_generate"]);
+const SUB_AGENT_PARENT_TOOLS = new Set(["video_generate"]);
 /** Inner tools that may be suppressed when running inside a sub-agent. */
-const INNER_SUB_AGENT_TOOLS = new Set(["generate_image", "generate_video"]);
+const INNER_SUB_AGENT_TOOLS = new Set(["generate_video"]);
 
 export async function* adaptDeepAgentStream(
   options: AdaptDeepAgentStreamOptions,
@@ -181,10 +181,8 @@ export async function* adaptDeepAgentStream(
 
         const output = evt.data?.output;
 
-        // When an inner tool (e.g. generate_image) runs inside an active
-        // sub-agent parent (e.g. image_generate), suppress its artifacts
-        // because the parent will re-emit them with placement info.
-        // Direct calls to generate_image (no active parent) are NOT suppressed.
+        // When an inner tool runs inside an active sub-agent parent,
+        // suppress its artifacts because the parent will re-emit them.
         const isNestedInSubAgent =
           INNER_SUB_AGENT_TOOLS.has(toolName) && activeSubAgentRuns.size > 0;
         const extractedArtifacts = isNestedInSubAgent ? undefined : extractArtifacts(output);
@@ -494,4 +492,3 @@ function isStreamEvent(value: unknown): value is LangChainStreamEvent {
 function readString(value: unknown) {
   return typeof value === "string" && value.length > 0 ? value : undefined;
 }
-
