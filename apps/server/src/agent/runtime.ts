@@ -592,10 +592,21 @@ export function createAgentRunService(options: CreateAgentRuntimeOptions) {
           const imageBlocks = await Promise.all(
             run.attachments!.map(async (a) => {
               try {
-                const res = await fetch(a.url);
-                const buf = Buffer.from(await res.arrayBuffer());
-                const mime = a.mimeType || res.headers.get("content-type") || "image/png";
-                const b64 = buf.toString("base64");
+                let b64: string;
+                let mime: string;
+
+                // Handle data URIs directly (canvas-ref images) — no fetch needed
+                const dataUriMatch = a.url.match(/^data:([^;]+);base64,(.+)$/);
+                if (dataUriMatch) {
+                  mime = dataUriMatch[1]!;
+                  b64 = dataUriMatch[2]!;
+                } else {
+                  const res = await fetch(a.url);
+                  const buf = Buffer.from(await res.arrayBuffer());
+                  mime = a.mimeType || res.headers.get("content-type") || "image/png";
+                  b64 = buf.toString("base64");
+                }
+
                 downloaded.push({ assetId: a.assetId, mimeType: mime, base64: b64 });
                 return {
                   type: "image" as const,
