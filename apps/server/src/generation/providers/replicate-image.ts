@@ -48,71 +48,71 @@ const REPLICATE_IMAGE_MODELS: readonly ModelInfo[] = [
   {
     id: "google/nano-banana-pro",
     displayName: "Nano Banana Pro",
-    description: "Google's SOTA image generation & editing model. Supports up to 14 reference images, up to 4K resolution.",
+    description: "Google's SOTA image generation & editing model. Image input: up to 14 images. Up to 4K resolution. Best for multi-reference editing.",
     iconUrl: ICON_GOOGLE,
   },
   {
     id: "google/nano-banana-2",
     displayName: "Nano Banana 2",
-    description: "Fast image generation with conversational editing, multi-image fusion, and character consistency.",
+    description: "Fast image generation with conversational editing and character consistency. Image input: up to 14 images. Good for multi-image fusion.",
     iconUrl: ICON_GOOGLE,
   },
   {
     id: "google/nano-banana",
     displayName: "Nano Banana",
-    description: "Google's image editing model in Gemini 2.5. Best for editing & transformation tasks.",
+    description: "Google's image editing model in Gemini 2.5. Image input: up to 14 images. Best for editing & transformation tasks.",
     iconUrl: ICON_GOOGLE,
   },
   {
     id: "google/imagen-4",
     displayName: "Imagen 4",
-    description: "Google's Imagen 4 flagship text-to-image model. Generation only, no image input.",
+    description: "Google's Imagen 4 flagship text-to-image model. Image input: NONE (text-only). Best pure text-to-image quality.",
     iconUrl: ICON_GOOGLE,
   },
   // OpenAI
   {
     id: "openai/gpt-image-1.5",
     displayName: "GPT Image 1.5",
-    description: "OpenAI's latest image model with better instruction following. Supports image input, background transparency, and multiple outputs.",
+    description: "OpenAI's latest image model with better instruction following. Image input: multiple images. Supports background transparency.",
     iconUrl: ICON_OPENAI,
   },
   // Black Forest Labs
   {
     id: "black-forest-labs/flux-kontext-max",
     displayName: "Flux Kontext Max",
-    description: "Premium text-based image editing with maximum performance and improved typography generation. Single image input.",
+    description: "Premium text-based image editing with maximum performance and improved typography. Image input: 1 image only. Best for single-image editing.",
     iconUrl: ICON_BFL,
   },
   {
     id: "black-forest-labs/flux-kontext-pro",
     displayName: "Flux Kontext Pro",
-    description: "SOTA text-based image editing with excellent prompt following and consistent results. Single image input.",
+    description: "SOTA text-based image editing with excellent prompt following and consistent results. Image input: 1 image only. Best for single-image editing.",
     iconUrl: ICON_BFL,
   },
   // ByteDance
   {
     id: "bytedance/seedream-5-lite",
     displayName: "Seedream 5.0 Lite",
-    description: "Image generation with built-in reasoning, example-based editing, and deep domain knowledge. Up to 3K resolution.",
+    description: "Image generation with built-in reasoning and example-based editing. Image input: multiple images. Up to 3K resolution.",
     iconUrl: ICON_BYTEDANCE,
   },
   {
     id: "bytedance/seedream-4.5",
     displayName: "Seedream 4.5",
-    description: "Upgraded ByteDance model with stronger spatial understanding and world knowledge. Up to 4K resolution.",
+    description: "Upgraded ByteDance model with stronger spatial understanding. Image input: multiple images. Up to 4K resolution.",
     iconUrl: ICON_BYTEDANCE,
   },
   {
     id: "bytedance/seedream-4",
     displayName: "Seedream 4",
-    description: "Unified text-to-image generation and precise single-sentence editing at up to 4K resolution.",
+    description: "Unified text-to-image generation and precise editing. Image input: multiple images. Up to 4K resolution.",
     iconUrl: ICON_BYTEDANCE,
   },
   // Recraft
   {
     id: "recraft-ai/recraft-v3",
     displayName: "Recraft V3",
-    description: "SOTA text-to-image with long text rendering and wide style variety. No image input. Proven #1 by Artificial Analysis benchmark.",
+    description: "SOTA text-to-image with long text rendering and wide style variety. Image input: NONE (text-only). #1 by Artificial Analysis benchmark.",
     iconUrl: ICON_RECRAFT,
   },
 ];
