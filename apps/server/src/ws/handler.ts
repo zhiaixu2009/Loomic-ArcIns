@@ -273,7 +273,14 @@ async function handleRunCommand(
   }
   log.lap("ack_sent", { runId, connectionId, delivered: ackSent });
 
-  // Stream events to ALL connections viewing this canvas
+  // Stream events to ALL connections viewing this canvas.
+  // Send periodic keep-alive pings during long-running tool calls (e.g. image
+  // generation) to prevent Railway's proxy or the WS idle timeout from
+  // closing the connection while the agent is waiting for an external API.
+  const keepAlive = setInterval(() => {
+    connectionManager.sendTo(connectionId, { type: "keep-alive" });
+  }, 15_000);
+
   try {
     let firstEvent = true;
     for await (const event of agentRuns.streamRun(runId)) {
@@ -295,5 +302,7 @@ async function handleRunCommand(
       },
       timestamp: new Date().toISOString(),
     });
+  } finally {
+    clearInterval(keepAlive);
   }
 }

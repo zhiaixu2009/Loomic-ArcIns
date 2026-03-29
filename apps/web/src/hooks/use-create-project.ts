@@ -70,7 +70,7 @@ export function useCreateProject() {
       // Open the new tab synchronously within the user gesture so the
       // browser popup-blocker doesn't intervene. We'll set the real URL
       // once the API call returns.
-      const newTab = window.open("about:blank", "_blank");
+      const newTab = window.open("/loading-preview", "_blank");
 
       setCreating(true);
       try {
