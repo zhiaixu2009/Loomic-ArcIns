@@ -7,7 +7,7 @@ import {
 import { BootstrapError } from "../src/features/bootstrap/ensure-user-foundation.js";
 
 describe("createProjectService", () => {
-  it("calls ensureViewer before listing projects", async () => {
+  it("skips ensureViewer for read-only listProjects", async () => {
     const calls: string[] = [];
     const user = mockUser("user-1");
     const service = createProjectService({
@@ -26,7 +26,7 @@ describe("createProjectService", () => {
     });
 
     await service.listProjects(user);
-    expect(calls).toContain("ensureViewer");
+    expect(calls).not.toContain("ensureViewer");
   });
 
   it("calls ensureViewer before creating a project", async () => {
@@ -97,18 +97,18 @@ describe("createProjectService", () => {
 
     const result = await service.createProject(user, { name: "Test" });
 
-    expect(rpcCalls).toEqual([
-      {
-        name: "create_project_with_canvas",
-        params: {
-          p_workspace_id: "ws-1",
-          p_name: "Test",
-          p_slug: "test",
-          p_description: null,
-          p_canvas_name: "Main Canvas",
-        },
+    expect(rpcCalls).toHaveLength(1);
+    expect(rpcCalls[0]).toMatchObject({
+      name: "create_project_with_canvas",
+      params: {
+        p_workspace_id: "ws-1",
+        p_name: "Test",
+        p_description: null,
+        p_canvas_name: "Main Canvas",
       },
-    ]);
+    });
+    const slug = (rpcCalls[0] as any).params.p_slug;
+    expect(slug).toMatch(/^test-[a-z0-9]{6}$/);
     expect(result.id).toBe("proj-1");
     expect(result.primaryCanvas.id).toBe("canvas-1");
   });

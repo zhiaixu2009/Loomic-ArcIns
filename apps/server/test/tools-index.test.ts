@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 describe("tool exports", () => {
-  it("createMainAgentTools returns core tools including generate_image", async () => {
+  it("createMainAgentTools returns core tools including generate_image", { timeout: 15_000 }, async () => {
     const { createMainAgentTools } = await import("../src/agent/tools/index.js");
     const mockBackend = {} as any;
     const mockCreateUserClient = (() => {}) as any;

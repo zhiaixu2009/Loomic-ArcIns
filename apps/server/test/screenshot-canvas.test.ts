@@ -44,7 +44,7 @@ describe("screenshot_canvas tool", () => {
     const result = await resultPromise;
     expect(result.content).toEqual([
       { type: "text", text: "Canvas screenshot captured (1024x768, mode: full)" },
-      { type: "image_url", image_url: { url: "data:image/png;base64,iVBOR..." } },
+      { type: "image_url", image_url: { url: "data:image/png;base64,iVBOR...", detail: "high" } },
     ]);
 
     cm.dispose();

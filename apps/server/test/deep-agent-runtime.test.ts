@@ -1,73 +1,80 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
-import { BaseChatModel as BaseChatModelClass } from "@langchain/core/language_models/chat_models";
-import type { ChatResult } from "@langchain/core/outputs";
-import type { Runnable } from "@langchain/core/runnables";
-import { runCreateResponseSchema, streamEventSchema } from "@loomic/shared";
-import { AIMessage, type BaseMessage } from "langchain";
+import { streamEventSchema } from "@loomic/shared";
+import { AIMessage } from "langchain";
 
 import type { LoomicAgentFactory } from "../src/agent/deep-agent.js";
 import type { AgentPersistenceService } from "../src/agent/persistence/index.js";
 import type { AgentRunMetadataService } from "../src/features/agent-runs/agent-run-service.js";
-import type { ThreadService } from "../src/features/chat/thread-service.js";
-import { buildApp } from "../src/app.js";
+import { createAgentRunService } from "../src/agent/runtime.js";
+import type { StreamEvent } from "@loomic/shared";
 
-const appsUnderTest = new Set<Awaited<ReturnType<typeof buildApp>>>();
+const TEST_ENV = {
+  agentBackendMode: "state" as const,
+  agentModel: "test",
+  port: 3001,
+  version: "9.9.9-test",
+  webOrigin: "http://localhost:3000",
+};
 
-afterEach(async () => {
-  await Promise.all(
-    [...appsUnderTest].map(async (app) => {
-      appsUnderTest.delete(app);
-      await app.close();
-    }),
-  );
-});
+/** Collect all events from a streamRun generator. */
+async function collectEvents(
+  gen: AsyncGenerator<StreamEvent>,
+  options?: { onEvent?: (event: StreamEvent) => void },
+): Promise<StreamEvent[]> {
+  const events: StreamEvent[] = [];
+  for await (const event of gen) {
+    events.push(event);
+    options?.onEvent?.(event);
+  }
+  return events;
+}
 
 describe("deep-agent runtime integration", () => {
   it("starts a runtime-backed run and streams tool and text events", async () => {
-    const server = await startServer({
-      agentModel: new ScriptedToolModel([
-        {
-          content: "",
-          toolCalls: [
-            {
-              args: {
-                query: "foundation",
-              },
-              id: "tool_call_1",
-              name: "project_search",
+    const agentRuns = createAgentRunService({
+      agentFactory: () =>
+        createScriptedAgent([
+          {
+            event: "on_tool_start",
+            data: { input: { query: "foundation" } },
+            name: "project_search",
+            run_id: "tool_call_1",
+          },
+          {
+            event: "on_tool_end",
+            data: {
+              output: JSON.stringify({
+                matchCount: 1,
+                summary: "Found 1 workspace match",
+                matches: [{ path: "/workspace/docs/foundation.md", line: 1, text: "foundation" }],
+              }),
             },
-          ],
-        },
-        {
-          content: "Found the Loomic foundation docs.",
-        },
-      ]),
-      mockEventDelayMs: 5,
+            name: "project_search",
+            run_id: "tool_call_1",
+          },
+          {
+            event: "on_chat_model_end",
+            data: {
+              output: new AIMessage({
+                content: "Found the Loomic foundation docs.",
+                id: "message_2",
+              }),
+            },
+          },
+        ]),
+      env: TEST_ENV,
+      eventDelayMs: 5,
     });
 
-    const createResponse = await fetch(`${server.baseUrl}/api/agent/runs`, {
-      body: JSON.stringify({
-        conversationId: "conversation_123",
-        prompt: "Search the workspace for Loomic foundation docs",
-        sessionId: "session_123",
-      }),
-      headers: {
-        "content-type": "application/json",
-      },
-      method: "POST",
+    const created = agentRuns.createRun({
+      conversationId: "conversation_123",
+      prompt: "Search the workspace for Loomic foundation docs",
+      sessionId: "session_123",
     });
 
-    expect(createResponse.status).toBe(202);
-    const createdRun = runCreateResponseSchema.parse(
-      await createResponse.json(),
-    );
-    const eventsResponse = await fetch(
-      `${server.baseUrl}/api/agent/runs/${createdRun.runId}/events`,
-    );
-    const events = await collectSseEvents(eventsResponse);
-    const eventTypes = events.map((event) => event.type);
+    const events = await collectEvents(agentRuns.streamRun(created.runId));
+    const eventTypes = events.map((e) => e.type);
 
     expect(eventTypes).toEqual([
       "run.started",
@@ -77,11 +84,9 @@ describe("deep-agent runtime integration", () => {
       "run.completed",
     ]);
 
-    const toolStarted = events.find((event) => event.type === "tool.started");
-    const toolCompleted = events.find(
-      (event) => event.type === "tool.completed",
-    );
-    const messageDelta = events.find((event) => event.type === "message.delta");
+    const toolStarted = events.find((e) => e.type === "tool.started");
+    const toolCompleted = events.find((e) => e.type === "tool.completed");
+    const messageDelta = events.find((e) => e.type === "message.delta");
 
     if (
       !toolStarted ||
@@ -101,89 +106,74 @@ describe("deep-agent runtime integration", () => {
   });
 
   it("emits run.canceled when an active runtime-backed run is canceled", async () => {
-    const server = await startServer({
-      agentModel: new ScriptedToolModel([
-        {
-          content: "",
-          toolCalls: [
-            {
-              args: {
-                query: "foundation",
-              },
-              id: "tool_call_1",
-              name: "project_search",
+    const agentRuns = createAgentRunService({
+      agentFactory: () =>
+        createScriptedAgent([
+          {
+            event: "on_tool_start",
+            data: { input: { query: "foundation" } },
+            name: "project_search",
+            run_id: "tool_call_1",
+          },
+          {
+            event: "on_tool_end",
+            data: {
+              output: JSON.stringify({
+                matchCount: 1,
+                summary: "Found 1 workspace match",
+                matches: [{ path: "/workspace/docs/foundation.md", line: 1, text: "foundation" }],
+              }),
             },
-          ],
-        },
-        {
-          content: "Found the Loomic foundation docs.",
-        },
-      ]),
-      mockEventDelayMs: 20,
+            name: "project_search",
+            run_id: "tool_call_1",
+          },
+          {
+            event: "on_chat_model_end",
+            data: {
+              output: new AIMessage({
+                content: "Found the Loomic foundation docs.",
+                id: "message_2",
+              }),
+            },
+          },
+        ]),
+      env: TEST_ENV,
+      eventDelayMs: 50,
     });
 
-    const createResponse = await fetch(`${server.baseUrl}/api/agent/runs`, {
-      body: JSON.stringify({
-        conversationId: "conversation_123",
-        prompt: "Search the workspace for Loomic foundation docs",
-        sessionId: "session_123",
-      }),
-      headers: {
-        "content-type": "application/json",
-      },
-      method: "POST",
+    const created = agentRuns.createRun({
+      conversationId: "conversation_123",
+      prompt: "Search the workspace for Loomic foundation docs",
+      sessionId: "session_123",
     });
-    const createdRun = runCreateResponseSchema.parse(
-      await createResponse.json(),
-    );
-    const eventsResponse = await fetch(
-      `${server.baseUrl}/api/agent/runs/${createdRun.runId}/events`,
-    );
 
-    let canceled = false;
-    const events = await collectSseEvents(eventsResponse, {
-      onEvent: async (event) => {
-        if (event.type === "tool.started" && !canceled) {
-          canceled = true;
-          await fetch(
-            `${server.baseUrl}/api/agent/runs/${createdRun.runId}/cancel`,
-            {
-              method: "POST",
-            },
-          );
+    const events = await collectEvents(agentRuns.streamRun(created.runId), {
+      onEvent: (event) => {
+        if (event.type === "tool.started") {
+          agentRuns.cancelRun(created.runId);
         }
       },
     });
 
-    expect(events.map((event) => event.type)).toContain("run.canceled");
-    expect(events.map((event) => event.type)).not.toContain("run.completed");
+    expect(events.map((e) => e.type)).toContain("run.canceled");
+    expect(events.map((e) => e.type)).not.toContain("run.completed");
   });
 
   it("emits run.failed when the runtime cannot create an agent stream", async () => {
-    const server = await startServer({
-      createAgent: () => {
+    const agentRuns = createAgentRunService({
+      agentFactory: () => {
         throw new Error("agent factory exploded");
       },
+      env: TEST_ENV,
     });
 
-    const createResponse = await fetch(`${server.baseUrl}/api/agent/runs`, {
-      body: JSON.stringify({
-        conversationId: "conversation_123",
-        prompt: "Search the workspace for Loomic foundation docs",
-        sessionId: "session_123",
-      }),
-      headers: {
-        "content-type": "application/json",
-      },
-      method: "POST",
+    const created = agentRuns.createRun({
+      conversationId: "conversation_123",
+      prompt: "Search the workspace for Loomic foundation docs",
+      sessionId: "session_123",
     });
-    const createdRun = runCreateResponseSchema.parse(
-      await createResponse.json(),
-    );
-    const eventsResponse = await fetch(
-      `${server.baseUrl}/api/agent/runs/${createdRun.runId}/events`,
-    );
-    const events = await collectSseEvents(eventsResponse);
+
+    const events = await collectEvents(agentRuns.streamRun(created.runId));
     const failedEvent = events.at(-1);
 
     if (!failedEvent || failedEvent.type !== "run.failed") {
@@ -205,13 +195,11 @@ describe("deep-agent runtime integration", () => {
     const persistenceService = {
       getPersistence: vi.fn().mockResolvedValue({ checkpointer, store }),
     } satisfies AgentPersistenceService;
-    const authUser = stubUser();
 
-    const server = await startServer({
+    const agentRuns = createAgentRunService({
       agentPersistenceService: persistenceService,
       agentRunMetadataService: createAgentRunMetadataServiceStub({}),
-      auth: createAuthStub(authUser),
-      createAgent: (options) => {
+      agentFactory: (options) => {
         capturedAgentOptions.push({
           checkpointer: options.checkpointer,
           store: options.store,
@@ -220,32 +208,19 @@ describe("deep-agent runtime integration", () => {
           capturedConfigs.push(config as Record<string, unknown>);
         });
       },
-      threadService: createThreadServiceStub({
-        sessionId: "session_123",
-        threadId: "thread_stable",
-      }),
+      env: TEST_ENV,
     });
 
     for (let index = 0; index < 2; index += 1) {
-      const createResponse = await fetch(`${server.baseUrl}/api/agent/runs`, {
-        body: JSON.stringify({
+      const created = agentRuns.createRun(
+        {
           conversationId: "conversation_123",
           prompt: `Prompt ${index + 1}`,
           sessionId: "session_123",
-        }),
-        headers: {
-          authorization: `Bearer ${authUser.accessToken}`,
-          "content-type": "application/json",
         },
-        method: "POST",
-      });
-      const createdRun = runCreateResponseSchema.parse(
-        await createResponse.json(),
+        { threadId: "thread_stable" },
       );
-      const eventsResponse = await fetch(
-        `${server.baseUrl}/api/agent/runs/${createdRun.runId}/events`,
-      );
-      await collectSseEvents(eventsResponse);
+      await collectEvents(agentRuns.streamRun(created.runId));
     }
 
     expect(capturedAgentOptions).toEqual([
@@ -268,9 +243,8 @@ describe("deep-agent runtime integration", () => {
 
   it("updates persisted run metadata when a threaded run completes", async () => {
     const persistedUpdates: Array<{ runId: string; status: string }> = [];
-    const authUser = stubUser();
 
-    const server = await startServer({
+    const agentRuns = createAgentRunService({
       agentPersistenceService: {
         async getPersistence() {
           return {
@@ -287,8 +261,7 @@ describe("deep-agent runtime integration", () => {
           });
         },
       }),
-      auth: createAuthStub(authUser),
-      createAgent: () =>
+      agentFactory: () =>
         createRawEventAgent([
           {
             data: {
@@ -300,36 +273,26 @@ describe("deep-agent runtime integration", () => {
             event: "on_chat_model_end",
           },
         ]),
-      mockEventDelayMs: 5,
-      threadService: createThreadServiceStub({
-        sessionId: "session_123",
-        threadId: "thread_stable",
-      }),
+      env: TEST_ENV,
+      eventDelayMs: 5,
     });
 
-    const createResponse = await fetch(`${server.baseUrl}/api/agent/runs`, {
-      body: JSON.stringify({
+    const created = agentRuns.createRun(
+      {
         conversationId: "conversation_123",
         prompt: "Persist status",
         sessionId: "session_123",
-      }),
-      headers: {
-        authorization: `Bearer ${authUser.accessToken}`,
-        "content-type": "application/json",
       },
-      method: "POST",
-    });
-    const createdRun = runCreateResponseSchema.parse(await createResponse.json());
-    const eventsResponse = await fetch(
-      `${server.baseUrl}/api/agent/runs/${createdRun.runId}/events`,
+      { threadId: "thread_stable" },
     );
-    const events = await collectSseEvents(eventsResponse);
 
-    expect(events.map((event) => event.type)).toContain("run.completed");
+    const events = await collectEvents(agentRuns.streamRun(created.runId));
+
+    expect(events.map((e) => e.type)).toContain("run.completed");
     expect(persistedUpdates).toEqual(
       expect.arrayContaining([
-        { runId: createdRun.runId, status: "running" },
-        { runId: createdRun.runId, status: "completed" },
+        { runId: created.runId, status: "running" },
+        { runId: created.runId, status: "completed" },
       ]),
     );
   });
@@ -337,30 +300,25 @@ describe("deep-agent runtime integration", () => {
   it("passes canvasId and accessToken into agent configurable", async () => {
     const capturedConfigs: Array<Record<string, unknown>> = [];
 
-    const server = await startServer({
-      createAgent: () =>
+    const agentRuns = createAgentRunService({
+      agentFactory: () =>
         createEmptyAgent((config) => {
           capturedConfigs.push(config as Record<string, unknown>);
         }),
+      env: TEST_ENV,
     });
 
-    const createResponse = await fetch(`${server.baseUrl}/api/agent/runs`, {
-      body: JSON.stringify({
+    const created = agentRuns.createRun(
+      {
         canvasId: "canvas-abc",
         conversationId: "conversation_123",
         prompt: "test canvas context",
         sessionId: "session_123",
-      }),
-      headers: {
-        "content-type": "application/json",
       },
-      method: "POST",
-    });
-    const createdRun = runCreateResponseSchema.parse(await createResponse.json());
-    const eventsResponse = await fetch(
-      `${server.baseUrl}/api/agent/runs/${createdRun.runId}/events`,
+      { accessToken: "test-token" },
     );
-    await collectSseEvents(eventsResponse);
+
+    await collectEvents(agentRuns.streamRun(created.runId));
 
     expect(capturedConfigs.length).toBeGreaterThan(0);
     expect(capturedConfigs[0]).toMatchObject({
@@ -371,39 +329,26 @@ describe("deep-agent runtime integration", () => {
   });
 
   it("emits run.failed when threaded persistence initialization fails", async () => {
-    const authUser = stubUser();
-
-    const server = await startServer({
+    const agentRuns = createAgentRunService({
       agentPersistenceService: {
         async getPersistence() {
           throw new Error("persistence exploded");
         },
       },
       agentRunMetadataService: createAgentRunMetadataServiceStub({}),
-      auth: createAuthStub(authUser),
-      threadService: createThreadServiceStub({
-        sessionId: "session_123",
-        threadId: "thread_stable",
-      }),
+      env: TEST_ENV,
     });
 
-    const createResponse = await fetch(`${server.baseUrl}/api/agent/runs`, {
-      body: JSON.stringify({
+    const created = agentRuns.createRun(
+      {
         conversationId: "conversation_123",
         prompt: "Persist status",
         sessionId: "session_123",
-      }),
-      headers: {
-        authorization: `Bearer ${authUser.accessToken}`,
-        "content-type": "application/json",
       },
-      method: "POST",
-    });
-    const createdRun = runCreateResponseSchema.parse(await createResponse.json());
-    const eventsResponse = await fetch(
-      `${server.baseUrl}/api/agent/runs/${createdRun.runId}/events`,
+      { threadId: "thread_stable" },
     );
-    const events = await collectSseEvents(eventsResponse);
+
+    const events = await collectEvents(agentRuns.streamRun(created.runId));
     const failedEvent = events.at(-1);
 
     if (!failedEvent || failedEvent.type !== "run.failed") {
@@ -413,83 +358,6 @@ describe("deep-agent runtime integration", () => {
     expect(failedEvent.error.message).toBe("persistence exploded");
   });
 });
-
-async function startServer(options: {
-  agentPersistenceService?: AgentPersistenceService;
-  agentRunMetadataService?: AgentRunMetadataService;
-  agentModel?: BaseChatModel;
-  auth?: { authenticate(request: { headers: { authorization?: string } }): Promise<ReturnType<typeof stubUser> | null> };
-  createAgent?: LoomicAgentFactory;
-  mockEventDelayMs?: number;
-  threadService?: ThreadService;
-}) {
-  const app = buildApp({
-    ...(options.agentPersistenceService
-      ? { agentPersistenceService: options.agentPersistenceService }
-      : {}),
-    ...(options.agentRunMetadataService
-      ? { agentRunMetadataService: options.agentRunMetadataService }
-      : {}),
-    ...(options.auth ? { auth: options.auth } : {}),
-    env: {
-      port: 3001,
-      version: "9.9.9-test",
-      webOrigin: "http://localhost:3000",
-    },
-    ...(options.createAgent ? { agentFactory: options.createAgent } : {}),
-    ...(options.agentModel ? { agentModel: options.agentModel } : {}),
-    ...(options.mockEventDelayMs === undefined
-      ? {}
-      : { mockEventDelayMs: options.mockEventDelayMs }),
-    ...(options.threadService ? { threadService: options.threadService } : {}),
-  });
-  appsUnderTest.add(app);
-
-  await app.listen({ host: "127.0.0.1", port: 0 });
-  const address = app.server.address();
-
-  if (!address || typeof address === "string") {
-    throw new Error("Expected TCP server address");
-  }
-
-  return {
-    app,
-    baseUrl: `http://127.0.0.1:${address.port}`,
-  };
-}
-
-function stubUser() {
-  return {
-    accessToken: "runtime-test-token",
-    email: "user@example.com",
-    id: "user-1",
-    userMetadata: {},
-  };
-}
-
-function createAuthStub(user: ReturnType<typeof stubUser>) {
-  return {
-    async authenticate(request: { headers: { authorization?: string } }) {
-      return request.headers.authorization === `Bearer ${user.accessToken}`
-        ? user
-        : null;
-    },
-  };
-}
-
-function createThreadServiceStub(input: {
-  sessionId: string;
-  threadId: string;
-}): ThreadService {
-  return {
-    createThreadId() {
-      return input.threadId;
-    },
-    async resolveOwnedSessionThread() {
-      return input;
-    },
-  };
-}
 
 function createAgentRunMetadataServiceStub(options: {
   onUpdate?: (input: { runId: string; status: string }) => void;
@@ -532,111 +400,17 @@ function createRawEventAgent(
   } as unknown as ReturnType<LoomicAgentFactory>;
 }
 
-async function collectSseEvents(
-  response: Response,
-  options?: {
-    onEvent?: (
-      event: ReturnType<typeof streamEventSchema.parse>,
-    ) => Promise<void>;
-  },
-) {
-  if (!response.body) {
-    throw new Error("Expected response body");
-  }
-
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  const events: ReturnType<typeof streamEventSchema.parse>[] = [];
-  let buffer = "";
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) {
-      break;
-    }
-
-    buffer += decoder.decode(value, { stream: true });
-
-    while (buffer.includes("\n\n")) {
-      const boundary = buffer.indexOf("\n\n");
-      const frame = buffer.slice(0, boundary);
-      buffer = buffer.slice(boundary + 2);
-
-      const dataLine = frame
-        .split("\n")
-        .find((line) => line.startsWith("data: "));
-
-      if (!dataLine) {
-        continue;
-      }
-
-      const event = streamEventSchema.parse(JSON.parse(dataLine.slice(6)));
-      events.push(event);
-
-      if (options?.onEvent) {
-        await options.onEvent(event);
-      }
-    }
-  }
-
-  return events;
-}
-
-type ScriptedResponse = {
-  content: string;
-  toolCalls?: Array<{
-    args: Record<string, unknown>;
-    id: string;
-    name: string;
-  }>;
-};
-
-class ScriptedToolModel extends BaseChatModelClass {
-  private currentIndex = 0;
-
-  constructor(private readonly script: ScriptedResponse[]) {
-    super({});
-  }
-
-  _llmType() {
-    return "scripted-tool-model";
-  }
-
-  _combineLLMOutput() {
-    return [];
-  }
-
-  bindTools(): Runnable {
-    return this;
-  }
-
-  async _generate(_messages: BaseMessage[]): Promise<ChatResult> {
-    const response = this.script[this.currentIndex] ?? {
-      content: "",
-    };
-    this.currentIndex += 1;
-
-    const message = new AIMessage({
-      content: response.content,
-      id: `message_${this.currentIndex}`,
-      ...(response.toolCalls
-        ? {
-            tool_calls: response.toolCalls.map((toolCall) => ({
-              ...toolCall,
-              type: "tool_call" as const,
-            })),
-          }
-        : {}),
-    });
-
-    return {
-      generations: [
-        {
-          message,
-          text: response.content,
-        },
-      ],
-      llmOutput: {},
-    };
-  }
+function createScriptedAgent(
+  events: Array<Record<string, unknown>>,
+): ReturnType<LoomicAgentFactory> {
+  return {
+    stream: undefined,
+    streamEvents() {
+      return (async function* () {
+        for (const event of events) {
+          yield event;
+        }
+      })() as never;
+    },
+  } as unknown as ReturnType<LoomicAgentFactory>;
 }
