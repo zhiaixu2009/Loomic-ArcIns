@@ -30,7 +30,11 @@ export function useWebSocket(
   getToken: () => string | null,
 ): WebSocketHandle {
   const wsRef = useRef<WebSocket | null>(null);
-  const connectionIdRef = useRef(crypto.randomUUID());
+  const connectionIdRef = useRef(
+    typeof crypto !== "undefined" && crypto.randomUUID
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+  );
   const [connected, setConnected] = useState(false);
   const reconnectAttempt = useRef(0);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
