@@ -1,6 +1,8 @@
 import { tool } from "langchain";
 import { z } from "zod";
 
+import { randomUUID } from "node:crypto";
+
 import { generateImage } from "../../generation/image-generation.js";
 import {
   getAvailableImageModels,
@@ -125,6 +127,14 @@ export type PersistImageFn = (
 ) => Promise<string>;
 
 /**
+ * Upload data URIs to temporary storage and return public https:// URLs.
+ * Replicate and other providers require real HTTP URLs, not data URIs.
+ */
+export type UploadDataUriFn = (
+  dataUri: string,
+) => Promise<string>;
+
+/**
  * Submit an image generation job and wait for it to complete.
  * Returns the final result: signed_url on success, error on failure.
  */
@@ -148,6 +158,7 @@ export async function runImageGenerate(
   persistImage?: PersistImageFn,
   submitImageJob?: SubmitImageJobFn,
   attachmentMap?: Record<string, string>,
+  uploadDataUri?: UploadDataUriFn,
 ): Promise<ImageGenerateResult> {
   // Resolve assetId references in inputImages to base64 data URIs
   if (input.inputImages?.length && attachmentMap) {
@@ -157,6 +168,19 @@ export async function runImageGenerate(
         attachmentMap[ref] ?? ref,
       ),
     };
+  }
+
+  // Convert data URIs to public https:// URLs (Replicate rejects data URIs)
+  if (input.inputImages?.length && uploadDataUri) {
+    const resolved = await Promise.all(
+      input.inputImages.map(async (img) => {
+        if (img.startsWith("data:")) {
+          return uploadDataUri(img);
+        }
+        return img;
+      }),
+    );
+    input = { ...input, inputImages: resolved };
   }
 
   // Job mode: submit to PGMQ and wait for worker to complete
@@ -253,6 +277,7 @@ export async function runImageGenerate(
 export function createImageGenerateTool(deps?: {
   persistImage?: PersistImageFn;
   submitImageJob?: SubmitImageJobFn;
+  uploadDataUri?: UploadDataUriFn;
   /** Override for testing — defaults to querying the provider registry. */
   availableModels?: AvailableModel[];
 }) {
@@ -272,6 +297,7 @@ export function createImageGenerateTool(deps?: {
         deps?.persistImage,
         deps?.submitImageJob,
         attachmentMap,
+        deps?.uploadDataUri,
       );
     },
     {

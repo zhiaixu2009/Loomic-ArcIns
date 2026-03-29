@@ -4,6 +4,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import type { BaseLanguageModel } from "@langchain/core/language_models/base";
 import { HumanMessage } from "@langchain/core/messages";
 import type {
+  ImageAttachment,
   ImageGenerationPreference,
   MessageMention,
   RunCancelResponse,
@@ -34,47 +35,64 @@ import { adaptDeepAgentStream } from "./stream-adapter.js";
  */
 export function buildUserMessage(
   prompt: string,
-  attachments: Array<{
-    assetId: string;
-    url: string;
-    mimeType: string;
-    name?: string;
-  }>,
+  attachments: ImageAttachment[],
   imageGenerationPreference?: ImageGenerationPreference,
   mentions: MessageMention[] = [],
 ): { text: string } {
   const xmlBlocks: string[] = [];
 
-  if (attachments.length) {
-    const imageXml = attachments
-      .map((a, i) => {
-        const nameAttr = a.name
-          ? ` name="${escapeXmlAttribute(a.name)}"`
-          : "";
-        return `<image index="${i + 1}" asset_id="${escapeXmlAttribute(a.assetId)}" mime_type="${escapeXmlAttribute(a.mimeType)}"${nameAttr} />`;
-      })
-      .join("\n  ");
+  const inputImagesXml = buildInputImagesXml(attachments);
+  if (inputImagesXml) xmlBlocks.push(inputImagesXml);
 
-    xmlBlocks.push(
-      `<input_images count="${attachments.length}">\n  ${imageXml}\n</input_images>`,
-    );
-  }
+  const imageGenerationPreferenceXml = buildImageGenerationPreferenceXml(
+    imageGenerationPreference,
+  );
+  if (imageGenerationPreferenceXml) xmlBlocks.push(imageGenerationPreferenceXml);
 
+  const mentionXmlBlocks = buildMentionXmlBlocks(mentions);
+  xmlBlocks.push(...mentionXmlBlocks);
+
+  if (!xmlBlocks.length) return { text: prompt };
+  return { text: `${prompt}\n\n${xmlBlocks.join("\n\n")}` };
+}
+
+function buildInputImagesXml(attachments: ImageAttachment[]): string | null {
+  if (attachments.length === 0) return null;
+
+  const imageXml = attachments
+    .map((attachment, i) => {
+      const nameAttr = attachment.name
+        ? ` name="${escapeXmlAttribute(attachment.name)}"`
+        : "";
+      return `<image index="${i + 1}" asset_id="${escapeXmlAttribute(attachment.assetId)}" mime_type="${escapeXmlAttribute(attachment.mimeType)}"${nameAttr} />`;
+    })
+    .join("\n  ");
+
+  return `<input_images count="${attachments.length}">\n  ${imageXml}\n</input_images>`;
+}
+
+function buildImageGenerationPreferenceXml(
+  imageGenerationPreference?: ImageGenerationPreference,
+): string | null {
   if (
-    imageGenerationPreference?.mode === "manual" &&
-    imageGenerationPreference.models.length > 0
+    imageGenerationPreference?.mode !== "manual" ||
+    imageGenerationPreference.models.length === 0
   ) {
-    const modelXml = imageGenerationPreference.models
-      .map(
-        (model, i) =>
-          `<preferred_model index="${i + 1}" id="${escapeXmlAttribute(model)}" />`,
-      )
-      .join("\n  ");
-
-    xmlBlocks.push(
-      `<human_image_generation_preference mode="manual" count="${imageGenerationPreference.models.length}">\n  ${modelXml}\n</human_image_generation_preference>`,
-    );
+    return null;
   }
+
+  const modelXml = imageGenerationPreference.models
+    .map(
+      (model, i) =>
+        `<preferred_model index="${i + 1}" id="${escapeXmlAttribute(model)}" />`,
+    )
+    .join("\n  ");
+
+  return `<human_image_generation_preference mode="manual" count="${imageGenerationPreference.models.length}">\n  ${modelXml}\n</human_image_generation_preference>`;
+}
+
+function buildMentionXmlBlocks(mentions: MessageMention[]): string[] {
+  const xmlBlocks: string[] = [];
 
   const mentionedModels = mentions.filter(
     (mention): mention is Extract<MessageMention, { mentionType: "image-model" }> =>
@@ -119,8 +137,7 @@ export function buildUserMessage(
     );
   }
 
-  if (!xmlBlocks.length) return { text: prompt };
-  return { text: `${prompt}\n\n${xmlBlocks.join("\n\n")}` };
+  return xmlBlocks;
 }
 
 function escapeXmlAttribute(value: string): string {
@@ -455,6 +472,42 @@ export function createAgentRunService(options: CreateAgentRuntimeOptions) {
           };
         }
 
+        // Build uploadDataUri closure to convert data URIs → public https URLs.
+        // Replicate and other providers reject data URIs in image_input fields.
+        let uploadDataUri: ((dataUri: string) => Promise<string>) | undefined;
+        if (options.createUserClient && run.accessToken) {
+          const createClient = options.createUserClient;
+          const accessToken = run.accessToken;
+          uploadDataUri = async (dataUri: string) => {
+            const match = dataUri.match(/^data:([^;]+);base64,(.+)$/);
+            if (!match) throw new Error("Invalid data URI format");
+            const mimeType = match[1]!;
+            const buffer = Buffer.from(match[2]!, "base64");
+            const ext = mimeType.includes("webp") ? "webp" : mimeType.includes("jpeg") || mimeType.includes("jpg") ? "jpg" : "png";
+            const fileName = `ref-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+
+            const client = createClient(accessToken) as UserSupabaseClient;
+            const { data: ws } = await client
+              .from("workspaces")
+              .select("id")
+              .eq("type", "personal")
+              .limit(1)
+              .single();
+            const workspaceId = ws?.id ?? "default";
+            const objectPath = `${workspaceId}/ref-images/${fileName}`;
+
+            const { error: uploadError } = await client.storage
+              .from("project-assets")
+              .upload(objectPath, buffer, { contentType: mimeType, upsert: false });
+            if (uploadError) throw new Error(`Upload failed: ${uploadError.message}`);
+
+            const { data: urlData } = client.storage
+              .from("project-assets")
+              .getPublicUrl(objectPath);
+            return urlData.publicUrl;
+          };
+        }
+
         // Resolve brand kit ID from canvas → project in a single joined query
         let brandKitId: string | null = null;
         if (run.canvasId && run.accessToken && options.createUserClient) {
@@ -501,6 +554,7 @@ export function createAgentRunService(options: CreateAgentRuntimeOptions) {
           ...(resolvedModel ? { model: resolvedModel } : {}),
           ...(persistImage ? { persistImage } : {}),
           ...(submitImageJob ? { submitImageJob } : {}),
+          ...(uploadDataUri ? { uploadDataUri } : {}),
           ...(persistence ? { store: persistence.store } : {}),
         });
         rlog.lap("agent_factory_done");

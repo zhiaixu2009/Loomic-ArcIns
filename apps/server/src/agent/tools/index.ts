@@ -9,6 +9,7 @@ import {
   createImageGenerateTool,
   type PersistImageFn,
   type SubmitImageJobFn,
+  type UploadDataUriFn,
 } from "./image-generate.js";
 import { createProjectSearchTool } from "./project-search.js";
 import { createScreenshotCanvasTool } from "./screenshot-canvas.js";
@@ -27,6 +28,7 @@ export function createMainAgentTools(
     connectionManager?: ConnectionManager;
     persistImage?: PersistImageFn;
     submitImageJob?: SubmitImageJobFn;
+    uploadDataUri?: UploadDataUriFn;
   },
 ) {
   const tools: StructuredTool[] = [
@@ -36,6 +38,7 @@ export function createMainAgentTools(
     createImageGenerateTool({
       ...(deps.persistImage ? { persistImage: deps.persistImage } : {}),
       ...(deps.submitImageJob ? { submitImageJob: deps.submitImageJob } : {}),
+      ...(deps.uploadDataUri ? { uploadDataUri: deps.uploadDataUri } : {}),
     }),
   ];
   if (deps.brandKitId) {
