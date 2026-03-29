@@ -340,6 +340,11 @@ export function createAgentRunService(options: CreateAgentRuntimeOptions) {
         const canvasId = run.canvasId;
 
         submitImageJob = async (input) => {
+          const jobT0 = Date.now();
+          const jobLap = (label: string, extra?: Record<string, unknown>) => {
+            console.log(`[submitImageJob] ${label} +${Date.now() - jobT0}ms`, extra ? JSON.stringify(extra) : "");
+          };
+
           // Look up personal workspace directly — the viewer is already
           // bootstrapped from the normal auth flow, so we skip ensureViewer
           // to avoid its strict email validation on the profile schema.
@@ -370,14 +375,17 @@ export function createAgentRunService(options: CreateAgentRuntimeOptions) {
               ...(input.inputImages ? { input_images: input.inputImages } : {}),
             },
           });
+          jobLap("job_created", { jobId: job.id });
 
           // Poll until terminal state
           const POLL_INTERVAL = 2000;
           const MAX_WAIT = 120_000; // 2 minutes
           const start = Date.now();
+          let pollCount = 0;
 
           while (Date.now() - start < MAX_WAIT) {
             await delay(POLL_INTERVAL);
+            pollCount++;
 
             if (run.controller.signal.aborted) {
               throw new Error("Run was canceled");
@@ -392,6 +400,7 @@ export function createAgentRunService(options: CreateAgentRuntimeOptions) {
                 height?: number;
                 mime_type?: string;
               };
+              jobLap("job_poll_done", { pollCount, status: "succeeded" });
               return {
                 jobId: job.id,
                 imageUrl: result.signed_url ?? "",
@@ -402,6 +411,7 @@ export function createAgentRunService(options: CreateAgentRuntimeOptions) {
             }
 
             if (current.status === "dead_letter" || current.status === "canceled") {
+              jobLap("job_poll_done", { pollCount, status: current.status });
               return {
                 jobId: job.id,
                 error: current.error_message ?? `Job ${current.status}`,
@@ -413,6 +423,7 @@ export function createAgentRunService(options: CreateAgentRuntimeOptions) {
               current.status === "failed" &&
               current.attempt_count >= current.max_attempts
             ) {
+              jobLap("job_poll_done", { pollCount, status: "failed_max_retries" });
               return {
                 jobId: job.id,
                 error: current.error_message ?? "Job failed after max retries",
@@ -420,6 +431,7 @@ export function createAgentRunService(options: CreateAgentRuntimeOptions) {
             }
           }
 
+          jobLap("job_poll_done", { pollCount, status: "timeout" });
           return {
             jobId: job.id,
             error: `Job timed out after ${MAX_WAIT / 1000}s`,

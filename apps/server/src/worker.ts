@@ -126,6 +126,7 @@ async function processMessage(
     return;
   }
 
+  const startTime = Date.now();
   console.log(`${tag} Processing job ${jobId} (${jobType})`);
 
   const executor = getExecutor(jobType);
@@ -146,7 +147,7 @@ async function processMessage(
     const result = await executor(jobId, msg.message as Record<string, unknown>, ctx);
     await ctx.jobService.markSucceeded(jobId, result);
     await ctx.pgmq.deleteMsg(queue, msg.msg_id);
-    console.log(`${tag} Job ${jobId} succeeded`);
+    console.log(`${tag} Job ${jobId} succeeded +${Date.now() - startTime}ms`);
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : String(err);
     const errorCode = (err as { code?: string })?.code ?? "executor_error";
@@ -154,11 +155,11 @@ async function processMessage(
     if (attempt_count >= max_attempts) {
       await ctx.jobService.markDeadLetter(jobId, errorCode, errorMessage);
       await ctx.pgmq.archive(queue, msg.msg_id);
-      console.error(`${tag} Job ${jobId} dead-lettered after ${attempt_count} attempts: ${errorMessage}`);
+      console.error(`${tag} Job ${jobId} dead-lettered after ${attempt_count} attempts +${Date.now() - startTime}ms: ${errorMessage}`);
     } else {
       await ctx.jobService.markFailed(jobId, errorCode, errorMessage);
       // Message will re-appear after VT expires for retry
-      console.warn(`${tag} Job ${jobId} failed (attempt ${attempt_count}/${max_attempts}): ${errorMessage}`);
+      console.warn(`${tag} Job ${jobId} failed (attempt ${attempt_count}/${max_attempts}) +${Date.now() - startTime}ms: ${errorMessage}`);
     }
   }
 }

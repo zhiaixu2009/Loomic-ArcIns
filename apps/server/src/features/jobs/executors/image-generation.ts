@@ -3,6 +3,10 @@ import { generateImage } from "../../../generation/image-generation.js";
 import { resolveImageProviderName } from "../../../generation/providers/registry.js";
 
 registerExecutor("image_generation", async (jobId, _rawPayload, ctx: ExecutorContext) => {
+  const t0 = Date.now();
+  const tag = `[image-job:${jobId.slice(0, 8)}]`;
+  const lap = (label: string) => console.log(`${tag} ${label} +${Date.now() - t0}ms`);
+
   // Read the full job row including payload from the database.
   // The PGMQ message only contains { job_id, job_type, workspace_id },
   // so we must fetch prompt/model/aspect_ratio from background_jobs.payload.
@@ -14,6 +18,7 @@ registerExecutor("image_generation", async (jobId, _rawPayload, ctx: ExecutorCon
     .single();
 
   if (!jobRow) throw new Error(`Job ${jobId} not found in database`);
+  lap("db_fetch");
 
   const payload = (jobRow.payload ?? {}) as {
     prompt: string;
@@ -39,12 +44,14 @@ registerExecutor("image_generation", async (jobId, _rawPayload, ctx: ExecutorCon
 
   try {
     // Generate image via the registered provider
+    lap("replicate_call_start");
     const generated = await generateImage(providerName, {
       prompt: payload.prompt,
       model,
       ...(payload.aspect_ratio !== undefined ? { aspectRatio: payload.aspect_ratio } : {}),
       ...(payload.input_images?.length ? { inputImages: payload.input_images } : {}),
     });
+    lap("replicate_call_done");
 
     // Download the generated image from the provider CDN
     const response = await fetch(generated.url);
@@ -53,6 +60,7 @@ registerExecutor("image_generation", async (jobId, _rawPayload, ctx: ExecutorCon
     }
     const arrayBuffer = await response.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
+    lap("image_download_done");
 
     // Upload to Supabase Storage under the project-assets bucket
     const timestamp = Date.now();
@@ -68,6 +76,7 @@ registerExecutor("image_generation", async (jobId, _rawPayload, ctx: ExecutorCon
     if (uploadError) {
       throw new Error(`Storage upload failed: ${uploadError.message}`);
     }
+    lap("storage_upload_done");
 
     // Insert asset_objects record — only include created_by if we have a valid user UUID
     const { data: assetRow, error: assetError } = await admin
@@ -89,11 +98,14 @@ registerExecutor("image_generation", async (jobId, _rawPayload, ctx: ExecutorCon
       );
     }
 
+    lap("asset_record_done");
+
     // Generate a public URL for the result consumer
     const { data: urlData } = admin.storage
       .from("project-assets")
       .getPublicUrl(objectPath);
 
+    lap("total");
     return {
       asset_id: (assetRow as { id: string }).id,
       signed_url: urlData.publicUrl,

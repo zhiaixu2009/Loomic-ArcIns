@@ -160,6 +160,11 @@ export async function runImageGenerate(
   attachmentMap?: Record<string, string>,
   uploadDataUri?: UploadDataUriFn,
 ): Promise<ImageGenerateResult> {
+  const t0 = Date.now();
+  const lap = (label: string, extra?: Record<string, unknown>) => {
+    console.log(`[generate_image] ${label} +${Date.now() - t0}ms`, extra ? JSON.stringify(extra) : "");
+  };
+
   // Resolve assetId references in inputImages to base64 data URIs
   if (input.inputImages?.length && attachmentMap) {
     input = {
@@ -172,6 +177,7 @@ export async function runImageGenerate(
 
   // Convert data URIs to public https:// URLs (Replicate rejects data URIs)
   if (input.inputImages?.length && uploadDataUri) {
+    lap("data_uri_upload_start", { count: input.inputImages.filter((i) => i.startsWith("data:")).length });
     const resolved = await Promise.all(
       input.inputImages.map(async (img) => {
         if (img.startsWith("data:")) {
@@ -181,11 +187,13 @@ export async function runImageGenerate(
       }),
     );
     input = { ...input, inputImages: resolved };
+    lap("data_uri_upload_done");
   }
 
   // Job mode: submit to PGMQ and wait for worker to complete
   if (submitImageJob) {
     try {
+      lap("job_submit", { model: input.model });
       const jobResult = await submitImageJob({
         prompt: input.prompt,
         title: input.title,
@@ -195,11 +203,13 @@ export async function runImageGenerate(
       });
 
       if (jobResult.error) {
+        lap("job_failed", { error: jobResult.error });
         return {
           summary: `Image generation failed: ${jobResult.error}`,
           error: jobResult.error,
         };
       }
+      lap("job_complete", { jobId: jobResult.jobId });
 
       const result: ImageGenerateResult = {
         summary: `Generated image (${jobResult.width ?? 0}x${jobResult.height ?? 0}) via ${input.model}`,
@@ -229,6 +239,7 @@ export async function runImageGenerate(
 
   // Direct generation: resolve provider from model ID via registry
   try {
+    lap("direct_generate_start", { model: input.model });
     const providerName = resolveImageProviderName(input.model);
     const result = await generateImage(providerName, {
       prompt: input.prompt,
@@ -238,11 +249,13 @@ export async function runImageGenerate(
       ...(input.outputFormat ? { outputFormat: input.outputFormat as any } : {}),
       ...(input.inputImages?.length ? { inputImages: input.inputImages } : {}),
     });
+    lap("direct_generate_done", { width: result.width, height: result.height });
 
     let imageUrl = result.url;
     if (persistImage) {
       try {
         imageUrl = await persistImage(result.url, result.mimeType, input.prompt);
+        lap("persist_image_done");
       } catch {
         // Fall back to ephemeral URL if upload fails
       }
