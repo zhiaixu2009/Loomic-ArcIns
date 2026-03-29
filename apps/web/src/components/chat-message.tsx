@@ -614,17 +614,28 @@ function ToolBlockView({ block }: { block: ToolBlock }) {
             />
             {/* Gradient overlay with download button */}
             <div className="absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
-              <a
-                href={imageArtifact.url}
-                download
-                onClick={(e) => e.stopPropagation()}
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  fetch(imageArtifact.url)
+                    .then((res) => res.blob())
+                    .then((blob) => {
+                      const a = document.createElement("a");
+                      a.href = URL.createObjectURL(blob);
+                      a.download = (imageArtifact as { title?: string }).title ?? "generated-image.png";
+                      a.click();
+                      URL.revokeObjectURL(a.href);
+                    })
+                    .catch(() => window.open(imageArtifact.url, "_blank"));
+                }}
                 className="absolute bottom-2 right-2 flex h-7 w-7 items-center justify-center rounded-lg bg-white/20 backdrop-blur-sm text-white hover:bg-white/30 transition-colors"
                 title="下载图片"
               >
                 <svg className="h-3.5 w-3.5" viewBox="0 0 16 16" fill="currentColor">
                   <path d="M2.75 14A1.75 1.75 0 0 1 1 12.25v-2.5a.75.75 0 0 1 1.5 0v2.5c0 .138.112.25.25.25h10.5a.25.25 0 0 0 .25-.25v-2.5a.75.75 0 0 1 1.5 0v2.5A1.75 1.75 0 0 1 13.25 14ZM7.25 7.689V2a.75.75 0 0 1 1.5 0v5.689l1.97-1.969a.749.749 0 1 1 1.06 1.06l-3.25 3.25a.749.749 0 0 1-1.06 0L4.22 6.78a.749.749 0 1 1 1.06-1.06Z" />
                 </svg>
-              </a>
+              </button>
             </div>
           </div>
           {/* Title + model info */}
