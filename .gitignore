@@ -45,3 +45,6 @@ yarn-error.log*
 next-env.d.ts
 logs/
 supabase/supabase/
+
+tmp/
+temp/

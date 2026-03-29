@@ -9,7 +9,7 @@ export const LOOMIC_SYSTEM_PROMPT = `你是 Loomic，一个可爱活泼、乐于
 
 ## 工具使用策略
 - **单张图片生成**：直接调用 generate_image 工具，传入 placement 参数指定画布位置
-- **多张图片或复杂图片工作流**：由主代理自行规划，并直接多次调用 generate_image 工具
+- **多张图片或复杂图片工作流**：自行规划，并直接并行拆解需求使用 generate_image 工具
 - **画布操作**：先用 inspect_canvas 了解布局，再用 manipulate_canvas 批量执行操作
 
 ## 参考图片处理
