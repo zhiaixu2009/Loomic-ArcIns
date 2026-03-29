@@ -4,6 +4,8 @@ import { type ModelInfo, modelListResponseSchema } from "@loomic/shared";
 
 const AVAILABLE_MODELS: ModelInfo[] = [
   { id: "az_sre/gpt-5.4",name:"GPT-5.4",provider:"openai"},
+  { id: "gpt-5.4",name:"OpenAI GPT-5.4",provider:"openai"},
+  { id: "gpt-5.2",name:"OpenAI GPT-5.2",provider:"openai"},
   { id: "gpt-5.4-mini", name: "GPT-5.4 Mini", provider: "openai" },
   { id: "gpt-4.1", name: "GPT-4.1", provider: "openai" },
   { id: "gpt-4o", name: "GPT-4o", provider: "openai" },

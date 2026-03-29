@@ -6,10 +6,16 @@ const DEFAULT_MODEL = "gpt-5.4-mini";
 
 export class SettingsServiceError extends Error {
   readonly statusCode: number;
-  readonly code: "settings_not_found" | "settings_update_failed";
+  readonly code:
+    | "settings_not_found"
+    | "settings_read_failed"
+    | "settings_update_failed";
 
   constructor(
-    code: "settings_not_found" | "settings_update_failed",
+    code:
+      | "settings_not_found"
+      | "settings_read_failed"
+      | "settings_update_failed",
     message: string,
     statusCode: number,
   ) {
@@ -37,11 +43,19 @@ export function createSettingsService(options: {
   return {
     async getWorkspaceSettings(user, workspaceId) {
       const client = options.createUserClient(user.accessToken);
-      const { data } = await client
+      const { data, error } = await client
         .from("workspace_settings")
         .select("default_model")
         .eq("workspace_id", workspaceId)
         .maybeSingle();
+
+      if (error) {
+        throw new SettingsServiceError(
+          "settings_read_failed",
+          "Unable to load workspace settings.",
+          500,
+        );
+      }
 
       return {
         defaultModel: data?.default_model ?? DEFAULT_MODEL,

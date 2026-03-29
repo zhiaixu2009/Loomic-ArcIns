@@ -3,7 +3,7 @@ import type { FastifyInstance, FastifyRequest } from "fastify";
 import type { WebSocket } from "ws";
 
 import {
-  type MessageMention,
+  type RunCreateRequest,
   wsCommandSchema,
   wsRpcResponseSchema,
 } from "@loomic/shared";
@@ -12,7 +12,10 @@ import type { AgentRunMetadataService } from "../features/agent-runs/agent-run-s
 import type { ThreadService } from "../features/chat/thread-service.js";
 import type { SettingsService } from "../features/settings/settings-service.js";
 import type { ViewerService } from "../features/bootstrap/ensure-user-foundation.js";
-import type { RequestAuthenticator } from "../supabase/user.js";
+import type {
+  AuthenticatedUser,
+  RequestAuthenticator,
+} from "../supabase/user.js";
 import type { ConnectionManager } from "./connection-manager.js";
 import { createPipelineLogger } from "./logger.js";
 
@@ -55,7 +58,7 @@ async function authenticateAndBind(
 ) {
   const log = createPipelineLogger("ws");
 
-  let userId: string;
+  let authenticatedUser: AuthenticatedUser;
   try {
     const fakeRequest = {
       headers: { authorization: `Bearer ${token}` },
@@ -66,8 +69,8 @@ async function authenticateAndBind(
       socket.close(4001, "Unauthorized");
       return;
     }
-    userId = user.id;
-    log.info("connected", { userId });
+    authenticatedUser = user;
+    log.info("connected", { userId: user.id });
   } catch (err) {
     log.warn("auth_error", { error: err instanceof Error ? err.message : String(err) });
     socket.close(4001, "Unauthorized");
@@ -79,18 +82,18 @@ async function authenticateAndBind(
   // Use client-provided connectionId for reconnect identity; fallback to server UUID
   const urlForParams = new URL(_request.url, `http://${_request.headers.host}`);
   const connectionId = urlForParams.searchParams.get("connectionId") || randomUUID();
-  connectionManager.register(connectionId, userId, socket);
+  connectionManager.register(connectionId, authenticatedUser.id, socket);
 
   // Heartbeat with pong timeout (spec §1.3: 60s no-pong → disconnect)
   let lastPong = Date.now();
   socket.on("pong", () => { lastPong = Date.now(); });
 
   const pingInterval = setInterval(() => {
-    if (Date.now() - lastPong > 60_000) {
-      log.warn("pong_timeout", { userId });
-      socket.terminate();
-      return;
-    }
+      if (Date.now() - lastPong > 60_000) {
+        log.warn("pong_timeout", { userId: authenticatedUser.id });
+        socket.terminate();
+        return;
+      }
     if (socket.readyState === 1) {
       socket.ping();
     }
@@ -134,7 +137,13 @@ async function authenticateAndBind(
       if (msg.action === "agent.run") {
         const p = msg.payload;
         const runToken = p.accessToken ?? token;
-        void handleRunCommand(userId, connectionId, {
+        void handleRunCommand(
+          {
+            ...authenticatedUser,
+            accessToken: runToken,
+          },
+          connectionId,
+          {
           sessionId: p.sessionId,
           conversationId: p.conversationId,
           prompt: p.prompt,
@@ -144,9 +153,13 @@ async function authenticateAndBind(
             ? { imageGenerationPreference: p.imageGenerationPreference }
             : {}),
           ...(p.mentions !== undefined ? { mentions: p.mentions } : {}),
-        }, agentRuns, connectionManager, runToken, options);
+          },
+          agentRuns,
+          connectionManager,
+          options,
+        );
       } else if (msg.action === "agent.cancel") {
-        log.info("run_cancel", { userId, runId: msg.payload.runId });
+        log.info("run_cancel", { userId: authenticatedUser.id, runId: msg.payload.runId });
         const cancelResult = agentRuns.cancelRun(msg.payload.runId);
         if (!cancelResult) {
           socket.send(JSON.stringify({ type: "error", message: `Run not found: ${msg.payload.runId}` }));
@@ -156,47 +169,31 @@ async function authenticateAndBind(
   });
 
   socket.on("close", () => {
-    log.info("disconnected", { userId, connectionId });
+    log.info("disconnected", { userId: authenticatedUser.id, connectionId });
     clearInterval(pingInterval);
     connectionManager.remove(connectionId);
   });
 
   socket.on("error", () => {
-    log.error("socket_error", { userId, connectionId });
+    log.error("socket_error", { userId: authenticatedUser.id, connectionId });
     clearInterval(pingInterval);
     connectionManager.remove(connectionId);
   });
 }
 
 async function handleRunCommand(
-  userId: string,
+  authenticatedUser: AuthenticatedUser,
   connectionId: string,
-  payload: {
-    sessionId: string;
-    conversationId: string;
-    prompt: string;
-    canvasId?: string;
-    attachments?: Array<{
-      assetId: string;
-      url: string;
-      mimeType: string;
-      name?: string;
-    }>;
-    imageGenerationPreference?: {
-      mode: "auto" | "manual";
-      models: string[];
-    };
-    mentions?: MessageMention[];
-  },
+  payload: Omit<RunCreateRequest, "accessToken">,
   agentRuns: AgentRunService,
   connectionManager: ConnectionManager,
-  accessToken: string,
   services: RegisterWsOptions,
 ) {
-  const log = createPipelineLogger("agent.run", { userId, sessionId: payload.sessionId });
+  const log = createPipelineLogger("agent.run", {
+    userId: authenticatedUser.id,
+    sessionId: payload.sessionId,
+  });
   log.info("started", { prompt: payload.prompt.slice(0, 80) });
-
-  const authenticatedUser = { id: userId, accessToken, email: "", userMetadata: {} };
 
   // Resolve thread + model in parallel
   const [threadId, model] = await Promise.all([
@@ -208,7 +205,10 @@ async function handleRunCommand(
           payload.sessionId,
         );
         return sessionThread.threadId;
-      } catch {
+      } catch (error) {
+        log.warn("thread_resolve_failed", {
+          error: error instanceof Error ? error.message : String(error),
+        });
         return undefined;
       }
     })(),
@@ -221,7 +221,10 @@ async function handleRunCommand(
           viewer.workspace.id,
         );
         return settings.defaultModel;
-      } catch {
+      } catch (error) {
+        log.warn("model_resolve_failed", {
+          error: error instanceof Error ? error.message : String(error),
+        });
         return undefined;
       }
     })(),
@@ -229,8 +232,8 @@ async function handleRunCommand(
   log.lap("resolve", { threadId: !!threadId, model });
 
   const response = agentRuns.createRun(payload, {
-    accessToken,
-    userId,
+    accessToken: authenticatedUser.accessToken,
+    userId: authenticatedUser.id,
     ...(model ? { model } : {}),
     ...(threadId ? { threadId } : {}),
   });
