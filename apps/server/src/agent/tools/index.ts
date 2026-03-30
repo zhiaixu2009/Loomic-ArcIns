@@ -18,6 +18,7 @@ import {
   createVideoGenerateTool,
   type SubmitVideoJobFn,
 } from "./video-generate.js";
+import { createPersistSandboxFileTool } from "./persist-sandbox-file.js";
 
 /**
  * Zero-side-effect tool that lets the agent reason step-by-step before acting.
@@ -66,6 +67,7 @@ export function createMainAgentTools(
     createVideoGenerateTool({
       ...(deps.submitVideoJob ? { submitVideoJob: deps.submitVideoJob } : {}),
     }),
+    createPersistSandboxFileTool({ createUserClient: deps.createUserClient }),
   ];
   if (deps.brandKitId) {
     tools.push(createBrandKitTool(deps, deps.brandKitId));
