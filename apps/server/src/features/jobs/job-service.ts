@@ -15,11 +15,13 @@ import type { AdminSupabaseClient } from "../../supabase/admin.js";
 // Queue name mapping
 const QUEUE_MAP: Record<BackgroundJobType, string> = {
   image_generation: "image_generation_jobs",
+  video_generation: "video_generation_jobs",
 };
 
 // Default visibility timeout per job type (seconds) — reserved for future use
 const _DEFAULT_VT: Record<BackgroundJobType, number> = {
   image_generation: 120,
+  video_generation: 300,
 };
 
 export class JobServiceError extends Error {

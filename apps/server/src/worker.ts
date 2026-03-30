@@ -13,21 +13,25 @@ import { createUserSupabaseClientFactory } from "./supabase/user.js";
 
 // Import executors to trigger registration via side effects
 import "./features/jobs/executors/image-generation.js";
+import "./features/jobs/executors/video-generation.js";
 
 import type { BackgroundJobType } from "@loomic/shared";
 
-// Register image providers (same as app.ts does)
-import { registerImageProvider } from "./generation/providers/registry.js";
+// Register image/video providers (same as app.ts does)
+import { registerImageProvider, registerVideoProvider } from "./generation/providers/registry.js";
 import { ReplicateImageProvider } from "./generation/providers/replicate-image.js";
+import { ReplicateVideoProvider } from "./generation/providers/replicate-video.js";
 
-const QUEUES = ["image_generation_jobs"] as const;
+const QUEUES = ["image_generation_jobs", "video_generation_jobs"] as const;
 
 const QUEUE_TO_TYPE: Record<string, BackgroundJobType> = {
   image_generation_jobs: "image_generation",
+  video_generation_jobs: "video_generation",
 };
 
 const VT_BY_QUEUE: Record<string, number> = {
   image_generation_jobs: 120,
+  video_generation_jobs: 300,
 };
 
 async function main() {
@@ -38,9 +42,10 @@ async function main() {
     process.exit(1);
   }
 
-  // Register image providers (worker needs them too)
+  // Register image/video providers (worker needs them too)
   if (env.replicateApiToken) {
     registerImageProvider(new ReplicateImageProvider(env.replicateApiToken));
+    registerVideoProvider(new ReplicateVideoProvider(env.replicateApiToken));
   }
 
   const pgmq = createPgmqClient(env.supabaseDbUrl);
