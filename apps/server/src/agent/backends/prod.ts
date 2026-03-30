@@ -45,7 +45,7 @@ export function createProductionBackendFactory(
     },
   });
 
-  const skillsBackend = new FilesystemBackend({ rootDir: skillsRoot });
+  const skillsBackend = new FilesystemBackend({ rootDir: skillsRoot, virtualMode: true });
 
   const factory: BackendFactory = (stateAndStore) =>
     new CompositeBackend(sandbox, {

@@ -45,7 +45,7 @@ export function createDevelopmentBackend(
       PYTHONDONTWRITEBYTECODE: "1",
     },
   });
-  const skillsBackend = new FilesystemBackend({ rootDir: skillsRoot });
+  const skillsBackend = new FilesystemBackend({ rootDir: skillsRoot, virtualMode: true });
 
   const workspaceBackend = new FilesystemBackend({
     rootDir: env.agentFilesRoot,
