@@ -6,7 +6,7 @@ import type {
   VideoGenerateParams,
   VideoProvider,
 } from "../types.js";
-import { GenerationError } from "../utils.js";
+import { fetchAsBase64, GenerationError } from "../utils.js";
 
 // ── Constants ────────────────────────────────────────────────────────────
 
@@ -74,55 +74,8 @@ function resolutionToDimensions(
     // Landscape or square — height is the short side.
     return { width: Math.round(base.height * ratio), height: base.height };
   }
-  // Portrait — width is the short side.
-  return { width: base.width, height: Math.round(base.width / ratio) };
-}
-
-// ── Helpers ──────────────────────────────────────────────────────────────
-
-/**
- * Fetches an image from a URL (or data URI) and returns its base64
- * representation and MIME type.
- */
-async function fetchAsBase64(
-  url: string,
-): Promise<{ data: string; mimeType: string }> {
-  if (url.startsWith("data:")) {
-    const match = url.match(/^data:([^;]+);base64,(.+)$/);
-    if (!match) {
-      throw new GenerationError(
-        PROVIDER_NAME,
-        "input_fetch_error",
-        `Invalid data URI format: ${url.slice(0, 80)}`,
-      );
-    }
-    return { mimeType: match[1]!, data: match[2]! };
-  }
-
-  let response: Response;
-  try {
-    response = await fetch(url);
-  } catch (err) {
-    throw new GenerationError(
-      PROVIDER_NAME,
-      "input_fetch_error",
-      `Failed to fetch input image: ${err instanceof Error ? err.message : String(err)}`,
-    );
-  }
-
-  if (!response.ok) {
-    throw new GenerationError(
-      PROVIDER_NAME,
-      "input_fetch_error",
-      `Failed to fetch input image (HTTP ${response.status}): ${url}`,
-    );
-  }
-
-  const buffer = await response.arrayBuffer();
-  const data = Buffer.from(buffer).toString("base64");
-  const mimeType = response.headers.get("content-type") ?? "image/png";
-
-  return { data, mimeType };
+  // Portrait — short side becomes width, long side becomes height.
+  return { width: base.height, height: Math.round(base.height / ratio) };
 }
 
 function sleep(ms: number): Promise<void> {
@@ -159,7 +112,7 @@ export class GoogleVideoProvider implements VideoProvider {
     // Build image input for image-to-video.
     let image: { imageBytes: string; mimeType: string } | undefined;
     if (params.inputImages?.length) {
-      const first = await fetchAsBase64(params.inputImages[0]!);
+      const first = await fetchAsBase64(PROVIDER_NAME, params.inputImages[0]!);
       image = { imageBytes: first.data, mimeType: first.mimeType };
     }
 

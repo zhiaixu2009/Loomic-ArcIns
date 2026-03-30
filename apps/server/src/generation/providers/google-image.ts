@@ -6,7 +6,7 @@ import type {
   ImageProvider,
   ModelInfo,
 } from "../types.js";
-import { aspectRatioToDimensions, GenerationError } from "../utils.js";
+import { aspectRatioToDimensions, fetchAsBase64, GenerationError } from "../utils.js";
 
 // ── Constants ────────────────────────────────────────────────────────────
 
@@ -59,55 +59,6 @@ const SAFETY_FINISH_REASONS = new Set([
   "IMAGE_RECITATION",
 ]);
 
-// ── Helpers ──────────────────────────────────────────────────────────────
-
-/**
- * Fetches an image from a URL (or data URI) and returns its base64
- * representation and MIME type.
- */
-async function fetchImageAsBase64(
-  url: string,
-): Promise<{ data: string; mimeType: string }> {
-  // Already a data URI — extract inline.
-  if (url.startsWith("data:")) {
-    const match = url.match(/^data:([^;]+);base64,(.+)$/);
-    if (!match) {
-      throw new GenerationError(
-        PROVIDER_NAME,
-        "input_fetch_error",
-        `Invalid data URI format: ${url.slice(0, 80)}`,
-      );
-    }
-    return { mimeType: match[1]!, data: match[2]! };
-  }
-
-  // HTTP(S) URL — fetch and convert.
-  let response: Response;
-  try {
-    response = await fetch(url);
-  } catch (err) {
-    throw new GenerationError(
-      PROVIDER_NAME,
-      "input_fetch_error",
-      `Failed to fetch input image: ${err instanceof Error ? err.message : String(err)}`,
-    );
-  }
-
-  if (!response.ok) {
-    throw new GenerationError(
-      PROVIDER_NAME,
-      "input_fetch_error",
-      `Failed to fetch input image (HTTP ${response.status}): ${url}`,
-    );
-  }
-
-  const buffer = await response.arrayBuffer();
-  const data = Buffer.from(buffer).toString("base64");
-  const mimeType = response.headers.get("content-type") ?? "image/png";
-
-  return { data, mimeType };
-}
-
 // ── Provider ─────────────────────────────────────────────────────────────
 
 export class GoogleImageProvider implements ImageProvider {
@@ -143,7 +94,7 @@ export class GoogleImageProvider implements ImageProvider {
 
     if (params.inputImages?.length) {
       const fetched = await Promise.all(
-        params.inputImages.map((url) => fetchImageAsBase64(url)),
+        params.inputImages.map((url) => fetchAsBase64(PROVIDER_NAME, url)),
       );
       for (const img of fetched) {
         parts.push({

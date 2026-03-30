@@ -29,6 +29,55 @@ export function aspectRatioToDimensions(
   return { width: roundTo64(baseSize * ratio), height: roundTo64(baseSize) };
 }
 
+/**
+ * Fetches a resource from a URL (or data URI) and returns its base64
+ * representation and MIME type. Used by Google providers to convert
+ * input images/media into inline_data format.
+ */
+export async function fetchAsBase64(
+  providerName: string,
+  url: string,
+): Promise<{ data: string; mimeType: string }> {
+  // Already a data URI — extract inline.
+  if (url.startsWith("data:")) {
+    const match = url.match(/^data:([^;]+);base64,(.+)$/);
+    if (!match) {
+      throw new GenerationError(
+        providerName,
+        "input_fetch_error",
+        `Invalid data URI format: ${url.slice(0, 80)}`,
+      );
+    }
+    return { mimeType: match[1]!, data: match[2]! };
+  }
+
+  // HTTP(S) URL — fetch and convert.
+  let response: Response;
+  try {
+    response = await fetch(url);
+  } catch (err) {
+    throw new GenerationError(
+      providerName,
+      "input_fetch_error",
+      `Failed to fetch input: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+
+  if (!response.ok) {
+    throw new GenerationError(
+      providerName,
+      "input_fetch_error",
+      `Failed to fetch input (HTTP ${response.status}): ${url}`,
+    );
+  }
+
+  const buffer = await response.arrayBuffer();
+  const data = Buffer.from(buffer).toString("base64");
+  const mimeType = response.headers.get("content-type") ?? "application/octet-stream";
+
+  return { data, mimeType };
+}
+
 export class GenerationError extends Error {
   constructor(
     public readonly provider: string,
