@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 
 export const DEFAULT_AGENT_BACKEND_MODE = "state";
-export const DEFAULT_AGENT_MODEL = "gpt-5.4-mini";
+export const DEFAULT_AGENT_MODEL = "gpt-4.1";
 export const DEFAULT_SERVER_PORT = 3001;
 export const DEFAULT_WEB_ORIGIN = "http://localhost:3000";
 
@@ -11,6 +11,7 @@ export type ServerEnv = {
   agentBackendMode: AgentBackendMode;
   agentFilesRoot?: string;
   agentModel: string;
+  googleApiKey?: string;
   googleFontsApiKey?: string;
   openAIApiBase?: string;
   openAIApiKey?: string;
@@ -27,6 +28,8 @@ export type ServerEnv = {
   volcesBaseUrl?: string;
   webOrigin: string;
   workerConcurrency?: number;
+  workerImageConcurrency?: number;
+  workerVideoConcurrency?: number;
   workerId?: string;
   workerPollIntervalMs?: number;
   workerMaxBatchSize?: number;
@@ -58,6 +61,8 @@ export function loadServerEnv(
   const supabaseProjectId =
     overrides.supabaseProjectId ??
     normalizeOptionalString(source.SUPABASE_PROJECT_ID);
+  const googleApiKey =
+    overrides.googleApiKey ?? normalizeOptionalString(source.GOOGLE_API_KEY);
   const googleFontsApiKey =
     overrides.googleFontsApiKey ?? normalizeOptionalString(source.GOOGLE_FONTS_API_KEY);
   const replicateApiToken =
@@ -69,6 +74,12 @@ export function loadServerEnv(
   const workerConcurrency = overrides.workerConcurrency ??
     (source.WORKER_CONCURRENCY
       ? parseInt(source.WORKER_CONCURRENCY, 10) : undefined);
+  const workerImageConcurrency = overrides.workerImageConcurrency ??
+    (source.WORKER_IMAGE_CONCURRENCY
+      ? parseInt(source.WORKER_IMAGE_CONCURRENCY, 10) : undefined);
+  const workerVideoConcurrency = overrides.workerVideoConcurrency ??
+    (source.WORKER_VIDEO_CONCURRENCY
+      ? parseInt(source.WORKER_VIDEO_CONCURRENCY, 10) : undefined);
   const workerId = overrides.workerId ??
     normalizeOptionalString(source.WORKER_ID);
   const workerPollIntervalMs = overrides.workerPollIntervalMs ??
@@ -91,6 +102,7 @@ export function loadServerEnv(
     webOrigin:
       overrides.webOrigin ?? source.LOOMIC_WEB_ORIGIN ?? DEFAULT_WEB_ORIGIN,
     ...(agentFilesRoot ? { agentFilesRoot } : {}),
+    ...(googleApiKey ? { googleApiKey } : {}),
     ...(openAIApiBase ? { openAIApiBase } : {}),
     ...(openAIApiKey ? { openAIApiKey } : {}),
     ...(supabaseUrl ? { supabaseUrl } : {}),
@@ -104,6 +116,8 @@ export function loadServerEnv(
     ...(volcesApiKey ? { volcesApiKey } : {}),
     ...(volcesBaseUrl ? { volcesBaseUrl } : {}),
     ...(workerConcurrency ? { workerConcurrency } : {}),
+    ...(workerImageConcurrency ? { workerImageConcurrency } : {}),
+    ...(workerVideoConcurrency ? { workerVideoConcurrency } : {}),
     ...(workerId ? { workerId } : {}),
     ...(workerPollIntervalMs ? { workerPollIntervalMs } : {}),
     ...(workerMaxBatchSize ? { workerMaxBatchSize } : {}),

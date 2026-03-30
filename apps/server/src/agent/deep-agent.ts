@@ -1,5 +1,6 @@
 import type { BaseCheckpointSaver, BaseStore } from "@langchain/langgraph-checkpoint";
 import type { BaseLanguageModel } from "@langchain/core/language_models/base";
+import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { ChatOpenAI } from "@langchain/openai";
 import type { BackendFactory } from "deepagents";
 import { createDeepAgent } from "deepagents";
@@ -91,30 +92,48 @@ export function createLoomicDeepAgent(options: {
 }
 
 /**
- * Create a streaming ChatOpenAI model.
+ * Create a streaming chat model from a `<provider>:<model-id>` specifier.
  *
- * `streamUsage` is disabled because the one-api proxy mishandles
- * `stream_options: { include_usage: true }` — it strips `delta.role`
- * from streaming chunks, causing LangChain to create ChatMessageChunk
- * (type "generic") instead of AIMessageChunk (type "ai"), which breaks
- * deepagents middleware validation and loses tool_calls entirely.
+ * Supported providers:
+ * - `openai` (default) — uses ChatOpenAI with `streamUsage: false` to work
+ *   around the one-api proxy stripping `delta.role` from chunks.
+ * - `google` — uses ChatGoogleGenerativeAI (Google AI Studio, direct connection).
  */
-function createStreamingChatModel(specifier: string): ChatOpenAI {
-  const modelName = specifier.startsWith("openai:")
-    ? specifier.slice("openai:".length)
-    : specifier;
+function createStreamingChatModel(specifier: string): BaseLanguageModel {
+  const colonIdx = specifier.indexOf(":");
+  const provider = colonIdx > 0 ? specifier.slice(0, colonIdx) : "openai";
+  const modelName = colonIdx > 0 ? specifier.slice(colonIdx + 1) : specifier;
 
-  return new ChatOpenAI({
-    model: modelName,
-    streaming: true,
-    streamUsage: false,
-  });
+  switch (provider) {
+    case "google":
+      return new ChatGoogleGenerativeAI({
+        model: modelName,
+        apiKey: process.env.GOOGLE_API_KEY,
+        streaming: true,
+      });
+    case "openai":
+    default:
+      return new ChatOpenAI({
+        model: modelName,
+        streaming: true,
+        streamUsage: false,
+      });
+  }
 }
+
+/** Known model-name prefixes that map to Google Gemini. */
+const GOOGLE_MODEL_PREFIXES = ["gemini-"];
 
 export function createDefaultModelSpecifier(
   env: Pick<ServerEnv, "agentModel">,
 ) {
-  return `openai:${env.agentModel}`;
+  const model = env.agentModel;
+  // Already has an explicit provider prefix — pass through as-is.
+  if (model.includes(":")) return model;
+  // Auto-detect Google models by name prefix.
+  if (GOOGLE_MODEL_PREFIXES.some((p) => model.startsWith(p)))
+    return `google:${model}`;
+  return `openai:${model}`;
 }
 
 export function applyOpenAICompatEnv(

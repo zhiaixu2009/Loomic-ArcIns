@@ -25,6 +25,7 @@ import type { SubmitVideoJobFn } from "./tools/video-generate.js";
 import {
   type LoomicAgent,
   type LoomicAgentFactory,
+  createDefaultModelSpecifier,
   createLoomicDeepAgent,
 } from "./deep-agent.js";
 import type { AgentPersistenceService } from "./persistence/index.js";
@@ -544,7 +545,9 @@ export function createAgentRunService(options: CreateAgentRuntimeOptions) {
       let agent: LoomicAgent;
       try {
         const resolvedModel = run.modelOverride
-          ? `openai:${run.modelOverride}`
+          ? (run.modelOverride.includes(":")
+            ? run.modelOverride
+            : createDefaultModelSpecifier({ agentModel: run.modelOverride }))
           : options.model;
 
         // Build persistImage closure using the user's Supabase client.
