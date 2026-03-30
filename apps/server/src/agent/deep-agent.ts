@@ -122,6 +122,10 @@ function createStreamingChatModel(specifier: string): BaseLanguageModel {
         model: modelName,
         apiKey: process.env.GOOGLE_API_KEY,
         streaming: true,
+        thinkingConfig: {
+          includeThoughts: true,
+          thinkingBudget: -1, // dynamic — let the model decide
+        },
       });
     case "openai":
     default:
