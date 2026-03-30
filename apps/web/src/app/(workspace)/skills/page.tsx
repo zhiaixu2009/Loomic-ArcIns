@@ -24,6 +24,7 @@ import {
   deleteSkill,
   fetchSkillDetail,
   fetchSkills,
+  fetchWorkspaceSkills,
   installSkill,
   toggleSkill,
   uninstallSkill,
@@ -96,8 +97,22 @@ export default function SkillsPage() {
     if (!token) return;
 
     try {
-      const result = await fetchSkills(token);
-      setSkills(result.skills);
+      const [catalog, workspace] = await Promise.all([
+        fetchSkills(token),
+        fetchWorkspaceSkills(token).catch(() => ({ skills: [] as SkillListItem[] })),
+      ]);
+
+      // Merge install status from workspace into catalog
+      const installedMap = new Map(
+        workspace.skills.map((ws) => [ws.id, ws]),
+      );
+      const merged = catalog.skills.map((skill) => {
+        const ws = installedMap.get(skill.id);
+        return ws
+          ? { ...skill, installed: true, enabled: ws.enabled ?? true, installedAt: ws.installedAt }
+          : { ...skill, installed: false, enabled: false };
+      });
+      setSkills(merged);
     } catch (err) {
       if (err instanceof ApiAuthError) return;
       console.error("Failed to fetch skills:", err);
@@ -221,8 +236,12 @@ export default function SkillsPage() {
     async (skillId: string) => {
       const token = getToken();
       if (!token) return;
-      await installSkill(token, skillId);
-      await loadSkills();
+      try {
+        await installSkill(token, skillId);
+        await loadSkills();
+      } catch (err) {
+        console.error("Failed to install skill:", err);
+      }
     },
     [getToken, loadSkills],
   );
@@ -231,9 +250,13 @@ export default function SkillsPage() {
     async (skillId: string) => {
       const token = getToken();
       if (!token) return;
-      await uninstallSkill(token, skillId);
-      setDetailOpen(false);
-      await loadSkills();
+      try {
+        await uninstallSkill(token, skillId);
+        setDetailOpen(false);
+        await loadSkills();
+      } catch (err) {
+        console.error("Failed to uninstall skill:", err);
+      }
     },
     [getToken, loadSkills],
   );
@@ -247,8 +270,12 @@ export default function SkillsPage() {
     }) => {
       const token = getToken();
       if (!token) return;
-      await createSkill(token, data);
-      await loadSkills();
+      try {
+        await createSkill(token, data);
+        await loadSkills();
+      } catch (err) {
+        console.error("Failed to create skill:", err);
+      }
     },
     [getToken, loadSkills],
   );

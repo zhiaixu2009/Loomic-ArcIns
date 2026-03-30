@@ -449,11 +449,13 @@ export async function registerSkillRoutes(
       const workspaceId = viewer.workspace.id;
       const client = options.createUserClient(user.accessToken);
 
-      const { error, count } = await client
+      const { data, error } = await client
         .from("workspace_skills")
         .update({ enabled: payload.enabled })
         .eq("workspace_id", workspaceId)
-        .eq("skill_id", skillId);
+        .eq("skill_id", skillId)
+        .select("id")
+        .maybeSingle();
 
       if (error) {
         request.log.error({ err: error }, "skill toggle failed");
@@ -464,8 +466,7 @@ export async function registerSkillRoutes(
         );
       }
 
-      // count may be null if the driver doesn't return it; rely on no error
-      if (count === 0) {
+      if (!data) {
         return sendSkillError(
           reply,
           "skill_not_found",
