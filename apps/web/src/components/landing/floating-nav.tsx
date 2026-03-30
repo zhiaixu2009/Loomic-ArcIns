@@ -137,9 +137,12 @@ export function FloatingNav() {
           {/* Right actions */}
           <div className="flex items-center gap-2">
             <ThemeToggle />
-            <Button asChild className="hidden md:inline-flex rounded-full">
-              <Link href="/login">开始创作</Link>
-            </Button>
+            <Link
+              href="/login"
+              className="hidden md:inline-flex items-center justify-center h-8 px-4 rounded-full bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/80 transition-colors"
+            >
+              开始创作
+            </Link>
             {/* Hamburger */}
             <Button
               variant="ghost"
@@ -176,11 +179,13 @@ export function FloatingNav() {
                 </a>
               ))}
               <div className="pt-2 pb-1">
-                <Button asChild className="w-full rounded-full">
-                  <Link href="/login" onClick={() => setMobileOpen(false)}>
-                    开始创作
-                  </Link>
-                </Button>
+                <Link
+                  href="/login"
+                  onClick={() => setMobileOpen(false)}
+                  className="flex items-center justify-center h-9 w-full rounded-full bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/80 transition-colors"
+                >
+                  开始创作
+                </Link>
               </div>
             </div>
           </motion.div>
