@@ -4,15 +4,22 @@ import type { ServerEnv } from "../../config/env.js";
 import { createDevelopmentBackend } from "./dev.js";
 import { createProductionBackendFactory } from "./prod.js";
 
-type AgentBackendEnv = Pick<ServerEnv, "agentBackendMode" | "agentFilesRoot">;
+type AgentBackendEnv = Pick<
+  ServerEnv,
+  "agentBackendMode" | "agentFilesRoot" | "sandboxRoot" | "skillsRoot"
+>;
 
-export function createAgentBackendFactory(
+export type AgentBackendResult = {
+  factory: BackendFactory;
+  sandboxDir?: string;
+};
+
+export function createAgentBackend(
   env: AgentBackendEnv,
   canvasId?: string,
-): BackendFactory {
+): AgentBackendResult {
   if (env.agentBackendMode === "filesystem") {
-    const developmentBackend = createDevelopmentBackend(env);
-    return () => developmentBackend;
+    return createDevelopmentBackend(env);
   }
 
   if (!canvasId) {
@@ -22,5 +29,8 @@ export function createAgentBackendFactory(
     );
   }
 
-  return createProductionBackendFactory(canvasId);
+  return createProductionBackendFactory(canvasId, {
+    ...(env.sandboxRoot ? { sandboxRoot: env.sandboxRoot } : {}),
+    ...(env.skillsRoot ? { skillsRoot: env.skillsRoot } : {}),
+  });
 }

@@ -1,38 +1,64 @@
+import { mkdirSync } from "node:fs";
+import { join } from "node:path";
 import {
   type BackendFactory,
   CompositeBackend,
-  StateBackend,
+  FilesystemBackend,
+  LocalShellBackend,
   StoreBackend,
 } from "deepagents";
 
+const DEFAULT_SANDBOX_ROOT = "/tmp/loomic-sandbox";
+const DEFAULT_SKILLS_ROOT = "/opt/loomic/skills";
+
 /**
- * Create a production backend factory with per-project isolation.
+ * Create a production backend factory with per-run sandbox isolation.
  *
- * Uses StoreBackend (LangGraph PostgresStore) for persistent,
- * project-scoped file storage. Each project gets its own namespace,
- * so files written by the agent are isolated per project and persist
- * across chat sessions.
+ * Uses LocalShellBackend as the default backend so deepagents automatically
+ * exposes the `execute` tool. Each run gets an isolated tmpdir under
+ * `sandboxRoot/{runId}/` which is cleaned up after the run completes.
  *
- * Namespace structure:
- *   /workspace/ → ["projects", canvasId, "workspace"]
- *   /memories/  → ["projects", canvasId, "memories"]
+ * Routes:
+ *   /workspace/ → StoreBackend (PostgresStore, per-project)
+ *   /memories/  → StoreBackend (PostgresStore, per-project)
+ *   /skills/    → FilesystemBackend (shared, read-only)
+ *   default     → LocalShellBackend (per-run sandbox)
  */
 export function createProductionBackendFactory(
   canvasId: string,
-): BackendFactory {
-  return (stateAndStore) =>
-    new CompositeBackend(createReadOnlyRoot(), {
+  options?: { sandboxRoot?: string; skillsRoot?: string },
+): { factory: BackendFactory; sandboxDir: string } {
+  const sandboxRoot = options?.sandboxRoot ?? DEFAULT_SANDBOX_ROOT;
+  const skillsRoot = options?.skillsRoot ?? DEFAULT_SKILLS_ROOT;
+
+  const runId = crypto.randomUUID();
+  const sandboxDir = join(sandboxRoot, runId);
+  mkdirSync(sandboxDir, { recursive: true });
+
+  const sandbox = new LocalShellBackend({
+    rootDir: sandboxDir,
+    timeout: 120,
+    maxOutputBytes: 200_000,
+    env: {
+      PATH: process.env.PATH ?? "/usr/local/bin:/usr/bin:/bin",
+      HOME: process.env.HOME ?? "/tmp",
+      FONT_DIR: join(skillsRoot, "canvas-design", "canvas-fonts"),
+      PYTHONDONTWRITEBYTECODE: "1",
+    },
+  });
+
+  const skillsBackend = new FilesystemBackend({ rootDir: skillsRoot, virtualMode: true });
+
+  const factory: BackendFactory = (stateAndStore) =>
+    new CompositeBackend(sandbox, {
       "/memories/": new StoreBackend(stateAndStore, {
         namespace: ["projects", canvasId, "memories"],
       }),
       "/workspace/": new StoreBackend(stateAndStore, {
         namespace: ["projects", canvasId, "workspace"],
       }),
+      "/skills/": skillsBackend,
     });
-}
 
-function createReadOnlyRoot() {
-  return new StateBackend({
-    state: { files: {} },
-  });
+  return { factory, sandboxDir };
 }

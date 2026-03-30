@@ -16,6 +16,7 @@ import {
   createVideoGenerateTool,
   type SubmitVideoJobFn,
 } from "./video-generate.js";
+import { createPersistSandboxFileTool } from "./persist-sandbox-file.js";
 
 export { createImageGenerateTool } from "./image-generate.js";
 export { createVideoGenerateTool } from "./video-generate.js";
@@ -29,6 +30,7 @@ export function createMainAgentTools(
     brandKitId?: string | null;
     connectionManager?: ConnectionManager;
     persistImage?: PersistImageFn;
+    sandboxDir?: string;
     submitImageJob?: SubmitImageJobFn;
     submitVideoJob?: SubmitVideoJobFn;
   },
@@ -43,6 +45,10 @@ export function createMainAgentTools(
     }),
     createVideoGenerateTool({
       ...(deps.submitVideoJob ? { submitVideoJob: deps.submitVideoJob } : {}),
+    }),
+    createPersistSandboxFileTool({
+      createUserClient: deps.createUserClient,
+      ...(deps.sandboxDir ? { sandboxDir: deps.sandboxDir } : {}),
     }),
   ];
   if (deps.brandKitId) {
