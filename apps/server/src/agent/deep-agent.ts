@@ -2,6 +2,7 @@ import type { BaseCheckpointSaver, BaseStore } from "@langchain/langgraph-checkp
 import type { BaseLanguageModel } from "@langchain/core/language_models/base";
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { ChatOpenAI } from "@langchain/openai";
+import { createMiddleware } from "langchain";
 import { createDeepAgent } from "deepagents";
 
 import type { ServerEnv } from "../config/env.js";
@@ -13,6 +14,7 @@ import { createMainAgentTools } from "./tools/index.js";
 import type { SubmitCodeExecutionFn } from "./tools/execute-code.js";
 import type { PersistImageFn, SubmitImageJobFn } from "./tools/image-generate.js";
 import type { SubmitVideoJobFn } from "./tools/video-generate.js";
+import type { WorkspaceSkillEntry } from "./workspace-skills.js";
 
 export type LoomicAgent = Pick<
   ReturnType<typeof createDeepAgent>,
@@ -33,6 +35,7 @@ export type LoomicAgentFactory = (options: {
   submitImageJob?: SubmitImageJobFn;
   submitVideoJob?: SubmitVideoJobFn;
   store?: BaseStore;
+  workspaceSkills?: WorkspaceSkillEntry[];
 }) => LoomicAgent;
 
 export function createLoomicDeepAgent(options: {
@@ -49,6 +52,7 @@ export function createLoomicDeepAgent(options: {
   submitImageJob?: SubmitImageJobFn;
   submitVideoJob?: SubmitVideoJobFn;
   store?: BaseStore;
+  workspaceSkills?: WorkspaceSkillEntry[];
 }): LoomicAgent {
   const backendResult =
     options.backendResult ?? createAgentBackend(options.env, options.canvasId);
@@ -74,9 +78,18 @@ export function createLoomicDeepAgent(options: {
       "\n\n当前项目已绑定品牌套件。在进行设计相关工作时，请先使用 get_brand_kit 工具查询品牌信息，确保设计符合品牌规范。"
     : LOOMIC_SYSTEM_PROMPT;
 
+  // Build custom middleware for workspace skills (user-installed skills from DB).
+  // This runs AFTER the built-in SkillsMiddleware and appends workspace skill
+  // metadata to the system prompt so the agent can discover and use them.
+  const wsSkills = options.workspaceSkills ?? [];
+  const workspaceSkillsMiddleware = wsSkills.length > 0
+    ? [createWorkspaceSkillsMiddleware(wsSkills)]
+    : [];
+
   return createDeepAgent({
     backend: backendResult.factory,
     ...(options.checkpointer ? { checkpointer: options.checkpointer } : {}),
+    middleware: workspaceSkillsMiddleware,
     model: resolvedModel,
     name: "loomic",
     skills: ["/skills/"],
@@ -93,6 +106,38 @@ export function createLoomicDeepAgent(options: {
       ...(options.submitImageJob ? { submitImageJob: options.submitImageJob } : {}),
       ...(options.submitVideoJob ? { submitVideoJob: options.submitVideoJob } : {}),
     }),
+  });
+}
+
+/**
+ * Create a custom middleware that appends workspace skill metadata to the
+ * system prompt. This runs AFTER the built-in SkillsMiddleware, so system
+ * skills from the filesystem are already visible. Workspace skills are
+ * served from the `/workspace-skills/` route (backed by StoreBackend),
+ * so the agent can `read_file /workspace-skills/<slug>/SKILL.md` to load
+ * full instructions on demand.
+ */
+function createWorkspaceSkillsMiddleware(skills: WorkspaceSkillEntry[]) {
+  return createMiddleware({
+    name: "WorkspaceSkillsMiddleware",
+    wrapModelCall(request, handler) {
+      const skillsList = skills
+        .map((s) => {
+          let line = `- **${s.name}**: ${s.description}`;
+          line += `\n  → Read \`${s.path}\` for full instructions`;
+          return line;
+        })
+        .join("\n");
+
+      const section = [
+        "\n\n## Workspace Custom Skills\n",
+        "The following custom skills are installed in this workspace:\n",
+        skillsList,
+      ].join("\n");
+
+      const newSystemMessage = request.systemMessage.concat(section);
+      return handler({ ...request, systemMessage: newSystemMessage });
+    },
   });
 }
 
