@@ -5,10 +5,10 @@ import { generateVideo } from "../../generation/video-generation.js";
 
 const videoGenerateSchema = z.object({
   prompt: z.string().min(1).describe("Detailed video generation prompt"),
-  provider: z.string().describe("Provider: volces"),
+  provider: z.string().describe("Provider name (e.g. volces, google)"),
   model: z.string().describe("Model identifier"),
   resolution: z.enum(["480p", "720p", "1080p"]).optional().default("720p"),
-  duration: z.number().int().min(5).max(10).optional().default(5),
+  duration: z.number().int().min(3).max(16).optional().default(8),
   aspectRatio: z.enum(["1:1", "16:9", "9:16", "4:3", "3:4"]).optional().default("16:9"),
   inputImages: z.array(z.string()).optional().describe("First frame reference image URLs"),
 });
@@ -31,7 +31,7 @@ export async function runVideoGenerate(
       prompt: input.prompt,
       model: input.model,
       resolution: input.resolution,
-      duration: input.duration as 5 | 10,
+      duration: input.duration,
       aspectRatio: input.aspectRatio,
       ...(input.inputImages?.length ? { inputImages: input.inputImages } : {}),
     });
@@ -61,7 +61,7 @@ export function createVideoGenerateTool() {
     {
       name: "generate_video",
       description:
-        "Generate a video using AI. Currently supports volces provider. Returns the generated video URL.",
+        "Generate a video using AI. Supports google and volces providers. Returns the generated video URL.",
       schema: videoGenerateSchema,
     },
   );
