@@ -7,13 +7,16 @@ import {
   useRef,
   useState,
 } from "react";
-import type { ImageGenerationPreference } from "@loomic/shared";
+import type { ImageGenerationPreference, VideoGenerationPreference } from "@loomic/shared";
 
 import type { ImageAttachmentState, ReadyAttachment } from "../hooks/use-image-attachments";
 import type { HomeExampleSelection } from "@/lib/home-example-seeds";
+import { AgentModelSelector } from "./agent-model-selector";
 import { ImageAttachmentBar } from "./image-attachment-bar";
 import { ImageModelPreferencePopover } from "./image-model-preference";
+import { useAgentModel } from "../hooks/use-agent-model";
 import { useImageModelPreference } from "../hooks/use-image-model-preference";
+import { useVideoModelPreference } from "../hooks/use-video-model-preference";
 
 export type HomePromptHandle = {
   /** Programmatically set the textarea value (e.g. from an example pill). */
@@ -25,6 +28,8 @@ type HomePromptProps = {
     prompt: string,
     attachments?: ReadyAttachment[],
     imageGenerationPreference?: ImageGenerationPreference,
+    videoGenerationPreference?: VideoGenerationPreference,
+    model?: string,
   ) => void;
   disabled?: boolean;
   attachments?: ImageAttachmentState[];
@@ -90,6 +95,8 @@ export const HomePrompt = forwardRef<HomePromptHandle, HomePromptProps>(
     const [modelPopoverOpen, setModelPopoverOpen] = useState(false);
     const agentBtnRef = useRef<HTMLButtonElement>(null);
     const { preference } = useImageModelPreference();
+    const { preference: videoPreference } = useVideoModelPreference();
+    const { model: agentModel } = useAgentModel();
 
     useImperativeHandle(ref, () => ({
       fill(text: string) {
@@ -125,12 +132,16 @@ export const HomePrompt = forwardRef<HomePromptHandle, HomePromptProps>(
         preference.mode === "manual" && preference.models.length > 0
           ? preference
           : undefined,
+        videoPreference.mode === "manual" && videoPreference.models.length > 0
+          ? videoPreference
+          : undefined,
+        agentModel ?? undefined,
       );
       setValue("");
       if (textareaRef.current) {
         textareaRef.current.style.height = "auto";
       }
-    }, [value, disabled, isUploading, onSubmit, attachments, readyAttachments, preference]);
+    }, [value, disabled, isUploading, onSubmit, attachments, readyAttachments, preference, videoPreference, agentModel]);
 
     const handleKeyDown = useCallback(
       (e: React.KeyboardEvent) => {
@@ -280,6 +291,7 @@ export const HomePrompt = forwardRef<HomePromptHandle, HomePromptProps>(
           </div>
 
           <div className="flex items-center gap-2">
+            <AgentModelSelector />
             <div className="flex items-center gap-0.5">
               {toolbarButtons.slice(1).map((btn) => {
                 if (btn.name === "Agent") {

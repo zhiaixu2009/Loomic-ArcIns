@@ -1,6 +1,6 @@
 "use client";
 
-import type { ImageGenerationPreference, ProjectSummary } from "@loomic/shared";
+import type { ImageGenerationPreference, ProjectSummary, VideoGenerationPreference } from "@loomic/shared";
 import type { ReadyAttachment } from "@/hooks/use-image-attachments";
 import { motion } from "framer-motion";
 import Link from "next/link";
@@ -185,6 +185,8 @@ export default function HomePage() {
       prompt: string,
       attachments?: ReadyAttachment[],
       imageGenerationPreference?: ImageGenerationPreference,
+      videoGenerationPreference?: VideoGenerationPreference,
+      model?: string,
     ) => {
       setSelectedExample(null);
       clearAttachments();
@@ -194,6 +196,10 @@ export default function HomePage() {
         ...(imageGenerationPreference
           ? { imageGenerationPreference }
           : {}),
+        ...(videoGenerationPreference
+          ? { videoGenerationPreference }
+          : {}),
+        ...(model ? { model } : {}),
       });
     },
     [createNewProject, clearAttachments],

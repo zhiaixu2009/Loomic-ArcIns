@@ -6,6 +6,8 @@ import type { MessageMention } from "@loomic/shared";
 import type { ImageAttachmentState } from "../hooks/use-image-attachments";
 import type { CanvasSelectedElement } from "./canvas-editor";
 import { useImageModelPreference } from "../hooks/use-image-model-preference";
+import { useVideoModelPreference } from "../hooks/use-video-model-preference";
+import { AgentModelSelector } from "./agent-model-selector";
 import { ImageAttachmentBar } from "./image-attachment-bar";
 import { ImageModelPreferencePopover } from "./image-model-preference";
 
@@ -45,6 +47,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { preference } = useImageModelPreference();
+  const { preference: videoPreference } = useVideoModelPreference();
   const [modelPopoverOpen, setModelPopoverOpen] = useState(false);
   const modelBtnRef = useRef<HTMLButtonElement>(null);
 
@@ -290,7 +293,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
                 onClick={() => setModelPopoverOpen((prev) => !prev)}
                 title="Image model"
                 className={`flex h-7 w-7 items-center justify-center rounded-lg transition-colors ${
-                  preference.mode === "manual"
+                  preference.mode === "manual" || videoPreference.mode === "manual"
                     ? "bg-primary text-primary-foreground"
                     : "text-muted-foreground hover:bg-muted hover:text-foreground"
                 }`}
@@ -305,6 +308,8 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
                 anchorRef={modelBtnRef}
               />
             </div>
+            {/* Agent model selector */}
+            <AgentModelSelector />
           </div>
           <button
             onClick={handleSubmit}

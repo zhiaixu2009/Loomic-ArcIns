@@ -12,6 +12,7 @@ import type {
   StreamEvent,
   TextBlock,
   ToolBlock,
+  VideoGenerationPreference,
 } from "@loomic/shared";
 import type { ReadyAttachment } from "../hooks/use-image-attachments";
 import type { WebSocketHandle } from "../hooks/use-websocket";
@@ -25,9 +26,12 @@ import {
   updateSessionTitle,
 } from "../lib/server-api";
 import { fetchBrandKit } from "../lib/brand-kit-api";
+import { useAgentModel } from "../hooks/use-agent-model";
 import { useImageAttachments } from "../hooks/use-image-attachments";
 import { useImageModelPreference } from "../hooks/use-image-model-preference";
+import { useVideoModelPreference } from "../hooks/use-video-model-preference";
 import {
+  INITIAL_AGENT_MODEL_KEY,
   INITIAL_ATTACHMENTS_KEY,
   INITIAL_IMAGE_GENERATION_PREFERENCE_KEY,
 } from "../hooks/use-create-project";
@@ -162,6 +166,16 @@ export function ChatSidebar({
     activeImageGenerationPreference,
   );
   activeImageGenerationPreferenceRef.current = activeImageGenerationPreference;
+
+  const { activeVideoGenerationPreference } = useVideoModelPreference();
+  const activeVideoGenerationPreferenceRef = useRef(
+    activeVideoGenerationPreference,
+  );
+  activeVideoGenerationPreferenceRef.current = activeVideoGenerationPreference;
+
+  const { model: agentModel } = useAgentModel();
+  const agentModelRef = useRef(agentModel);
+  agentModelRef.current = agentModel;
 
   const [sidebarWidth, setSidebarWidth] = useState(400);
   const isResizing = useRef(false);
@@ -506,6 +520,8 @@ export function ChatSidebar({
       const currentImageGenerationPreference =
         imageGenerationPreferenceOverride ??
         activeImageGenerationPreferenceRef.current;
+      const currentVideoGenerationPreference =
+        activeVideoGenerationPreferenceRef.current;
       const currentMentions = mentionsOverride ?? messageMentionsRef.current;
       const isFirstMessage = messagesRef.current.length === 0;
 
@@ -670,6 +686,13 @@ export function ChatSidebar({
                       currentImageGenerationPreference,
                   }
                 : {}),
+              ...(currentVideoGenerationPreference
+                ? {
+                    videoGenerationPreference:
+                      currentVideoGenerationPreference,
+                  }
+                : {}),
+              ...(agentModelRef.current ? { model: agentModelRef.current } : {}),
             },
             (ack) => {
               clearTimeout(timeout);
@@ -800,6 +823,7 @@ export function ChatSidebar({
 
     let storedAttachments: ReadyAttachment[] | undefined;
     let storedImageGenerationPreference: ImageGenerationPreference | undefined;
+    let storedAgentModel: string | undefined;
     try {
       const raw = sessionStorage.getItem(INITIAL_ATTACHMENTS_KEY);
       if (raw) {
@@ -816,8 +840,19 @@ export function ChatSidebar({
         ) as ImageGenerationPreference;
         sessionStorage.removeItem(INITIAL_IMAGE_GENERATION_PREFERENCE_KEY);
       }
+
+      const modelRaw = sessionStorage.getItem(INITIAL_AGENT_MODEL_KEY);
+      if (modelRaw) {
+        storedAgentModel = modelRaw;
+        sessionStorage.removeItem(INITIAL_AGENT_MODEL_KEY);
+      }
     } catch {
       // Malformed JSON or unavailable storage — proceed without attachments
+    }
+
+    // Temporarily set the agent model ref so the startRun picks it up
+    if (storedAgentModel) {
+      agentModelRef.current = storedAgentModel;
     }
 
     const timer = setTimeout(() => {

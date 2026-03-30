@@ -2,7 +2,7 @@
 
 import { useCallback, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import type { ImageGenerationPreference } from "@loomic/shared";
+import type { ImageGenerationPreference, VideoGenerationPreference } from "@loomic/shared";
 
 import type { ReadyAttachment } from "@/hooks/use-image-attachments";
 import { useAuth } from "@/lib/auth-context";
@@ -13,6 +13,9 @@ import { ApiAuthError, createProject } from "@/lib/server-api";
 export const INITIAL_ATTACHMENTS_KEY = "loomic:initial-attachments";
 export const INITIAL_IMAGE_GENERATION_PREFERENCE_KEY =
   "loomic:initial-image-generation-preference";
+export const INITIAL_VIDEO_GENERATION_PREFERENCE_KEY =
+  "loomic:initial-video-generation-preference";
+export const INITIAL_AGENT_MODEL_KEY = "loomic:initial-agent-model";
 
 /**
  * Shared hook for creating an Untitled project and navigating to its canvas.
@@ -34,6 +37,8 @@ export function useCreateProject() {
       prompt?: string;
       attachments?: ReadyAttachment[];
       imageGenerationPreference?: ImageGenerationPreference;
+      videoGenerationPreference?: VideoGenerationPreference;
+      model?: string;
     }) => {
       const token = session?.access_token;
       if (!token || creating) return;
@@ -65,6 +70,29 @@ export function useCreateProject() {
         }
       } else {
         sessionStorage.removeItem(INITIAL_IMAGE_GENERATION_PREFERENCE_KEY);
+      }
+
+      if (opts?.videoGenerationPreference) {
+        try {
+          sessionStorage.setItem(
+            INITIAL_VIDEO_GENERATION_PREFERENCE_KEY,
+            JSON.stringify(opts.videoGenerationPreference),
+          );
+        } catch {
+          // sessionStorage write failure is non-fatal
+        }
+      } else {
+        sessionStorage.removeItem(INITIAL_VIDEO_GENERATION_PREFERENCE_KEY);
+      }
+
+      if (opts?.model) {
+        try {
+          sessionStorage.setItem(INITIAL_AGENT_MODEL_KEY, opts.model);
+        } catch {
+          // sessionStorage write failure is non-fatal
+        }
+      } else {
+        sessionStorage.removeItem(INITIAL_AGENT_MODEL_KEY);
       }
 
       // Open the new tab synchronously within the user gesture so the
