@@ -53,6 +53,15 @@ ENV NODE_ENV=production
 
 EXPOSE 3001
 
+# Python runtime for sandbox code execution (canvas-design skill)
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends python3 python3-pip && \
+    pip3 install --no-cache-dir --break-system-packages pillow reportlab && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Copy skills (fonts + SKILL.md) to /opt/loomic/skills/
+COPY skills/ /opt/loomic/skills/
+
 # SERVICE_MODE: "api" (default) or "worker"
 ENV SERVICE_MODE=api
 
