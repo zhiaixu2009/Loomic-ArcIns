@@ -77,11 +77,23 @@ export function createPersistSandboxFileTool(deps: PersistSandboxFileDeps) {
           ? `${safeTitle}${ext}`
           : basename(input.filePath);
 
-        const storagePath = canvasId
-          ? `${canvasId}/generated/${Date.now()}-${fileName}`
-          : `uploads/${Date.now()}-${fileName}`;
-
         const client = deps.createUserClient(accessToken);
+
+        // Resolve workspace ID from canvas for Storage RLS compliance.
+        // RLS requires: storage.foldername(name)[1] = workspace_id
+        let workspaceId: string | null = null;
+        if (canvasId) {
+          const { data: canvas } = await client
+            .from("canvases")
+            .select("project:projects(workspace_id)")
+            .eq("id", canvasId)
+            .single();
+          workspaceId = (canvas?.project as any)?.workspace_id ?? null;
+        }
+
+        const storagePath = workspaceId
+          ? `${workspaceId}/generated/${Date.now()}-${fileName}`
+          : `uploads/${Date.now()}-${fileName}`;
         const { data, error } = await client.storage
           .from("project-assets")
           .upload(storagePath, fileBuffer, {
