@@ -91,13 +91,60 @@ export async function* adaptDeepAgentStream(
           if ((msg.tool_calls?.length ?? 0) > 0) continue;
         }
 
+        const messageId =
+          (chunk as { id?: string }).id ?? `message_${options.runId}`;
+
+        const content = (chunk as { content: unknown }).content;
+
+        // Handle array content (e.g. Gemini thinking + text blocks)
+        if (Array.isArray(content)) {
+          for (const part of content) {
+            if (
+              part &&
+              typeof part === "object" &&
+              "type" in part &&
+              part.type === "thinking" &&
+              "thinking" in part &&
+              typeof part.thinking === "string" &&
+              part.thinking
+            ) {
+              yield {
+                type: "thinking.delta" as const,
+                runId: options.runId,
+                messageId,
+                delta: part.thinking,
+                timestamp: now(),
+              };
+            } else {
+              const text =
+                typeof part === "string"
+                  ? part
+                  : part &&
+                      typeof part === "object" &&
+                      "text" in part &&
+                      typeof (part as { text: unknown }).text === "string"
+                    ? (part as { text: string }).text
+                    : "";
+              if (text) {
+                seenStreamedMessageIds.add(messageId);
+                yield {
+                  type: "message.delta" as const,
+                  runId: options.runId,
+                  messageId,
+                  delta: text,
+                  timestamp: now(),
+                };
+              }
+            }
+          }
+          continue;
+        }
+
+        // String content (normal text)
         const delta = extractChunkText(chunk);
         if (!delta) continue;
 
-        const messageId =
-          (chunk as { id?: string }).id ?? `message_${options.runId}`;
         seenStreamedMessageIds.add(messageId);
-
         yield {
           delta,
           messageId,

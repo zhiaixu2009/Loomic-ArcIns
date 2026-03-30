@@ -171,6 +171,11 @@ export const textBlockSchema = z.object({
   text: z.string(),
 });
 
+export const thinkingBlockSchema = z.object({
+  type: z.literal("thinking"),
+  thinking: z.string(),
+});
+
 export const toolBlockSchema = z.object({
   type: z.literal("tool"),
   toolCallId: z.string().min(1),
@@ -215,6 +220,7 @@ export const mentionBlockSchema = z.union([
 
 export const contentBlockSchema = z.union([
   textBlockSchema,
+  thinkingBlockSchema,
   toolBlockSchema,
   imageBlockSchema,
   mentionBlockSchema,
@@ -253,6 +259,7 @@ export type AssetBucket = z.infer<typeof assetBucketSchema>;
 export type AssetObject = z.infer<typeof assetObjectSchema>;
 
 export type TextBlock = z.infer<typeof textBlockSchema>;
+export type ThinkingBlock = z.infer<typeof thinkingBlockSchema>;
 export type ToolBlock = z.infer<typeof toolBlockSchema>;
 export type ImageBlock = z.infer<typeof imageBlockSchema>;
 export type MessageMention = z.infer<typeof messageMentionSchema>;

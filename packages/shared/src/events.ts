@@ -69,6 +69,14 @@ export const runFailedEventSchema = z.object({
   timestamp: timestampSchema,
 });
 
+export const thinkingDeltaEventSchema = z.object({
+  type: z.literal("thinking.delta"),
+  runId: runIdSchema,
+  messageId: messageIdSchema,
+  delta: z.string(),
+  timestamp: timestampSchema,
+});
+
 export const canvasSyncEventSchema = z.object({
   type: z.literal("canvas.sync"),
   runId: runIdSchema,
@@ -78,6 +86,7 @@ export const canvasSyncEventSchema = z.object({
 export const streamEventSchema = z.discriminatedUnion("type", [
   runStartedEventSchema,
   messageDeltaEventSchema,
+  thinkingDeltaEventSchema,
   toolStartedEventSchema,
   toolCompletedEventSchema,
   runCanceledEventSchema,

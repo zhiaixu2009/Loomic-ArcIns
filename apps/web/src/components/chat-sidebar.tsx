@@ -417,6 +417,25 @@ export function ChatSidebar({
           );
           break;
 
+        case "thinking.delta":
+          setMessages((prev) =>
+            prev.map((m) => {
+              if (m.id !== assistantId) return m;
+              const blocks = [...m.contentBlocks];
+              const last = blocks[blocks.length - 1];
+              if (last && last.type === "thinking") {
+                blocks[blocks.length - 1] = {
+                  ...last,
+                  thinking: last.thinking + event.delta,
+                };
+              } else {
+                blocks.push({ type: "thinking", thinking: event.delta });
+              }
+              return { ...m, contentBlocks: blocks };
+            }),
+          );
+          break;
+
         case "tool.started":
           setMessages((prev) =>
             prev.map((m) => {

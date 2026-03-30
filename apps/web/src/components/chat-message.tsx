@@ -1,10 +1,10 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
-import type { ContentBlock, ToolArtifact, ToolBlock } from "@loomic/shared";
+import type { ContentBlock, ThinkingBlock, ToolArtifact, ToolBlock } from "@loomic/shared";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -430,7 +430,10 @@ export function ChatMessage({
 
   // Show thinking indicator when streaming but no content has arrived yet
   const hasContent = contentBlocks.some(
-    (b) => (b.type === "text" && b.text.length > 0) || b.type === "tool",
+    (b) =>
+      (b.type === "text" && b.text.length > 0) ||
+      b.type === "tool" ||
+      b.type === "thinking",
   );
   const showThinking = isStreaming && !hasContent;
 
@@ -459,6 +462,16 @@ export function ChatMessage({
         </div>
       )}
       {contentBlocks.map((block, idx) => {
+        if (block.type === "thinking") {
+          return (
+            <ThinkingBlockView
+              key={`thinking-${idx}`}
+              thinking={block.thinking}
+              isStreaming={!!isStreaming && idx === contentBlocks.length - 1}
+            />
+          );
+        }
+
         if (block.type === "text") {
           return (
             <div
@@ -485,6 +498,74 @@ export function ChatMessage({
         // ImageBlock — skip in assistant messages (images are user-side only)
         return null;
       })}
+    </motion.div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  ThinkingBlockView — collapsible thinking content with animation    */
+/* ------------------------------------------------------------------ */
+
+function ThinkingBlockView({ thinking, isStreaming }: { thinking: string; isStreaming: boolean }) {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, height: 0 }}
+      animate={{ opacity: 1, height: "auto" }}
+      exit={{ opacity: 0, height: 0 }}
+      transition={{ duration: 0.3, ease: "easeOut" }}
+      className="mb-2 overflow-hidden"
+    >
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        className="flex items-center gap-2 text-xs text-muted-foreground/70 hover:text-muted-foreground transition-colors"
+      >
+        {isStreaming ? (
+          <motion.div
+            className="flex items-center gap-1.5"
+            initial={{ opacity: 0.5 }}
+            animate={{ opacity: [0.5, 1, 0.5] }}
+            transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+          >
+            <svg width="12" height="12" viewBox="0 0 14 14" fill="currentColor" className="text-accent">
+              <path d="M7.314 1.451a5.527 5.527 0 0 0 5.519 5.242v.614a5.527 5.527 0 0 0-5.519 5.242l-.007.284h-.614l-.007-.284a5.527 5.527 0 0 0-5.519-5.242v-.614a5.527 5.527 0 0 0 5.519-5.242l.007-.284h.614zm4.31 8.125c.042.835.733 1.5 1.58 1.5v.176c-.847 0-1.538.664-1.58 1.5l-.002.081h-.176l-.002-.081a1.58 1.58 0 0 0-1.579-1.5v-.176c.846 0 1.537-.665 1.58-1.5l.001-.08h.176zM7 4.204A6.6 6.6 0 0 1 4.205 7 6.6 6.6 0 0 1 7 9.795 6.6 6.6 0 0 1 9.794 7 6.6 6.6 0 0 1 7 4.204" />
+            </svg>
+            <span>Thinking...</span>
+          </motion.div>
+        ) : (
+          <>
+            <motion.svg
+              width="12"
+              height="12"
+              viewBox="0 0 12 12"
+              fill="none"
+              animate={{ rotate: expanded ? 90 : 0 }}
+              transition={{ duration: 0.2 }}
+            >
+              <path d="M4.5 2.5l3.5 3.5-3.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </motion.svg>
+            <span>Thought for a moment</span>
+          </>
+        )}
+      </button>
+
+      <AnimatePresence>
+        {(expanded || isStreaming) && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.2 }}
+            className="mt-1.5 overflow-hidden"
+          >
+            <div className="border-l-2 border-accent/30 pl-3 text-xs leading-relaxed text-muted-foreground/60 whitespace-pre-wrap">
+              {thinking}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }
