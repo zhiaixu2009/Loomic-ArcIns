@@ -57,6 +57,12 @@ function CanvasVisual() {
 function ChatVisual() {
   return (
     <div className="aspect-[4/3] flex flex-col justify-end gap-3 p-2">
+      <style>{`
+        @keyframes typingBounce {
+          0%, 60%, 100% { transform: translateY(0); }
+          30% { transform: translateY(-4px); }
+        }
+      `}</style>
       {/* AI response */}
       <div className="flex items-end gap-2">
         <div className="size-7 rounded-full bg-muted/70 border border-border shrink-0 flex items-center justify-center">
@@ -80,7 +86,19 @@ function ChatVisual() {
             </div>
           </div>
           <div className="h-1 w-32 rounded-full bg-muted-foreground/20" />
-          <div className="h-1 w-24 rounded-full bg-muted-foreground/15" />
+          {/* Typing indicator */}
+          <div className="flex items-center gap-1 pt-1">
+            {[0, 1, 2].map((i) => (
+              <div
+                key={i}
+                className="size-1.5 rounded-full"
+                style={{
+                  background: "oklch(0.90 0.17 115 / 0.6)",
+                  animation: `typingBounce 1.4s ease-in-out ${i * 0.2}s infinite`,
+                }}
+              />
+            ))}
+          </div>
         </div>
       </div>
       {/* User message */}
@@ -102,30 +120,44 @@ function ChatVisual() {
 
 function BrandVisual() {
   const swatches = [
-    "oklch(0.90 0.17 115 / 0.9)",
-    "oklch(0.82 0.17 115 / 0.7)",
-    "oklch(0.205 0 0)",
-    "oklch(0.556 0 0)",
+    { bg: "oklch(0.90 0.17 115)", label: "Primary", hex: "#A3E635" },
+    { bg: "oklch(0.82 0.14 125)", label: "Secondary", hex: "#86C96B" },
+    { bg: "oklch(0.72 0.12 135)", label: "Accent", hex: "#5EA84F" },
+    { bg: "oklch(0.60 0.10 120)", label: "Deep", hex: "#3D8B37" },
   ];
 
   return (
     <div className="aspect-[4/3] grid grid-cols-2 gap-3 p-2">
-      {swatches.map((color, i) => (
+      {swatches.map((swatch, i) => (
         <div
           key={i}
           className="rounded-xl border border-border/60 flex flex-col items-center justify-center gap-2 p-3"
-          style={{ background: `${color}` + (i < 2 ? "" : " / 0.08") }}
+          style={{
+            background: i < 2
+              ? `${swatch.bg}`
+              : `color-mix(in oklch, ${swatch.bg} 15%, transparent)`,
+          }}
         >
           <div
-            className="size-8 rounded-lg"
-            style={{ background: i < 2 ? "oklch(0.205 0 0 / 0.2)" : color }}
+            className="size-8 rounded-lg shadow-sm"
+            style={{ background: swatch.bg }}
           />
-          <div
-            className="h-1 w-10 rounded-full"
-            style={{
-              background: i < 2 ? "oklch(0.205 0 0 / 0.3)" : "oklch(0.556 0 0 / 0.3)",
-            }}
-          />
+          <div className="flex flex-col items-center gap-0.5">
+            <div
+              className="h-1 w-10 rounded-full"
+              style={{
+                background: i < 2 ? "oklch(0.205 0 0 / 0.3)" : "oklch(0.556 0 0 / 0.3)",
+              }}
+            />
+            <span
+              className="text-[8px] font-mono tracking-wider"
+              style={{
+                color: i < 2 ? "oklch(0.205 0 0 / 0.5)" : "oklch(0.556 0 0 / 0.4)",
+              }}
+            >
+              {swatch.label}
+            </span>
+          </div>
         </div>
       ))}
     </div>
@@ -191,6 +223,31 @@ function EditVisual() {
             className="mt-2 h-6 w-20 rounded-md"
             style={{ background: "oklch(0.90 0.17 115 / 0.7)" }}
           />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Gradient border wrapper for visual mockups
+// ---------------------------------------------------------------------------
+
+function GradientBorderCard({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="relative">
+      {/* Subtle glow behind card */}
+      <div
+        className="absolute inset-0 -z-10 blur-3xl opacity-0 transition-opacity duration-700 group-[.in-view]:opacity-100"
+        style={{
+          background: "radial-gradient(ellipse at center, oklch(0.90 0.17 115 / 0.12), transparent 70%)",
+          transform: "scale(1.2)",
+        }}
+      />
+      {/* Gradient border wrapper */}
+      <div className="bg-gradient-to-br from-border via-transparent to-border p-px rounded-2xl">
+        <div className="bg-card rounded-[calc(1rem-1px)] overflow-hidden">
+          {children}
         </div>
       </div>
     </div>
@@ -288,14 +345,18 @@ function FeatureItem({ feature }: FeatureItemProps) {
   const visualContent = (
     <ScrollReveal
       variants={feature.visualVariants}
-      className={cn(
-        "rounded-2xl border border-border overflow-hidden",
-        "bg-gradient-to-br from-muted/50 to-muted/20",
-        "p-6 md:p-8",
-        "shadow-sm"
-      )}
+      className="relative"
     >
-      {feature.visual}
+      <GradientBorderCard>
+        <div
+          className={cn(
+            "bg-gradient-to-br from-muted/50 to-muted/20",
+            "p-6 md:p-8",
+          )}
+        >
+          {feature.visual}
+        </div>
+      </GradientBorderCard>
     </ScrollReveal>
   );
 
@@ -317,6 +378,24 @@ function FeatureItem({ feature }: FeatureItemProps) {
 }
 
 // ---------------------------------------------------------------------------
+// FeatureDivider — horizontal line between feature pairs
+// ---------------------------------------------------------------------------
+
+function FeatureDivider() {
+  return (
+    <div className="flex items-center justify-center">
+      <div
+        className="w-full max-w-md h-px"
+        style={{
+          background:
+            "linear-gradient(90deg, transparent 0%, oklch(0.556 0 0 / 0.15) 30%, oklch(0.90 0.17 115 / 0.2) 50%, oklch(0.556 0 0 / 0.15) 70%, transparent 100%)",
+        }}
+      />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // FeatureShowcase
 // ---------------------------------------------------------------------------
 
@@ -329,13 +408,17 @@ export function FeatureShowcase() {
           <SectionHeader
             title="设计，超越生成"
             subtitle="Loomic 不只是生成工具，更是你的智能设计伙伴"
+            className="[&_h2]:tracking-tighter"
           />
         </div>
 
         {/* Feature list */}
         <div className="space-y-24 md:space-y-32">
-          {FEATURES.map((feature) => (
-            <FeatureItem key={feature.title} feature={feature} />
+          {FEATURES.map((feature, index) => (
+            <React.Fragment key={feature.title}>
+              {index > 0 && <FeatureDivider />}
+              <FeatureItem feature={feature} />
+            </React.Fragment>
           ))}
         </div>
       </div>

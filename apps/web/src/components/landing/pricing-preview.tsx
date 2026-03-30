@@ -1,11 +1,24 @@
 "use client";
 
-import { Check } from "lucide-react";
+import { Check, Sparkles } from "lucide-react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { SectionHeader } from "@/components/landing/section-header";
 import { StaggerContainer, scaleUp } from "@/components/landing/motion";
+
+// ---------------------------------------------------------------------------
+// Animated gradient border + dots background styles
+// ---------------------------------------------------------------------------
+
+const pricingStyles = `
+  @keyframes borderShift {
+    0% { border-color: oklch(0.90 0.17 115 / 0.6); }
+    33% { border-color: oklch(0.82 0.14 125 / 0.6); }
+    66% { border-color: oklch(0.85 0.16 110 / 0.6); }
+    100% { border-color: oklch(0.90 0.17 115 / 0.6); }
+  }
+`;
 
 // ---------------------------------------------------------------------------
 // Pricing plan data
@@ -73,29 +86,31 @@ function PricingCard({ plan }: { plan: PricingPlan }) {
       variants={scaleUp}
       className={cn(
         "relative flex flex-col rounded-2xl border p-6 md:p-8 bg-card",
+        "hover:-translate-y-1 transition-transform duration-300",
         plan.highlighted
-          ? "border-2 md:-translate-y-2 shadow-xl"
+          ? "border-2 md:-translate-y-2 shadow-xl hover:md:-translate-y-3"
           : "border-border"
       )}
       style={
         plan.highlighted
           ? {
-              borderColor: "oklch(0.90 0.17 115 / 0.6)",
+              animation: "borderShift 4s ease-in-out infinite",
               boxShadow: "0 0 32px 0 oklch(0.90 0.17 115 / 0.12)",
             }
-          : undefined
+          : {}
       }
     >
       {/* Badge */}
       {plan.badge && (
         <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
           <span
-            className="px-3 py-1 rounded-full text-xs font-semibold"
+            className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold"
             style={{
               background: "oklch(0.90 0.17 115)",
               color: "oklch(0.2 0 0)",
             }}
           >
+            <Sparkles className="size-3" />
             {plan.badge}
           </span>
         </div>
@@ -114,10 +129,17 @@ function PricingCard({ plan }: { plan: PricingPlan }) {
       <ul className="space-y-3 mt-6 flex-1">
         {plan.features.map((feature) => (
           <li key={feature} className="flex items-center gap-3">
-            <Check
-              className="size-4 shrink-0"
-              style={{ color: "oklch(0.65 0.17 115)" }}
-            />
+            <div
+              className="size-5 rounded-full flex items-center justify-center shrink-0"
+              style={{
+                background: "oklch(0.90 0.17 115 / 0.15)",
+              }}
+            >
+              <Check
+                className="size-3 shrink-0"
+                style={{ color: "oklch(0.65 0.17 115)" }}
+              />
+            </div>
             <span className="text-sm text-muted-foreground">{feature}</span>
           </li>
         ))}
@@ -154,8 +176,23 @@ function PricingCard({ plan }: { plan: PricingPlan }) {
 
 export function PricingPreview() {
   return (
-    <section id="pricing" className="py-24 md:py-32">
-      <div className="max-w-5xl mx-auto px-4">
+    <section
+      id="pricing"
+      className="py-24 md:py-32 relative overflow-hidden"
+    >
+      <style>{pricingStyles}</style>
+
+      {/* Subtle dots grid background */}
+      <div
+        className="absolute inset-0 opacity-[0.035] pointer-events-none"
+        style={{
+          backgroundImage:
+            "radial-gradient(circle, oklch(0.556 0 0) 1px, transparent 1px)",
+          backgroundSize: "24px 24px",
+        }}
+      />
+
+      <div className="relative max-w-5xl mx-auto px-4">
         <div className="mb-14 md:mb-20">
           <SectionHeader
             title="选择你的计划"

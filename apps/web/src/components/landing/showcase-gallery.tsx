@@ -6,6 +6,17 @@ import { SectionHeader } from "@/components/landing/section-header";
 import { StaggerContainer, scaleUp } from "@/components/landing/motion";
 
 // ---------------------------------------------------------------------------
+// Slow rotation keyframes
+// ---------------------------------------------------------------------------
+
+const galleryStyles = `
+  @keyframes slowSpin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+`;
+
+// ---------------------------------------------------------------------------
 // Gallery item data
 // ---------------------------------------------------------------------------
 
@@ -21,7 +32,7 @@ interface GalleryItem {
 
 function AbstractShapes1() {
   return (
-    <div className="absolute inset-0 flex items-center justify-center overflow-hidden">
+    <div className="absolute inset-0 flex items-center justify-center overflow-hidden" style={{ animation: "slowSpin 30s linear infinite" }}>
       <div className="absolute top-4 left-4 w-16 h-16 rounded-full bg-emerald-400/30" />
       <div className="absolute bottom-6 right-6 w-24 h-24 rounded-2xl bg-teal-400/20 rotate-12" />
       <div className="absolute top-1/3 right-1/4 w-10 h-10 rounded-full bg-emerald-300/40" />
@@ -32,7 +43,7 @@ function AbstractShapes1() {
 
 function AbstractShapes2() {
   return (
-    <div className="absolute inset-0 overflow-hidden">
+    <div className="absolute inset-0 overflow-hidden" style={{ animation: "slowSpin 30s linear infinite" }}>
       <div className="absolute top-0 right-0 w-32 h-32 bg-amber-400/25 rounded-bl-[4rem]" />
       <div className="absolute bottom-4 left-4 w-20 h-20 border-4 border-orange-400/30 rounded-full" />
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 bg-amber-300/20 rotate-45" />
@@ -42,7 +53,7 @@ function AbstractShapes2() {
 
 function AbstractShapes3() {
   return (
-    <div className="absolute inset-0 overflow-hidden">
+    <div className="absolute inset-0 overflow-hidden" style={{ animation: "slowSpin 30s linear infinite" }}>
       <div className="absolute -top-4 -left-4 w-28 h-28 rounded-full bg-violet-400/25" />
       <div className="absolute bottom-6 right-8 w-12 h-24 bg-purple-400/20 rounded-full" />
       <div className="absolute top-1/2 right-1/3 w-8 h-8 bg-violet-300/35 rotate-45" />
@@ -52,7 +63,7 @@ function AbstractShapes3() {
 
 function AbstractShapes4() {
   return (
-    <div className="absolute inset-0 overflow-hidden">
+    <div className="absolute inset-0 overflow-hidden" style={{ animation: "slowSpin 30s linear infinite" }}>
       <div className="absolute top-6 left-1/2 -translate-x-1/2 w-20 h-20 rounded-full bg-rose-400/25" />
       <div className="absolute bottom-0 left-0 w-full h-16 bg-pink-400/15 rounded-t-3xl" />
       <div className="absolute top-1/3 right-6 w-6 h-16 bg-rose-300/30 rounded-full" />
@@ -62,7 +73,7 @@ function AbstractShapes4() {
 
 function AbstractShapes5() {
   return (
-    <div className="absolute inset-0 overflow-hidden">
+    <div className="absolute inset-0 overflow-hidden" style={{ animation: "slowSpin 30s linear infinite" }}>
       <div className="absolute top-4 left-4 right-4 h-12 bg-blue-400/20 rounded-xl" />
       <div className="absolute bottom-4 left-4 w-12 h-12 rounded-full bg-cyan-400/30" />
       <div className="absolute bottom-8 right-8 w-16 h-8 bg-blue-300/25 rounded-lg" />
@@ -73,7 +84,7 @@ function AbstractShapes5() {
 
 function AbstractShapes6() {
   return (
-    <div className="absolute inset-0 overflow-hidden">
+    <div className="absolute inset-0 overflow-hidden" style={{ animation: "slowSpin 30s linear infinite" }}>
       <div className="absolute inset-4 border-2 border-lime-400/25 rounded-xl" />
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 rounded-full bg-green-400/30" />
       <div className="absolute bottom-6 right-6 w-8 h-8 bg-lime-400/40 rounded-md" />
@@ -83,7 +94,7 @@ function AbstractShapes6() {
 
 function AbstractShapes7() {
   return (
-    <div className="absolute inset-0 overflow-hidden flex items-center justify-center">
+    <div className="absolute inset-0 overflow-hidden flex items-center justify-center" style={{ animation: "slowSpin 30s linear infinite" }}>
       <div className="w-20 h-20 rounded-full bg-fuchsia-400/25 absolute top-6 left-6" />
       <div className="w-24 h-24 rounded-full border-4 border-purple-400/20 absolute bottom-4 right-4" />
       <div className="w-10 h-10 bg-fuchsia-300/35 rotate-45 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
@@ -93,7 +104,7 @@ function AbstractShapes7() {
 
 function AbstractShapes8() {
   return (
-    <div className="absolute inset-0 overflow-hidden">
+    <div className="absolute inset-0 overflow-hidden" style={{ animation: "slowSpin 30s linear infinite" }}>
       <div className="absolute top-0 right-0 w-24 h-24 rounded-full bg-sky-400/25 -translate-y-1/2 translate-x-1/2" />
       <div className="absolute bottom-0 left-0 w-full h-20 bg-indigo-400/15 rounded-t-[2rem]" />
       <div className="absolute top-1/3 left-6 w-8 h-8 rounded-full bg-sky-300/40" />
@@ -173,7 +184,7 @@ function GalleryCard({ item }: { item: GalleryItem }) {
     <motion.div
       variants={scaleUp}
       className={cn(
-        "relative rounded-xl overflow-hidden group cursor-pointer",
+        "relative rounded-xl overflow-hidden group cursor-pointer shadow-inner",
         "border border-border/50",
         item.colSpan,
         item.rowSpan
@@ -193,14 +204,13 @@ function GalleryCard({ item }: { item: GalleryItem }) {
       {/* Content spacer for aspect ratio */}
       <div className={cn("relative w-full", item.rowSpan ? "" : item.aspect)} />
 
-      {/* Hover overlay */}
-      <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-4">
+      {/* Hover overlay — glassmorphism */}
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-4">
         <span
-          className="inline-block px-2 py-0.5 rounded-full text-xs font-medium mb-2 w-fit"
+          className="inline-block px-2.5 py-1 rounded-full text-xs font-semibold mb-2 w-fit"
           style={{
-            background: "oklch(0.90 0.17 115 / 0.25)",
-            color: "oklch(0.90 0.17 115)",
-            border: "1px solid oklch(0.90 0.17 115 / 0.4)",
+            background: "oklch(0.90 0.17 115)",
+            color: "oklch(0.18 0 0)",
           }}
         >
           {item.category}
@@ -221,6 +231,7 @@ function GalleryCard({ item }: { item: GalleryItem }) {
 export function ShowcaseGallery() {
   return (
     <section id="showcase" className="py-24 md:py-32">
+      <style>{galleryStyles}</style>
       <div className="max-w-6xl mx-auto px-4">
         <div className="mb-14 md:mb-20">
           <SectionHeader
