@@ -1,8 +1,11 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { AlertTriangle, Gift, Zap, X } from "lucide-react";
-import Link from "next/link";
+import { AlertTriangle, Gift, Loader2, Zap, X } from "lucide-react";
+import { useCallback, useRef, useState } from "react";
+
+import { useAuth } from "@/lib/auth-context";
+import { createCheckout } from "@/lib/payments-api";
 
 interface CreditInsufficientDialogProps {
   open: boolean;
@@ -14,6 +17,14 @@ interface CreditInsufficientDialogProps {
   onClaimDaily?: () => Promise<void>;
 }
 
+function openLemonCheckout(url: string) {
+  if (window.LemonSqueezy?.Url?.Open) {
+    window.LemonSqueezy.Url.Open(url);
+  } else {
+    window.open(url, "_blank");
+  }
+}
+
 export function CreditInsufficientDialog({
   open,
   onClose,
@@ -23,8 +34,34 @@ export function CreditInsufficientDialog({
   dailyClaimed,
   onClaimDaily,
 }: CreditInsufficientDialogProps) {
+  const { session } = useAuth();
+  const accessTokenRef = useRef(session?.access_token);
+  accessTokenRef.current = session?.access_token;
+
   const isFree = plan === "free";
   const canClaim = isFree && !dailyClaimed && !!onClaimDaily;
+  const [upgrading, setUpgrading] = useState(false);
+
+  const handleUpgrade = useCallback(async () => {
+    const token = accessTokenRef.current;
+    if (!token) {
+      window.location.href = "/pricing";
+      return;
+    }
+
+    setUpgrading(true);
+    try {
+      // Default to Pro monthly as the recommended upgrade path
+      const { checkoutUrl } = await createCheckout(token, "pro", "monthly");
+      onClose();
+      openLemonCheckout(checkoutUrl);
+    } catch {
+      // Fallback to pricing page on error
+      window.location.href = "/pricing";
+    } finally {
+      setUpgrading(false);
+    }
+  }, [onClose]);
 
   return (
     <AnimatePresence>
@@ -114,14 +151,19 @@ export function CreditInsufficientDialog({
                   Claim Daily Credits
                 </button>
               )}
-              <Link
-                href="/pricing"
-                onClick={onClose}
-                className="flex w-full items-center justify-center gap-2 rounded-lg bg-violet-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-violet-500"
+              <button
+                type="button"
+                onClick={handleUpgrade}
+                disabled={upgrading}
+                className="flex w-full items-center justify-center gap-2 rounded-lg bg-violet-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-violet-500 disabled:opacity-50"
               >
-                <Zap className="h-4 w-4" />
+                {upgrading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Zap className="h-4 w-4" />
+                )}
                 Upgrade Plan
-              </Link>
+              </button>
               <button
                 type="button"
                 onClick={onClose}
