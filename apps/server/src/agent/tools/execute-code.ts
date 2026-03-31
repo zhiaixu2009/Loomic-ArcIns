@@ -14,13 +14,25 @@ import { z } from "zod";
 // 如果我们的工具也叫 "execute"，会被 deepagents 连带过滤掉。
 // 所以命名为 "execute_code" 来绕开这个限制。
 //
-// sandbox 不等于需要购买云服务：
-//   - LocalShellBackend 就是一个免费的本地 sandbox 实现
-//   - BaseSandbox 子类 (E2B/Modal/Daytona) 是云 sandbox
-//   - 两者都实现 SandboxBackendProtocol，都能让 "execute" 工具可用
+// deepagents 提供的 sandbox backend 选项（都实现 SandboxBackendProtocol）：
 //
-// 我们在 state 模式下不使用 sandbox backend，代码执行走 PGMQ 队列：
+//   TS/Node.js (我们用的):
+//     - LocalShellBackend  — 本地免费，child_process.spawn，无隔离
+//     - BaseSandbox 抽象类 — 自己实现 execute()/uploadFiles()/downloadFiles()
+//
+//   Python SDK (参考，我们不用):
+//     - AgentCoreSandbox (AWS MicroVM, @langchain/agentcore)
+//     - ModalSandbox (GPU, @langchain/modal)
+//     - DaytonaSandbox (快速冷启, @langchain/daytona)
+//     - RunloopSandbox (disposable devbox, @langchain/runloop)
+//
+//   以上 sandbox 都能自动启用内置 "execute" 工具。
+//   不用 sandbox 也可以 — 就是我们现在的方案：
+//   state 模式 + PGMQ 队列异步执行，不依赖任何 sandbox 服务。
+//
+// 我们的方案：
 //   Agent → execute_code tool → PGMQ → Worker → 隔离子进程 → 结果回传
+//   不需要购买任何云沙箱服务，Worker 进程在自己的服务器上跑。
 // ---------------------------------------------------------------------------
 
 /**
