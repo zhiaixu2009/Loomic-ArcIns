@@ -12,15 +12,15 @@ import {
 } from "@/components/landing/motion";
 
 // ---------------------------------------------------------------------------
-// Feature visuals — ALL Higgsfield, matched to feature descriptions
+// Feature visuals — local high-res images matched to feature descriptions
 // ---------------------------------------------------------------------------
 
 function CanvasVisual() {
-  // 三位女性复古运动时尚大片 — 复杂多人场景，展示画布级构图能力
+  // showcase-5: 三女复古运动时尚 — 复杂多人场景构图，展示画布能力
   return (
     <div className="aspect-[4/3] relative overflow-hidden rounded-xl">
       <img
-        src="https://dqv0cqkoy5oj7.cloudfront.net/user_36Hwty94QweUxs82UEGsxmReIrf/hf_20260218_184556_0e4b2d2d-e4b7-4d49-91e8-a67ed83fb932.png"
+        src="/images/showcase/showcase-5.jpg"
         alt="AI 画布级多人场景构图"
         className="absolute inset-0 w-full h-full object-cover"
         loading="lazy"
@@ -30,12 +30,12 @@ function CanvasVisual() {
 }
 
 function ChatVisual() {
-  // 唐人街时尚街拍 — AI 精准理解 "唐人街复古时尚" 创意意图并生成
+  // showcase-10: 朋克牛仔皮草造型 — AI 精准理解 "朋克牛仔" 创意意图
   return (
     <div className="aspect-[4/3] relative overflow-hidden rounded-xl">
       <img
-        src="https://cdn.higgsfield.ai/minimax_hailuo_motion/fd904f40-a0d5-4164-87cc-9f124c2af2bd.webp"
-        alt="AI 理解创意意图生成街拍场景"
+        src="/images/showcase/showcase-10.jpg"
+        alt="AI 理解创意意图生成潮流造型"
         className="absolute inset-0 w-full h-full object-cover"
         loading="lazy"
       />
@@ -44,12 +44,12 @@ function ChatVisual() {
 }
 
 function BrandVisual() {
-  // 黄色毛线帽蓝色杯子生活方式 — 统一色调、一致风格的品牌美学
+  // showcase-11: 白房前清新双人 — 统一柔和色调，风格一致的品牌美学
   return (
     <div className="aspect-[4/3] relative overflow-hidden rounded-xl">
       <img
-        src="https://dqv0cqkoy5oj7.cloudfront.net/user_35h9Zqn0Bk5qurQOPUM7laOSfXO/hf_20260207_193655_711f3c26-8d2b-4e66-89e4-8357c0100b62.png"
-        alt="一致风格的品牌视觉美学"
+        src="/images/showcase/showcase-11.jpg"
+        alt="风格一致的品牌视觉美学"
         className="absolute inset-0 w-full h-full object-cover"
         loading="lazy"
       />
@@ -58,12 +58,12 @@ function BrandVisual() {
 }
 
 function EditVisual() {
-  // 银色面妆 + 金蛇超现实人像特写 — 精密到妆容级别的像素控制
+  // showcase-3: 混合媒体拼贴 — 精细元素拼合，展示像素级控制能力
   return (
     <div className="aspect-[4/3] relative overflow-hidden rounded-xl">
       <img
-        src="https://static.higgsfield.ai/0ab33462-481e-4c78-8ffc-086bebd84187.webp"
-        alt="像素级精准细节控制"
+        src="/images/showcase/showcase-3.jpg"
+        alt="精细元素拼合的像素级控制"
         className="absolute inset-0 w-full h-full object-cover"
         loading="lazy"
       />

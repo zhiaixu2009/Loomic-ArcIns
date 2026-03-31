@@ -108,11 +108,11 @@ function HeroMockup() {
           <div className="w-14" />
         </div>
 
-        {/* Canvas area — dramatic AI-generated scene as canvas preview */}
+        {/* Canvas area — dramatic AI scene as canvas preview */}
         <div className="relative w-full h-full">
           <MockupCursor />
           <img
-            src="https://static.higgsfield.ai/a8e2bc3a-e78e-42aa-a0e6-79bc01141ed3.webp"
+            src="/images/showcase/showcase-12.jpg"
             alt="Loomic Canvas AI 创作"
             className="w-full h-full object-cover"
             loading="eager"
