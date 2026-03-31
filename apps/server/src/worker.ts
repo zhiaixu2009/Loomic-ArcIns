@@ -18,7 +18,7 @@ import { createAdminSupabaseClient } from "./supabase/admin.js";
 import { createUserSupabaseClientFactory } from "./supabase/user.js";
 
 // Import executors to trigger registration via side effects
-import "./features/jobs/executors/code-execution.js";
+// (code-execution is handled by LocalShellBackend, not the PGMQ worker)
 import "./features/jobs/executors/image-generation.js";
 import "./features/jobs/executors/video-generation.js";
 
