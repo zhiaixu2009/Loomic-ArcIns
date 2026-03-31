@@ -108,12 +108,12 @@ function HeroMockup() {
           <div className="w-14" />
         </div>
 
-        {/* Canvas area — dark mode design layout, looks like product screenshot */}
+        {/* Canvas area — dramatic AI-generated scene as canvas preview */}
         <div className="relative w-full h-full">
           <MockupCursor />
           <img
-            src="https://assets-persist.lovart.ai/img/d92cfdbbb4c243d8a269dc6d1301540c/1139fbe3c6aa17a336ca45d5ec3b0e412136cc37.png"
-            alt="Loomic Canvas 设计界面"
+            src="https://static.higgsfield.ai/a8e2bc3a-e78e-42aa-a0e6-79bc01141ed3.webp"
+            alt="Loomic Canvas AI 创作"
             className="w-full h-full object-cover"
             loading="eager"
           />

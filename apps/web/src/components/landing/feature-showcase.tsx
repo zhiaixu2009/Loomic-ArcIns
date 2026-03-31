@@ -12,16 +12,16 @@ import {
 } from "@/components/landing/motion";
 
 // ---------------------------------------------------------------------------
-// Feature visuals — real images matched to feature descriptions
+// Feature visuals — ALL Higgsfield, matched to feature descriptions
 // ---------------------------------------------------------------------------
 
 function CanvasVisual() {
-  // lov1: 运动品牌产品发布多图版面 — 展示画布级多元素设计排版
+  // 三位女性复古运动时尚大片 — 复杂多人场景，展示画布级构图能力
   return (
     <div className="aspect-[4/3] relative overflow-hidden rounded-xl">
       <img
-        src="https://assets-persist.lovart.ai/img/d92cfdbbb4c243d8a269dc6d1301540c/533de217d64394ebf9b4794d8de6b3110917d550.png"
-        alt="运动品牌画布级设计排版"
+        src="https://dqv0cqkoy5oj7.cloudfront.net/user_36Hwty94QweUxs82UEGsxmReIrf/hf_20260218_184556_0e4b2d2d-e4b7-4d49-91e8-a67ed83fb932.png"
+        alt="AI 画布级多人场景构图"
         className="absolute inset-0 w-full h-full object-cover"
         loading="lazy"
       />
@@ -30,12 +30,12 @@ function CanvasVisual() {
 }
 
 function ChatVisual() {
-  // lov6: 墨镜品牌广告 "An Accessory That Speaks" — 展示 AI 理解创意意图生成广告
+  // 唐人街时尚街拍 — AI 精准理解 "唐人街复古时尚" 创意意图并生成
   return (
     <div className="aspect-[4/3] relative overflow-hidden rounded-xl">
       <img
-        src="https://assets-persist.lovart.ai/img/d92cfdbbb4c243d8a269dc6d1301540c/6b1a28475b0c188f4a858aaf0aa852793de580c3.png"
-        alt="AI 理解创意意图生成品牌广告"
+        src="https://cdn.higgsfield.ai/minimax_hailuo_motion/fd904f40-a0d5-4164-87cc-9f124c2af2bd.webp"
+        alt="AI 理解创意意图生成街拍场景"
         className="absolute inset-0 w-full h-full object-cover"
         loading="lazy"
       />
@@ -44,12 +44,12 @@ function ChatVisual() {
 }
 
 function BrandVisual() {
-  // lov8: 咖啡品牌视觉系统 — 多个一致风格的品牌物料展示
+  // 黄色毛线帽蓝色杯子生活方式 — 统一色调、一致风格的品牌美学
   return (
     <div className="aspect-[4/3] relative overflow-hidden rounded-xl">
       <img
-        src="https://assets-persist.lovart.ai/img/d92cfdbbb4c243d8a269dc6d1301540c/ba24a2ef16feb236dbc0a9ac71f7a8ea5aa8fc21.png"
-        alt="咖啡品牌全套视觉设计系统"
+        src="https://dqv0cqkoy5oj7.cloudfront.net/user_35h9Zqn0Bk5qurQOPUM7laOSfXO/hf_20260207_193655_711f3c26-8d2b-4e66-89e4-8357c0100b62.png"
+        alt="一致风格的品牌视觉美学"
         className="absolute inset-0 w-full h-full object-cover"
         loading="lazy"
       />
@@ -58,12 +58,12 @@ function BrandVisual() {
 }
 
 function EditVisual() {
+  // 银色面妆 + 金蛇超现实人像特写 — 精密到妆容级别的像素控制
   return (
-    // lov7: 眼镜产品精密细节特写 "Crafted in Every Detail" — 展示像素级精准控制
     <div className="aspect-[4/3] relative overflow-hidden rounded-xl">
       <img
-        src="https://assets-persist.lovart.ai/img/d92cfdbbb4c243d8a269dc6d1301540c/d0a9be686121d00de898a2d5ce66d9db1b057e97.png"
-        alt="像素级精准编辑细节控制"
+        src="https://static.higgsfield.ai/0ab33462-481e-4c78-8ffc-086bebd84187.webp"
+        alt="像素级精准细节控制"
         className="absolute inset-0 w-full h-full object-cover"
         loading="lazy"
       />
