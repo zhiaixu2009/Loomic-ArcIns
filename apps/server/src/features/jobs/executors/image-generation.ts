@@ -63,7 +63,10 @@ registerExecutor("image_generation", async (jobId, _rawPayload, ctx: ExecutorCon
       });
     } catch (genError) {
       const detail = genError instanceof Error ? genError.message : String(genError);
-      throw new Error(`Image generation failed for model ${model}: ${detail}`);
+      const wrapped = new Error(`Image generation failed for model ${model}: ${detail}`);
+      (wrapped as Error & { code?: string }).code =
+        (genError as { code?: string })?.code ?? "executor_error";
+      throw wrapped;
     }
     lap("replicate_call_done");
 

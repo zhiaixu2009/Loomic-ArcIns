@@ -104,16 +104,36 @@ export const HomePrompt = forwardRef<HomePromptHandle, HomePromptProps>(
     const handleSubmit = useCallback(() => {
       const trimmed = value.trim();
       if (
-        (!trimmed && (!attachments || attachments.length === 0)) ||
+        (!trimmed && (!attachments || attachments.length === 0) && !selectedSeed) ||
         disabled ||
         isUploading
       )
         return;
+
+      // Merge user-uploaded attachments with example seed images
+      let mergedAttachments: ReadyAttachment[] | undefined =
+        readyAttachments && readyAttachments.length > 0
+          ? [...readyAttachments]
+          : undefined;
+
+      if (selectedSeed?.images?.length) {
+        const seedAttachments: ReadyAttachment[] = selectedSeed.images.map(
+          (url, i) => ({
+            assetId: `seed-${selectedSeed.categoryKey}-${i}`,
+            url,
+            mimeType: "image/webp",
+            source: "upload" as const,
+            name: `${selectedSeed.title} #${i + 1}`,
+          }),
+        );
+        mergedAttachments = mergedAttachments
+          ? [...mergedAttachments, ...seedAttachments]
+          : seedAttachments;
+      }
+
       onSubmit(
         trimmed,
-        readyAttachments && readyAttachments.length > 0
-          ? readyAttachments
-          : undefined,
+        mergedAttachments,
         preference.mode === "manual" && preference.models.length > 0
           ? preference
           : undefined,
@@ -126,7 +146,7 @@ export const HomePrompt = forwardRef<HomePromptHandle, HomePromptProps>(
       if (textareaRef.current) {
         textareaRef.current.style.height = "auto";
       }
-    }, [value, disabled, isUploading, onSubmit, attachments, readyAttachments, preference, videoPreference, agentModel]);
+    }, [value, disabled, isUploading, onSubmit, attachments, readyAttachments, preference, videoPreference, agentModel, selectedSeed]);
 
     const handleKeyDown = useCallback(
       (e: React.KeyboardEvent) => {

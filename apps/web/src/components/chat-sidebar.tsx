@@ -518,7 +518,7 @@ export function ChatSidebar({
       let currentAttachments = attachmentsOverride ?? readyAttachments;
       const selectedEls = selectedCanvasElementsRef.current ?? [];
       const selectedImageEls = selectedEls.filter(
-        (el) => el.type === "image" && el.fileId && el.dataUrl,
+        (el) => el.type === "image" && el.fileId && (el.storageUrl || el.dataUrl),
       );
       if (selectedImageEls.length > 0 && !attachmentsOverride) {
         // Deduplicate: skip selected images already in explicit attachments (by assetId/element id)
@@ -527,7 +527,7 @@ export function ChatSidebar({
           .filter((el) => !existingIds.has(el.id))
           .map((el) => ({
             assetId: el.id,
-            url: el.dataUrl!,
+            url: el.storageUrl ?? el.dataUrl!,
             mimeType: "image/png",
             source: "canvas-ref" as const,
             name: `Canvas selection ${el.id.slice(0, 6)}`,

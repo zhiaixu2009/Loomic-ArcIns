@@ -48,6 +48,7 @@ export function createExcalidrawImageElement(opts: {
   height: number;
   title?: string;
   source?: "generated" | "uploaded";
+  storageUrl?: string;
 }): Record<string, unknown> {
   const element: Record<string, unknown> = {
     type: "image",
@@ -81,10 +82,11 @@ export function createExcalidrawImageElement(opts: {
     scale: [1, 1],
     crop: null,
   };
-  if (opts.title || opts.source) {
+  if (opts.title || opts.source || opts.storageUrl) {
     element.customData = {
       ...(opts.title ? { title: opts.title } : {}),
       ...(opts.source ? { source: opts.source } : {}),
+      ...(opts.storageUrl ? { storageUrl: opts.storageUrl } : {}),
     };
   }
   return element;
@@ -192,6 +194,7 @@ export async function insertImageOnCanvas(
     height,
     ...(artifact.title ? { title: artifact.title } : {}),
     source: "generated",
+    storageUrl: artifact.url,
   });
 
   api.updateScene({

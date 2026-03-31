@@ -146,6 +146,7 @@ export async function registerChatRoutes(
   // Create a message
   app.post<{ Params: { sessionId: string } }>(
     "/api/sessions/:sessionId/messages",
+    { bodyLimit: 10 * 1024 * 1024 }, // 10 MB — messages may include base64 image data from canvas selections
     async (request, reply) => {
       try {
         const user = await options.auth.authenticate(request);

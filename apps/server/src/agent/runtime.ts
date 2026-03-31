@@ -758,18 +758,19 @@ export function createAgentRunService(options: CreateAgentRuntimeOptions) {
                 }
 
                 downloaded.push({ assetId: a.assetId, mimeType: mime, base64: b64 });
+                // Use standard LangChain image_url format — works with both
+                // Google Gemini and OpenAI adapters. The Anthropic-style
+                // { type: "image", source_type: "base64" } format is NOT
+                // recognized by @langchain/google-genai and gets serialized
+                // as raw text, blowing past the token limit.
                 return {
-                  type: "image" as const,
-                  source_type: "base64" as const,
-                  data: b64,
-                  mime_type: mime,
+                  type: "image_url" as const,
+                  image_url: `data:${mime};base64,${b64}`,
                 };
               } catch {
                 return {
-                  type: "image" as const,
-                  source_type: "url" as const,
-                  url: a.url,
-                  mimeType: a.mimeType,
+                  type: "image_url" as const,
+                  image_url: a.url,
                 };
               }
             }),

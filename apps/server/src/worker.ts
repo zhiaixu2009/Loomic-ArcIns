@@ -184,7 +184,18 @@ async function processMessage(
     const errorMessage = err instanceof Error ? err.message : String(err);
     const errorCode = (err as { code?: string })?.code ?? "executor_error";
 
-    if (attempt_count >= max_attempts) {
+    // Non-retryable errors: retrying with the same input will always fail.
+    // Dead-letter immediately so the caller (agent polling) gets fast feedback.
+    const NON_RETRYABLE_CODES = new Set([
+      "invalid_input",
+      "model_not_found",
+      "provider_not_found",
+      "safety_filter",
+    ]);
+    const shouldDeadLetter =
+      attempt_count >= max_attempts || NON_RETRYABLE_CODES.has(errorCode);
+
+    if (shouldDeadLetter) {
       await ctx.jobService.markDeadLetter(jobId, errorCode, errorMessage);
       await ctx.pgmq.archive(queue, msg.msg_id);
       console.error(`${tag} Job ${jobId} dead-lettered after ${attempt_count} attempts +${Date.now() - startTime}ms: ${errorMessage}`);

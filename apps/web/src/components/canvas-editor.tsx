@@ -26,6 +26,8 @@ export type CanvasSelectedElement = {
   text?: string;
   fileId?: string;
   dataUrl?: string;
+  /** Supabase storage public URL — prefer over dataUrl for message attachments */
+  storageUrl?: string;
 };
 
 type CanvasEditorProps = {
@@ -220,6 +222,15 @@ export function CanvasEditor({
                   const file = files[el.fileId];
                   if (file?.dataURL) {
                     base.dataUrl = file.dataURL;
+                  }
+                  // Prefer storage URL over base64 dataUrl for message attachments.
+                  // Sources: 1) element customData (model-generated images)
+                  //          2) initial canvas content files (server-resolved URLs)
+                  const sUrl =
+                    el.customData?.storageUrl ??
+                    initialContent.files[el.fileId]?.storageUrl;
+                  if (typeof sUrl === "string" && sUrl) {
+                    base.storageUrl = sUrl;
                   }
                 }
                 return base;

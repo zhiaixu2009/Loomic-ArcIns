@@ -108,6 +108,11 @@ registerExecutor("video_generation", async (jobId, _rawPayload, ctx: ExecutorCon
     };
   } catch (err) {
     const detail = err instanceof Error ? err.message : String(err);
-    throw new Error(`Video generation failed for model ${model}: ${detail}`);
+    const wrapped = new Error(`Video generation failed for model ${model}: ${detail}`);
+    // Preserve the original error code so the worker can distinguish
+    // non-retryable errors (e.g. invalid_input) from transient failures.
+    (wrapped as Error & { code?: string }).code =
+      (err as { code?: string })?.code ?? "executor_error";
+    throw wrapped;
   }
 });

@@ -43,6 +43,10 @@ const POLL_INTERVAL_MS = 10_000;
 /** Allowed durations for Veo 3.1 (seconds). */
 const ALLOWED_DURATIONS = [4, 6, 8];
 
+/** Aspect ratios supported by Google Veo 3.1. */
+const ALLOWED_ASPECT_RATIOS = ["16:9", "9:16"] as const;
+type AllowedAspectRatio = (typeof ALLOWED_ASPECT_RATIOS)[number];
+
 // ── Resolution helpers ───────────────────────────────────────────────────
 
 const BASE_DIMENSIONS: Record<string, { width: number; height: number }> = {
@@ -105,6 +109,13 @@ export class GoogleVideoProvider implements VideoProvider {
     }
 
     const aspectRatio = params.aspectRatio ?? "16:9";
+    if (!ALLOWED_ASPECT_RATIOS.includes(aspectRatio as AllowedAspectRatio)) {
+      throw new GenerationError(
+        PROVIDER_NAME,
+        "invalid_input",
+        `Google Veo 3.1 does not support aspectRatio "${aspectRatio}". Supported values: ${ALLOWED_ASPECT_RATIOS.join(", ")}. Please retry with a supported aspect ratio.`,
+      );
+    }
     const resolution = params.resolution ?? "720p";
     const durationSeconds = this.clampDuration(params.duration ?? 8);
     // Note: Veo 3.1 generates audio by default; the Gemini API does not
