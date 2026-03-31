@@ -12,6 +12,8 @@ import { createAgentRunService } from "./agent/runtime.js";
 import { registerImageProvider, registerVideoProvider } from "./generation/providers/registry.js";
 import { ReplicateImageProvider } from "./generation/providers/replicate-image.js";
 import { ReplicateVideoProvider } from "./generation/providers/replicate-video.js";
+import { GoogleImageProvider } from "./generation/providers/google-image.js";
+import { GoogleVideoProvider } from "./generation/providers/google-video.js";
 import {
   createViewerService,
   type ViewerService,
@@ -106,6 +108,10 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   if (env.replicateApiToken) {
     registerImageProvider(new ReplicateImageProvider(env.replicateApiToken));
     registerVideoProvider(new ReplicateVideoProvider(env.replicateApiToken));
+  }
+  if (env.googleApiKey) {
+    registerImageProvider(new GoogleImageProvider(env.googleApiKey));
+    registerVideoProvider(new GoogleVideoProvider(env.googleApiKey));
   }
 
   const app = Fastify({

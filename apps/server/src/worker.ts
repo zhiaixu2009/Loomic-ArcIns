@@ -28,6 +28,8 @@ import type { BackgroundJobType } from "@loomic/shared";
 import { registerImageProvider, registerVideoProvider } from "./generation/providers/registry.js";
 import { ReplicateImageProvider } from "./generation/providers/replicate-image.js";
 import { ReplicateVideoProvider } from "./generation/providers/replicate-video.js";
+import { GoogleImageProvider } from "./generation/providers/google-image.js";
+import { GoogleVideoProvider } from "./generation/providers/google-video.js";
 
 const QUEUES = ["code_execution_jobs", "image_generation_jobs", "video_generation_jobs"] as const;
 
@@ -55,6 +57,10 @@ async function main() {
   if (env.replicateApiToken) {
     registerImageProvider(new ReplicateImageProvider(env.replicateApiToken));
     registerVideoProvider(new ReplicateVideoProvider(env.replicateApiToken));
+  }
+  if (env.googleApiKey) {
+    registerImageProvider(new GoogleImageProvider(env.googleApiKey));
+    registerVideoProvider(new GoogleVideoProvider(env.googleApiKey));
   }
 
   const pgmq = createPgmqClient(env.supabaseDbUrl);

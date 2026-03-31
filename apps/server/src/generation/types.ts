@@ -53,6 +53,7 @@ export interface VideoGenerateParams {
   aspectRatio?: string;
   inputImages?: string[];
   inputVideo?: string;
+  /** Enable audio generation (only supported by some providers). */
   enableAudio?: boolean;
 }
 
