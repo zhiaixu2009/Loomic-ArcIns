@@ -51,14 +51,23 @@ Create a VISUAL PHILOSOPHY (not layouts or templates) that will be interpreted t
 
 Use the `execute` tool to run Python code that generates the artwork.
 
+### IMPORTANT: Path Rules
+
+**虚拟路径 vs 真实路径**：`ls` 和 `read_file` 工具使用虚拟路径（如 `/skills/...`），
+但 `execute` 工具运行在真实 shell 中。Python 代码里**必须使用真实路径**。
+
+规则：
+1. **字体路径**：永远用 `os.environ["FONT_DIR"]`，不要硬编码
+2. **输出文件**：永远用相对路径保存（如 `output.png`），文件会在沙箱工作目录中
+3. **不要**把 `ls /skills/...` 看到的虚拟路径用在 Python 代码里
+
 ### Font Usage
 
-Fonts are available at the path specified by the `$FONT_DIR` environment variable.
-To list available fonts:
+字体通过 `$FONT_DIR` 环境变量访问（已在沙箱中预设）：
 
 ```python
 import os
-font_dir = os.environ.get("FONT_DIR", "/opt/loomic/skills/canvas-design/canvas-fonts")
+font_dir = os.environ["FONT_DIR"]  # 必须用环境变量，不要硬编码路径
 fonts = [f for f in os.listdir(font_dir) if f.endswith(".ttf")]
 ```
 
@@ -98,14 +107,20 @@ pdfmetrics.registerFont(TTFont("WorkSans", os.path.join(font_dir, "WorkSans-Bold
 
 ### Code Execution Pattern
 
-Write a complete Python script, then execute it:
+Write a complete Python script using `write_file`, then execute it:
 
 ```
-1. Use execute tool to write the Python script to a file
-2. Use execute tool to run: python3 /path/to/script.py
-3. The output file will be in the sandbox directory
-4. Use persist_sandbox_file tool to upload it for the user
+1. write_file to save the Python script (e.g., write_file path="/generate.py")
+2. execute: python3 generate.py
+3. Output file saved to current working directory (use relative path like "output.png")
+4. persist_sandbox_file: upload the output file using its FULL path from `pwd`
+   Example: persist_sandbox_file filePath="/private/tmp/loomic-sandbox/{id}/output.png"
 ```
+
+**Critical**: In Python scripts:
+- Use `os.environ["FONT_DIR"]` for font paths
+- Save output with RELATIVE paths (e.g., `img.save("poster.png")`)
+- Do NOT use `/skills/...` paths — those are virtual backend paths, not real filesystem
 
 ### Refinement Pass
 
