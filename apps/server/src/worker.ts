@@ -13,6 +13,7 @@ import { randomUUID } from "node:crypto";
 import { loadServerEnv } from "./config/env.js";
 import { createPgmqClient, type PgmqMessage } from "./queue/pgmq-client.js";
 import { createJobService } from "./features/jobs/job-service.js";
+import { createCreditService, type CreditService } from "./features/credits/credit-service.js";
 import { getExecutor, type ExecutorContext } from "./features/jobs/job-executor.js";
 import { createAdminSupabaseClient } from "./supabase/admin.js";
 import { createUserSupabaseClientFactory } from "./supabase/user.js";
@@ -72,6 +73,7 @@ async function main() {
   };
 
   const jobService = createJobService({ createUserClient, getAdminClient, pgmq });
+  const creditService = createCreditService({ getAdminClient });
 
   const ctx: ExecutorContext = {
     jobService,
@@ -128,7 +130,7 @@ async function main() {
         const messages = await pgmq.read(queue, vt, available);
 
         for (const msg of messages) {
-          const task = processMessage(queue, msg, ctx, tag)
+          const task = processMessage(queue, msg, ctx, creditService, tag)
             .finally(() => inFlight.delete(task));
           inFlight.add(task);
         }
@@ -145,6 +147,7 @@ async function processMessage(
   queue: string,
   msg: PgmqMessage,
   ctx: ExecutorContext,
+  creditService: CreditService,
   tag: string,
 ) {
   const jobId = msg.message.job_id as string;
@@ -196,12 +199,56 @@ async function processMessage(
     if (shouldDeadLetter) {
       await ctx.jobService.markDeadLetter(jobId, errorCode, errorMessage);
       await ctx.pgmq.archive(queue, msg.msg_id);
+
+      // Auto-refund credits for dead-lettered jobs
+      await refundDeadLetteredJob(jobId, ctx, creditService, tag);
+
       console.error(`${tag} Job ${jobId} dead-lettered after ${attempt_count} attempts +${Date.now() - startTime}ms: ${errorMessage}`);
     } else {
       await ctx.jobService.markFailed(jobId, errorCode, errorMessage);
       // Message will re-appear after VT expires for retry
       console.warn(`${tag} Job ${jobId} failed (attempt ${attempt_count}/${max_attempts}) +${Date.now() - startTime}ms: ${errorMessage}`);
     }
+  }
+}
+
+/**
+ * Refund credits for a dead-lettered job if credits were deducted.
+ * Only dead-lettered (permanently failed) jobs get refunds — not cancelled jobs.
+ */
+async function refundDeadLetteredJob(
+  jobId: string,
+  ctx: ExecutorContext,
+  creditService: CreditService,
+  tag: string,
+) {
+  try {
+    const admin = ctx.getAdminClient();
+    const { data: jobRow } = await admin
+      .from("background_jobs")
+      .select("credits_cost, workspace_id, created_by")
+      .eq("id", jobId)
+      .single();
+
+    if (!jobRow) return;
+
+    const creditsCost = jobRow.credits_cost ?? 0;
+    const workspaceId = jobRow.workspace_id;
+    const createdBy = jobRow.created_by;
+
+    if (creditsCost <= 0 || !workspaceId || !createdBy) return;
+
+    const txId = await creditService.refundCredits(
+      workspaceId,
+      createdBy,
+      creditsCost,
+      jobId,
+      "Auto-refund: job failed",
+    );
+    console.log(`${tag} Refunded ${creditsCost} credits for job ${jobId} (tx: ${txId})`);
+  } catch (refundErr) {
+    // Log but don't crash the worker — the job is already dead-lettered
+    console.error(`${tag} Failed to refund credits for job ${jobId}:`, refundErr);
   }
 }
 

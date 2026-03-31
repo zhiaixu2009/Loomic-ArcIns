@@ -14,8 +14,14 @@ import {
   JobServiceError,
   type JobService,
 } from "../features/jobs/job-service.js";
-import type { CreditService } from "../features/credits/credit-service.js";
-import type { TierGuard } from "../features/credits/tier-guard.js";
+import {
+  CreditServiceError,
+  type CreditService,
+} from "../features/credits/credit-service.js";
+import {
+  TierGuardError,
+  type TierGuard,
+} from "../features/credits/tier-guard.js";
 import type { ViewerService } from "../features/bootstrap/ensure-user-foundation.js";
 import type { RequestAuthenticator } from "../supabase/user.js";
 
@@ -37,6 +43,18 @@ export async function registerJobRoutes(
 
       const payload = createImageJobRequestSchema.parse(request.body);
       const viewer = await options.viewerService.ensureViewer(user);
+
+      // Credit checks (skip if credit system not configured)
+      const model = payload.model ?? "black-forest-labs/flux-kontext-pro";
+      let creditsCost = 0;
+
+      if (options.creditService && options.tierGuard) {
+        const sub = await options.creditService.getSubscription(viewer.workspace.id);
+        options.tierGuard.checkModelAccess(sub.plan, model);
+        options.tierGuard.checkResolution(sub.plan, "hd");
+        await options.tierGuard.checkConcurrency(viewer.workspace.id, sub.plan);
+        creditsCost = options.tierGuard.calculateCreditCost(model, "image_generation", { quality: "hd" });
+      }
 
       const job = await options.jobService.createJob(user, {
         workspaceId: viewer.workspace.id,
@@ -62,6 +80,24 @@ export async function registerJobRoutes(
         },
       });
 
+      // Deduct credits after job creation (we need the job ID for tracking)
+      if (options.creditService && creditsCost > 0) {
+        try {
+          const txId = await options.creditService.deductCredits(
+            viewer.workspace.id,
+            user.id,
+            creditsCost,
+            job.id,
+            `Image generation: ${model}`,
+          );
+          await options.jobService.setCreditsInfo(job.id, creditsCost, txId);
+        } catch (deductError) {
+          // Deduction failed — cancel the job and re-throw
+          await options.jobService.cancelJob(user, job.id).catch(() => {});
+          throw deductError;
+        }
+      }
+
       return reply.code(201).send(jobResponseSchema.parse({ job }));
     } catch (error) {
       if (isZodError(error)) {
@@ -81,6 +117,21 @@ export async function registerJobRoutes(
 
       const payload = createVideoJobRequestSchema.parse(request.body);
       const viewer = await options.viewerService.ensureViewer(user);
+
+      // Credit checks (skip if credit system not configured)
+      const model = payload.model ?? "wan-video/wan-2.6";
+      let creditsCost = 0;
+
+      if (options.creditService && options.tierGuard) {
+        const sub = await options.creditService.getSubscription(viewer.workspace.id);
+        options.tierGuard.checkModelAccess(sub.plan, model);
+        await options.tierGuard.checkConcurrency(viewer.workspace.id, sub.plan);
+        creditsCost = options.tierGuard.calculateCreditCost(
+          model,
+          "video_generation",
+          payload.duration != null ? { duration: payload.duration } : {},
+        );
+      }
 
       const job = await options.jobService.createJob(user, {
         workspaceId: viewer.workspace.id,
@@ -108,6 +159,23 @@ export async function registerJobRoutes(
           ...(payload.enable_audio !== undefined ? { enable_audio: payload.enable_audio } : {}),
         },
       });
+
+      // Deduct credits after job creation
+      if (options.creditService && creditsCost > 0) {
+        try {
+          const txId = await options.creditService.deductCredits(
+            viewer.workspace.id,
+            user.id,
+            creditsCost,
+            job.id,
+            `Video generation: ${model}`,
+          );
+          await options.jobService.setCreditsInfo(job.id, creditsCost, txId);
+        } catch (deductError) {
+          await options.jobService.cancelJob(user, job.id).catch(() => {});
+          throw deductError;
+        }
+      }
 
       return reply.code(201).send(jobResponseSchema.parse({ job }));
     } catch (error) {
@@ -192,6 +260,20 @@ function sendJobError(
   fallbackCode: JobErrorFallbackCode,
 ) {
   if (error instanceof JobServiceError) {
+    return reply.code(error.statusCode).send(
+      applicationErrorResponseSchema.parse({
+        error: { code: error.code, message: error.message },
+      }),
+    );
+  }
+  if (error instanceof TierGuardError) {
+    return reply.code(error.statusCode).send(
+      applicationErrorResponseSchema.parse({
+        error: { code: error.code, message: error.message },
+      }),
+    );
+  }
+  if (error instanceof CreditServiceError) {
     return reply.code(error.statusCode).send(
       applicationErrorResponseSchema.parse({
         error: { code: error.code, message: error.message },
