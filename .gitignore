@@ -47,4 +47,4 @@ logs/
 supabase/supabase/
 
 tmp/
-temp/
+temp/.claude/worktrees/
