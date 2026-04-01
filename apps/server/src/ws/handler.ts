@@ -180,17 +180,11 @@ async function authenticateAndBind(
         // Re-bind this connection to the canvas
         connectionManager.bindCanvas(connectionId, p.canvasId);
 
-        // Replay missed events from buffer
         const missed = options.eventBuffer?.getAfter(p.canvasId, p.lastSeq) ?? [];
-        for (const entry of missed) {
-          connectionManager.sendTo(connectionId, {
-            type: "event",
-            event: entry.event,
-          });
-        }
-
-        // Notify client of current state
         const activeRun = connectionManager.getActiveRun(p.canvasId);
+
+        // IMPORTANT: Send ACK FIRST so client registers event listener
+        // BEFORE replay events arrive. Otherwise replayed events have no handler.
         connectionManager.sendTo(connectionId, {
           type: "command.ack",
           action: "canvas.resume",
@@ -201,6 +195,14 @@ async function authenticateAndBind(
             replayed: missed.length,
           },
         });
+
+        // THEN replay missed events from buffer
+        for (const entry of missed) {
+          connectionManager.sendTo(connectionId, {
+            type: "event",
+            event: entry.event,
+          });
+        }
       }
     }
   });
