@@ -55,7 +55,7 @@ export type CreditService = {
     workspaceId: string,
     userId: string,
     amount: number,
-    jobId: string,
+    jobId?: string,
     description?: string,
   ): Promise<string>;
   refundCredits(
@@ -127,7 +127,7 @@ export function createCreditService(options: {
         p_workspace_id: workspaceId,
         p_user_id: userId,
         p_amount: amount,
-        p_job_id: jobId,
+        p_job_id: jobId ?? null,
         p_description: description ?? null,
       });
 
@@ -156,7 +156,7 @@ export function createCreditService(options: {
         p_workspace_id: workspaceId,
         p_user_id: userId,
         p_amount: amount,
-        p_job_id: jobId,
+        p_job_id: jobId ?? null,
         p_description: description ?? null,
       });
 
