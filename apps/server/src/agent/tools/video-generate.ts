@@ -70,10 +70,10 @@ function buildVideoGenerateSchema(models: AvailableModel[]) {
         "Video duration in seconds. Valid range depends on model (see model descriptions). Google Veo supports 4/6/8, Replicate models support 3-16.",
       ),
     resolution: z
-      .enum(["480p", "720p", "1080p"])
+      .enum(["480p", "720p", "1080p", "4k"])
       .optional()
       .default("720p")
-      .describe("Output resolution. 720p recommended for balance of quality and speed."),
+      .describe("Output resolution. 720p recommended for balance of quality and speed. 1080p/4k supported by Google Veo official models (8s duration required)."),
     aspectRatio: z
       .enum(["1:1", "16:9", "9:16", "4:3", "3:4"])
       .optional()

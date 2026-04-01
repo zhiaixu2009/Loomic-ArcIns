@@ -136,7 +136,7 @@ export function ImageGeneratorPanel({
       const result = await generateImageDirect(
         accessTokenRef.current,
         prompt.trim(),
-        { model, aspectRatio },
+        { model, aspectRatio, quality },
       );
 
       // Download and insert as real image element at same position

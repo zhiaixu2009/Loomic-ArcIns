@@ -2,6 +2,7 @@ import { DynamicStructuredTool } from "@langchain/core/tools";
 import { z } from "zod";
 
 import type { ConnectionManager } from "../../ws/connection-manager.js";
+import type { PersistImageFn } from "./image-generate.js";
 import type { ScreenshotResult } from "@loomic/shared";
 
 const screenshotCanvasSchema = z.object({
@@ -25,6 +26,7 @@ const screenshotCanvasSchema = z.object({
 
 export function createScreenshotCanvasTool(deps: {
   connectionManager: ConnectionManager;
+  persistImage?: PersistImageFn;
   rpcTimeout?: number;
 }) {
   const timeout = deps.rpcTimeout ?? 10_000;
@@ -34,18 +36,14 @@ export function createScreenshotCanvasTool(deps: {
     description:
       "Take a visual screenshot of the canvas to inspect layout, design quality, color harmony, and spatial relationships. Use this to visually verify your changes or understand the current canvas state. Supports full canvas, specific region, or current viewport capture.",
     schema: screenshotCanvasSchema,
-    responseFormat: "content_and_artifact",
-    func: async (input, _runManager, config): Promise<any> => {
+    func: async (input, _runManager, config): Promise<string> => {
       const userId = (config as any)?.configurable?.user_id;
 
       if (!userId) {
-        return [
-          JSON.stringify({
-            error: "no_user_context",
-            message: "screenshot_canvas requires a user context to communicate with the browser.",
-          }),
-          {},
-        ];
+        return JSON.stringify({
+          error: "no_user_context",
+          message: "screenshot_canvas requires a user context to communicate with the browser.",
+        });
       }
 
       try {
@@ -60,29 +58,43 @@ export function createScreenshotCanvasTool(deps: {
           timeout,
         );
 
-        const summary = `Canvas screenshot captured (${result.width}x${result.height}, mode: ${input.mode})`;
+        // Upload screenshot to storage to get a short HTTPS URL.
+        // Returning the raw data: URI (~1-2 MB base64) in the ToolMessage
+        // would be serialized as text by LangChain adapters (Google Gemini,
+        // OpenAI) since tool responses only support string content — this
+        // causes the conversation to instantly exceed the model's token limit.
+        // Pattern: same as generate_image — short URL in JSON, stream-adapter
+        // extracts screenshotUrl as a frontend artifact.
+        let screenshotUrl: string | undefined;
+        if (deps.persistImage) {
+          try {
+            screenshotUrl = await deps.persistImage(
+              result.url,
+              "image/png",
+              `canvas-screenshot-${input.mode}`,
+            );
+          } catch {
+            // Non-fatal: fall back to text-only summary
+          }
+        }
 
-        // Return multimodal content: text summary + inline image
-        // The model receives the image directly for visual understanding
-        return [
-          [
-            { type: "text", text: summary },
-            {
-              type: "image_url",
-              image_url: { url: result.url, detail: "high" },
-            },
-          ],
-          {},
-        ];
+        const output: Record<string, unknown> = {
+          summary: `Canvas screenshot captured (${result.width}x${result.height}, mode: ${input.mode})`,
+          width: result.width,
+          height: result.height,
+        };
+
+        if (screenshotUrl) {
+          output.screenshotUrl = screenshotUrl;
+        }
+
+        return JSON.stringify(output);
       } catch (error) {
         const message = error instanceof Error ? error.message : "Screenshot failed";
-        return [
-          JSON.stringify({
-            error: "screenshot_failed",
-            message: `Screenshot failed: ${message}`,
-          }),
-          {},
-        ];
+        return JSON.stringify({
+          error: "screenshot_failed",
+          message: `Screenshot failed: ${message}`,
+        });
       }
     },
   });

@@ -26,6 +26,11 @@ export const creditTransactionTypeSchema = z.enum([
 ]);
 export type CreditTransactionType = z.infer<typeof creditTransactionTypeSchema>;
 
+// ── Quality / resolution types ────────────────────────────────
+
+export type ImageQualityLevel = "standard" | "hd" | "ultra";
+export type VideoResolution = "720p" | "1080p" | "4k";
+
 // ── Plan configuration ───────────────────────────────────────
 
 export interface PlanConfig {
@@ -38,7 +43,9 @@ export interface PlanConfig {
   /** Max concurrent generation jobs */
   maxConcurrentJobs: number;
   /** Max image quality tier */
-  maxResolution: "standard" | "hd" | "ultra";
+  maxResolution: ImageQualityLevel;
+  /** Max video resolution */
+  maxVideoResolution: VideoResolution;
   /** Max projects allowed */
   maxProjects: number;
   /** Max brand kits allowed */
@@ -58,6 +65,7 @@ export const PLAN_CONFIGS: Record<SubscriptionPlan, PlanConfig> = {
     dailyCredits: 50,
     maxConcurrentJobs: 1,
     maxResolution: "standard",
+    maxVideoResolution: "720p",
     maxProjects: 3,
     maxBrandKits: 1,
     watermark: true,
@@ -70,6 +78,7 @@ export const PLAN_CONFIGS: Record<SubscriptionPlan, PlanConfig> = {
     dailyCredits: 0,
     maxConcurrentJobs: 2,
     maxResolution: "standard",
+    maxVideoResolution: "720p",
     maxProjects: 10,
     maxBrandKits: 3,
     watermark: false,
@@ -82,6 +91,7 @@ export const PLAN_CONFIGS: Record<SubscriptionPlan, PlanConfig> = {
     dailyCredits: 0,
     maxConcurrentJobs: 4,
     maxResolution: "hd",
+    maxVideoResolution: "1080p",
     maxProjects: 50,
     maxBrandKits: 10,
     watermark: false,
@@ -94,6 +104,7 @@ export const PLAN_CONFIGS: Record<SubscriptionPlan, PlanConfig> = {
     dailyCredits: 0,
     maxConcurrentJobs: 8,
     maxResolution: "ultra",
+    maxVideoResolution: "4k",
     maxProjects: 200,
     maxBrandKits: 30,
     watermark: false,
@@ -106,6 +117,7 @@ export const PLAN_CONFIGS: Record<SubscriptionPlan, PlanConfig> = {
     dailyCredits: 0,
     maxConcurrentJobs: 12,
     maxResolution: "ultra",
+    maxVideoResolution: "4k",
     maxProjects: -1, // unlimited
     maxBrandKits: 100,
     watermark: false,
@@ -181,8 +193,6 @@ export function getPlanConfig(plan: SubscriptionPlan): PlanConfig {
 
 // ── Model credit costs ──────────────────────────────────────
 
-export type ImageQualityLevel = "standard" | "hd" | "ultra";
-
 export interface ImageModelCost {
   standard: number;
   hd: number;
@@ -190,10 +200,14 @@ export interface ImageModelCost {
 }
 
 export interface VideoModelCost {
-  /** Base cost per generation (varies by duration/resolution) */
+  /** Base cost at 720p */
   base: number;
-  /** Additional cost per second beyond base duration */
+  /** Additional cost per second beyond 5s base duration */
   perSecond?: number;
+  /** Multiplier for 1080p (default: 1.5x) */
+  multiplier1080p?: number;
+  /** Multiplier for 4K (default: 3x) */
+  multiplier4k?: number;
 }
 
 /**
@@ -243,8 +257,13 @@ const DEFAULT_IMAGE_COST: ImageModelCost = {
  * duration and resolution.
  */
 export const VIDEO_MODEL_COSTS: Record<string, VideoModelCost> = {
-  // Google Official
-  "google-official/veo-3.1-generate-preview": { base: 200 },
+  // Google Official (direct API — supports higher resolutions than Replicate)
+  "google-official/veo-3.1-generate-preview": { base: 80, perSecond: 15, multiplier1080p: 2, multiplier4k: 4 },
+  "google-official/veo-3.1-fast-generate-preview": { base: 60, perSecond: 10, multiplier1080p: 2, multiplier4k: 4 },
+  "google-official/veo-3.1-lite-generate-preview": { base: 30, perSecond: 5, multiplier1080p: 2 },
+  "google-official/veo-3.0-generate-001": { base: 70, perSecond: 12, multiplier1080p: 2, multiplier4k: 4 },
+  "google-official/veo-3.0-fast-generate-001": { base: 50, perSecond: 8, multiplier1080p: 2, multiplier4k: 4 },
+  "google-official/veo-2.0-generate-001": { base: 20, perSecond: 3 },
   // Replicate — Kling
   "kwaivgi/kling-v3-video": { base: 50, perSecond: 10 },
   "kwaivgi/kling-v3-omni-video": { base: 40, perSecond: 8 },
@@ -280,19 +299,27 @@ export function getImageCreditCost(
 export function getVideoCreditCost(
   modelId: string,
   durationSeconds?: number,
+  resolution?: VideoResolution,
 ): number {
   const costs = VIDEO_MODEL_COSTS[modelId] ?? DEFAULT_VIDEO_COST;
+  let total = costs.base;
   if (costs.perSecond && durationSeconds && durationSeconds > 5) {
-    return costs.base + (durationSeconds - 5) * costs.perSecond;
+    total += (durationSeconds - 5) * costs.perSecond;
   }
-  return costs.base;
+  // Apply resolution multiplier
+  if (resolution === "4k" && costs.multiplier4k) {
+    total = Math.round(total * costs.multiplier4k);
+  } else if (resolution === "1080p" && costs.multiplier1080p) {
+    total = Math.round(total * costs.multiplier1080p);
+  }
+  return total;
 }
 
 // ── Resolution guard ─────────────────────────────────────────
 
 const RESOLUTION_ORDER: ImageQualityLevel[] = ["standard", "hd", "ultra"];
 
-/** Check if a plan allows a given quality level. */
+/** Check if a plan allows a given image quality level. */
 export function canUseResolution(
   plan: SubscriptionPlan,
   quality: ImageQualityLevel,
@@ -301,6 +328,20 @@ export function canUseResolution(
   return (
     RESOLUTION_ORDER.indexOf(quality) <=
     RESOLUTION_ORDER.indexOf(config.maxResolution)
+  );
+}
+
+const VIDEO_RESOLUTION_ORDER: VideoResolution[] = ["720p", "1080p", "4k"];
+
+/** Check if a plan allows a given video resolution. */
+export function canUseVideoResolution(
+  plan: SubscriptionPlan,
+  resolution: VideoResolution,
+): boolean {
+  const config = PLAN_CONFIGS[plan];
+  return (
+    VIDEO_RESOLUTION_ORDER.indexOf(resolution) <=
+    VIDEO_RESOLUTION_ORDER.indexOf(config.maxVideoResolution)
   );
 }
 

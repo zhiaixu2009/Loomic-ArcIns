@@ -410,11 +410,34 @@ export function createAgentRunService(options: CreateAgentRuntimeOptions) {
           let creditsCost = 0;
           if (options.creditService && options.tierGuard) {
             const sub = await options.creditService.getSubscription(workspaceId);
-            const planConfig = getPlanConfig(sub.plan);
-            const quality: ImageQualityLevel = planConfig.maxResolution;
+            const quality = (input.quality as ImageQualityLevel) ?? "hd";
             options.tierGuard.checkModelAccess(sub.plan, input.model);
+            // Throws TierGuardError if plan doesn't allow this quality —
+            // propagates as tool error so the LLM informs the user to upgrade.
+            options.tierGuard.checkResolution(sub.plan, quality);
             await options.tierGuard.checkConcurrency(workspaceId, sub.plan);
             creditsCost = options.tierGuard.calculateCreditCost(input.model, "image_generation", { quality });
+          }
+
+          // ── Balance pre-check: stop run immediately if insufficient ──
+          if (options.creditService && creditsCost > 0) {
+            const balanceInfo = await options.creditService.getBalance(workspaceId);
+            if (balanceInfo.balance < creditsCost) {
+              const canvasTarget = canvasId ?? run.conversationId;
+              if (options.connectionManager && canvasTarget) {
+                options.connectionManager.pushToCanvas(canvasTarget, {
+                  type: "credits.insufficient",
+                  runId: run.runId,
+                  timestamp: new Date().toISOString(),
+                  currentBalance: balanceInfo.balance,
+                  requiredAmount: creditsCost,
+                  plan: balanceInfo.plan,
+                  dailyClaimed: balanceInfo.dailyClaimed,
+                });
+              }
+              run.controller.abort();
+              throw new Error("Insufficient credits");
+            }
           }
 
           const job = await jobSvc.createJob(user, {
@@ -534,11 +557,39 @@ export function createAgentRunService(options: CreateAgentRuntimeOptions) {
           if (options.creditService && options.tierGuard) {
             const sub = await options.creditService.getSubscription(workspaceId);
             options.tierGuard.checkModelAccess(sub.plan, input.model);
+            // Throws TierGuardError if plan doesn't allow this video resolution
+            if (input.resolution) {
+              options.tierGuard.checkVideoResolution(sub.plan, input.resolution as any);
+            }
             await options.tierGuard.checkConcurrency(workspaceId, sub.plan);
             creditsCost = options.tierGuard.calculateCreditCost(
               input.model, "video_generation",
-              input.duration != null ? { duration: input.duration } : {},
+              {
+                ...(input.duration != null ? { duration: input.duration } : {}),
+                ...(input.resolution ? { resolution: input.resolution as any } : {}),
+              },
             );
+          }
+
+          // ── Balance pre-check: stop run immediately if insufficient ──
+          if (options.creditService && creditsCost > 0) {
+            const balanceInfo = await options.creditService.getBalance(workspaceId);
+            if (balanceInfo.balance < creditsCost) {
+              const canvasTarget = canvasId ?? run.conversationId;
+              if (options.connectionManager && canvasTarget) {
+                options.connectionManager.pushToCanvas(canvasTarget, {
+                  type: "credits.insufficient",
+                  runId: run.runId,
+                  timestamp: new Date().toISOString(),
+                  currentBalance: balanceInfo.balance,
+                  requiredAmount: creditsCost,
+                  plan: balanceInfo.plan,
+                  dailyClaimed: balanceInfo.dailyClaimed,
+                });
+              }
+              run.controller.abort();
+              throw new Error("Insufficient credits");
+            }
           }
 
           const job = await jobSvc.createJob(user, {

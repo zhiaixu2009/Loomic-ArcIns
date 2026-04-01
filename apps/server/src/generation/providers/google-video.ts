@@ -22,14 +22,111 @@ const ICON_GOOGLE =
  */
 const MODEL_MAP: Record<string, string> = {
   "google-official/veo-3.1-generate-preview": "veo-3.1-generate-preview",
+  "google-official/veo-3.1-fast-generate-preview": "veo-3.1-fast-generate-preview",
+  "google-official/veo-3.1-lite-generate-preview": "veo-3.1-lite-generate-preview",
+  "google-official/veo-3.0-generate-001": "veo-3.0-generate-001",
+  "google-official/veo-3.0-fast-generate-001": "veo-3.0-fast-generate-001",
+  "google-official/veo-2.0-generate-001": "veo-2.0-generate-001",
 };
+
+// ── Per-model capabilities ──────────────────────────────────────────────
+
+interface ModelCapabilities {
+  allowedDurations: number[];
+  allowedResolutions: string[];
+  allowedAspectRatios: string[];
+  defaultDuration: number;
+  supportsAudio: boolean;
+}
+
+const MODEL_CAPABILITIES: Record<string, ModelCapabilities> = {
+  "veo-3.1-generate-preview": {
+    allowedDurations: [4, 6, 8],
+    allowedResolutions: ["720p", "1080p", "4k"],
+    allowedAspectRatios: ["16:9", "9:16"],
+    defaultDuration: 8,
+    supportsAudio: true,
+  },
+  "veo-3.1-fast-generate-preview": {
+    allowedDurations: [4, 6, 8],
+    allowedResolutions: ["720p", "1080p", "4k"],
+    allowedAspectRatios: ["16:9", "9:16"],
+    defaultDuration: 8,
+    supportsAudio: true,
+  },
+  "veo-3.1-lite-generate-preview": {
+    allowedDurations: [4, 6, 8],
+    allowedResolutions: ["720p", "1080p"],
+    allowedAspectRatios: ["16:9", "9:16"],
+    defaultDuration: 8,
+    supportsAudio: true,
+  },
+  "veo-3.0-generate-001": {
+    allowedDurations: [4, 6, 8],
+    allowedResolutions: ["720p", "1080p", "4k"],
+    allowedAspectRatios: ["16:9", "9:16"],
+    defaultDuration: 8,
+    supportsAudio: true,
+  },
+  "veo-3.0-fast-generate-001": {
+    allowedDurations: [4, 6, 8],
+    allowedResolutions: ["720p", "1080p", "4k"],
+    allowedAspectRatios: ["16:9", "9:16"],
+    defaultDuration: 8,
+    supportsAudio: true,
+  },
+  "veo-2.0-generate-001": {
+    allowedDurations: [5, 6, 7, 8],
+    allowedResolutions: ["720p"],
+    allowedAspectRatios: ["16:9", "9:16"],
+    defaultDuration: 8,
+    supportsAudio: false,
+  },
+};
+
+// ── Model catalog ────────────────────────────────────────────────────────
 
 const GOOGLE_VIDEO_MODELS: readonly ModelInfo[] = [
   {
     id: "google-official/veo-3.1-generate-preview",
-    displayName: "Veo 3.1 (Official)",
+    displayName: "Veo 3.1",
     description:
-      "Google Veo 3.1 video generation via direct API. Supports text-to-video, image-to-video, and audio generation. Max 8s at 1080p. Up to 3 input images.",
+      "Google flagship. T2V + I2V, native audio, reference images, 4–8s, up to 4K. Best quality.",
+    iconUrl: ICON_GOOGLE,
+  },
+  {
+    id: "google-official/veo-3.1-fast-generate-preview",
+    displayName: "Veo 3.1 Fast",
+    description:
+      "Speed-optimized Veo 3.1. T2V + I2V, native audio, 4–8s, up to 4K. Faster generation.",
+    iconUrl: ICON_GOOGLE,
+  },
+  {
+    id: "google-official/veo-3.1-lite-generate-preview",
+    displayName: "Veo 3.1 Lite",
+    description:
+      "Lightweight Veo 3.1. T2V + I2V, native audio, 4–8s, up to 1080p. Fastest, lowest cost.",
+    iconUrl: ICON_GOOGLE,
+  },
+  {
+    id: "google-official/veo-3.0-generate-001",
+    displayName: "Veo 3",
+    description:
+      "Stable Veo 3. T2V + I2V, native audio, reference images, up to 4K. Production-ready.",
+    iconUrl: ICON_GOOGLE,
+  },
+  {
+    id: "google-official/veo-3.0-fast-generate-001",
+    displayName: "Veo 3 Fast",
+    description:
+      "Speed-optimized Veo 3. T2V + I2V, native audio, up to 4K. Faster than Veo 3.",
+    iconUrl: ICON_GOOGLE,
+  },
+  {
+    id: "google-official/veo-2.0-generate-001",
+    displayName: "Veo 2",
+    description:
+      "Stable Veo 2. T2V + I2V, 720p only, silent (no audio), 5–8s. Most cost-effective.",
     iconUrl: ICON_GOOGLE,
   },
 ];
@@ -40,19 +137,13 @@ const MAX_POLL_DURATION_MS = 300_000;
 /** Polling interval in milliseconds. */
 const POLL_INTERVAL_MS = 10_000;
 
-/** Allowed durations for Veo 3.1 (seconds). */
-const ALLOWED_DURATIONS = [4, 6, 8];
-
-/** Aspect ratios supported by Google Veo 3.1. */
-const ALLOWED_ASPECT_RATIOS = ["16:9", "9:16"] as const;
-type AllowedAspectRatio = (typeof ALLOWED_ASPECT_RATIOS)[number];
-
 // ── Resolution helpers ───────────────────────────────────────────────────
 
 const BASE_DIMENSIONS: Record<string, { width: number; height: number }> = {
   "480p": { width: 854, height: 480 },
   "720p": { width: 1280, height: 720 },
   "1080p": { width: 1920, height: 1080 },
+  "4k": { width: 3840, height: 2160 },
 };
 
 /**
@@ -93,8 +184,10 @@ export class GoogleVideoProvider implements VideoProvider {
   readonly models = GOOGLE_VIDEO_MODELS;
 
   private client: GoogleGenAI;
+  private apiKey: string;
 
   constructor(apiKey: string) {
+    this.apiKey = apiKey;
     this.client = new GoogleGenAI({ apiKey });
   }
 
@@ -108,18 +201,36 @@ export class GoogleVideoProvider implements VideoProvider {
       );
     }
 
+    const caps = MODEL_CAPABILITIES[apiModel];
+    if (!caps) {
+      throw new GenerationError(
+        PROVIDER_NAME,
+        "model_not_found",
+        `No capabilities defined for model: ${apiModel}`,
+      );
+    }
+
+    // Validate aspect ratio
     const aspectRatio = params.aspectRatio ?? "16:9";
-    if (!ALLOWED_ASPECT_RATIOS.includes(aspectRatio as AllowedAspectRatio)) {
+    if (!caps.allowedAspectRatios.includes(aspectRatio)) {
       throw new GenerationError(
         PROVIDER_NAME,
         "invalid_input",
-        `Google Veo 3.1 does not support aspectRatio "${aspectRatio}". Supported values: ${ALLOWED_ASPECT_RATIOS.join(", ")}. Please retry with a supported aspect ratio.`,
+        `Model ${apiModel} does not support aspectRatio "${aspectRatio}". Supported: ${caps.allowedAspectRatios.join(", ")}.`,
       );
     }
-    const resolution = params.resolution ?? "720p";
-    const durationSeconds = this.clampDuration(params.duration ?? 8);
-    // Note: Veo 3.1 generates audio by default; the Gemini API does not
-    // expose a generateAudio toggle, so enableAudio is ignored here.
+
+    // Validate & clamp resolution
+    let resolution = params.resolution ?? "720p";
+    if (!caps.allowedResolutions.includes(resolution)) {
+      // Fall back to best available
+      resolution = caps.allowedResolutions.includes("1080p") ? "1080p" : "720p";
+    }
+
+    const durationSeconds = clampToNearest(
+      params.duration ?? caps.defaultDuration,
+      caps.allowedDurations,
+    );
 
     // Build image input for image-to-video.
     let image: { imageBytes: string; mimeType: string } | undefined;
@@ -220,28 +331,35 @@ export class GoogleVideoProvider implements VideoProvider {
 
     const { width, height } = resolutionToDimensions(resolution, aspectRatio);
 
+    // The Veo download URI requires authentication. Append the API key so
+    // the worker can fetch it with a plain `fetch()` call. This URL is only
+    // used internally — the worker re-uploads to Supabase storage and
+    // returns a public signed URL to the user, so the key is never exposed.
+    const separator = video.uri.includes("?") ? "&" : "?";
+    const authenticatedUrl = `${video.uri}${separator}key=${this.apiKey}`;
+
     return {
-      url: video.uri,
+      url: authenticatedUrl,
       mimeType: video.mimeType ?? "video/mp4",
       width,
       height,
       durationSeconds,
     };
   }
+}
 
-  /**
-   * Clamps the requested duration to the nearest allowed value for Veo 3.1.
-   */
-  private clampDuration(requested: number): number {
-    let closest = ALLOWED_DURATIONS[0]!;
-    let minDiff = Math.abs(requested - closest);
-    for (const d of ALLOWED_DURATIONS) {
-      const diff = Math.abs(requested - d);
-      if (diff < minDiff) {
-        closest = d;
-        minDiff = diff;
-      }
+// ── Helpers ──────────────────────────────────────────────────────────────
+
+/** Clamps a value to the nearest allowed value in the list. */
+function clampToNearest(requested: number, allowed: number[]): number {
+  let closest = allowed[0]!;
+  let minDiff = Math.abs(requested - closest);
+  for (const v of allowed) {
+    const diff = Math.abs(requested - v);
+    if (diff < minDiff) {
+      closest = v;
+      minDiff = diff;
     }
-    return closest;
   }
+  return closest;
 }

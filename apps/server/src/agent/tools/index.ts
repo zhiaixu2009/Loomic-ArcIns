@@ -86,7 +86,10 @@ export function createMainAgentTools(
     tools.push(createBrandKitTool(deps, deps.brandKitId));
   }
   if (deps.connectionManager) {
-    tools.push(createScreenshotCanvasTool({ connectionManager: deps.connectionManager }));
+    tools.push(createScreenshotCanvasTool({
+      connectionManager: deps.connectionManager,
+      ...(deps.persistImage ? { persistImage: deps.persistImage } : {}),
+    }));
   }
   return tools;
 }

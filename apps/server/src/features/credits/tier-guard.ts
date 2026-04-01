@@ -3,10 +3,12 @@ import type {
   BackgroundJobType,
   ImageQualityLevel,
   SubscriptionPlan,
+  VideoResolution,
 } from "@loomic/shared";
 import {
   canAccessModel,
   canUseResolution,
+  canUseVideoResolution,
   getImageCreditCost,
   getVideoCreditCost,
   PLAN_CONFIGS,
@@ -40,6 +42,7 @@ export class TierGuardError extends Error {
 export type TierGuard = {
   checkModelAccess(plan: SubscriptionPlan, modelId: string): void;
   checkResolution(plan: SubscriptionPlan, quality: ImageQualityLevel): void;
+  checkVideoResolution(plan: SubscriptionPlan, resolution: VideoResolution): void;
   checkConcurrency(
     workspaceId: string,
     plan: SubscriptionPlan,
@@ -47,7 +50,7 @@ export type TierGuard = {
   calculateCreditCost(
     modelId: string,
     jobType: BackgroundJobType,
-    params?: { quality?: ImageQualityLevel; duration?: number },
+    params?: { quality?: ImageQualityLevel; duration?: number; resolution?: VideoResolution },
   ): number;
 };
 
@@ -71,7 +74,17 @@ export function createTierGuard(options: {
       if (!canUseResolution(plan, quality)) {
         throw new TierGuardError(
           "resolution_not_allowed",
-          `Your ${plan} plan does not allow "${quality}" quality. Maximum allowed: "${PLAN_CONFIGS[plan].maxResolution}".`,
+          `Your ${plan} plan does not allow "${quality}" image quality. Maximum allowed: "${PLAN_CONFIGS[plan].maxResolution}". Please upgrade your plan.`,
+          403,
+        );
+      }
+    },
+
+    checkVideoResolution(plan, resolution) {
+      if (!canUseVideoResolution(plan, resolution)) {
+        throw new TierGuardError(
+          "resolution_not_allowed",
+          `Your ${plan} plan does not allow "${resolution}" video resolution. Maximum allowed: "${PLAN_CONFIGS[plan].maxVideoResolution}". Please upgrade your plan.`,
           403,
         );
       }
@@ -112,7 +125,7 @@ export function createTierGuard(options: {
         return getImageCreditCost(modelId, quality);
       }
       // video_generation
-      return getVideoCreditCost(modelId, params?.duration);
+      return getVideoCreditCost(modelId, params?.duration, params?.resolution);
     },
   };
 }
