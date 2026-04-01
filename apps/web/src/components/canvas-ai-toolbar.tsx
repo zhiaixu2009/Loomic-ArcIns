@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 
 import { CanvasImageGenPanel } from "./canvas-image-gen-panel";
+import { createVideoGeneratorElement } from "../lib/canvas-video-generator";
 
 type CanvasAIToolbarProps = {
   accessToken: string;
@@ -13,9 +14,18 @@ export function CanvasAIToolbar({
   accessToken,
   excalidrawApi,
 }: CanvasAIToolbarProps) {
-  const [activePanel, setActivePanel] = useState<"image" | "video" | null>(
-    null,
-  );
+  const [activePanel, setActivePanel] = useState<"image" | null>(null);
+
+  const handleCreateVideoGenerator = useCallback(() => {
+    if (!excalidrawApi) return;
+    const videoId = createVideoGeneratorElement(excalidrawApi, {
+      aspectRatio: "16:9",
+    });
+    excalidrawApi.updateScene({
+      appState: { selectedElementIds: { [videoId]: true } },
+    });
+    setActivePanel(null);
+  }, [excalidrawApi]);
 
   return (
     <>
@@ -47,15 +57,9 @@ export function CanvasAIToolbar({
           </svg>
         </button>
         <button
-          onClick={() =>
-            setActivePanel(activePanel === "video" ? null : "video")
-          }
-          className={`flex items-center justify-center h-8 w-8 rounded-lg text-sm transition-colors cursor-pointer ${
-            activePanel === "video"
-              ? "bg-violet-100 text-violet-700"
-              : "text-foreground/60 hover:bg-muted hover:text-foreground"
-          }`}
-          title="AI Video (Coming soon)"
+          onClick={handleCreateVideoGenerator}
+          className="flex items-center justify-center h-8 w-8 rounded-lg text-sm transition-colors cursor-pointer text-foreground/60 hover:bg-muted hover:text-foreground"
+          title="AI Video"
         >
           <svg
             className="h-4 w-4"
@@ -79,26 +83,6 @@ export function CanvasAIToolbar({
             excalidrawApi={excalidrawApi}
             onClose={() => setActivePanel(null)}
           />
-        </div>
-      )}
-      {activePanel === "video" && (
-        <div className="absolute top-14 right-3 z-50 w-80 rounded-xl bg-card shadow-xl border border-border p-4">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold text-foreground">AI Video</h3>
-            <button
-              onClick={() => setActivePanel(null)}
-              className="text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <svg
-                className="h-4 w-4"
-                viewBox="0 0 16 16"
-                fill="currentColor"
-              >
-                <path d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.75.75 0 1 1 1.06 1.06L9.06 8l3.22 3.22a.75.75 0 1 1-1.06 1.06L8 9.06l-3.22 3.22a.75.75 0 0 1-1.06-1.06L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06Z" />
-              </svg>
-            </button>
-          </div>
-          <p className="text-sm text-muted-foreground">Coming soon</p>
         </div>
       )}
     </>

@@ -22,7 +22,14 @@ import {
   getImageGeneratorData,
   type ImageGeneratorData,
 } from "../lib/canvas-image-generator";
+import {
+  createVideoGeneratorElement,
+  isVideoGeneratorElement,
+  getVideoGeneratorData,
+  type VideoGeneratorData,
+} from "../lib/canvas-video-generator";
 import { ImageGeneratorPanel } from "./canvas/image-generator-panel";
+import { VideoGeneratorPanel } from "./canvas/video-generator-panel";
 
 type ToolType =
   | "hand"
@@ -81,7 +88,6 @@ type CanvasToolMenuProps = {
 
 export function CanvasToolMenu({ accessToken, excalidrawApi, leftPanelOpen }: CanvasToolMenuProps) {
   const [activeTool, setActiveTool] = useState<string>("selection");
-  const [activePanel, setActivePanel] = useState<"ai-video" | null>(null);
 
   // Image generator state
   const [activeGeneratorId, setActiveGeneratorId] = useState<string | null>(null);
@@ -92,6 +98,17 @@ export function CanvasToolMenu({ accessToken, excalidrawApi, leftPanelOpen }: Ca
     width: number;
     height: number;
   } | null>(null);
+
+  // Video generator state
+  const [activeVideoGenId, setActiveVideoGenId] = useState<string | null>(null);
+  const [videoGenData, setVideoGenData] = useState<VideoGeneratorData | null>(null);
+  const [videoGenBounds, setVideoGenBounds] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
+
   const [canvasScrollZoom, setCanvasScrollZoom] = useState({
     scrollX: 0,
     scrollY: 0,
@@ -109,9 +126,11 @@ export function CanvasToolMenu({ accessToken, excalidrawApi, leftPanelOpen }: Ca
     }>
   >([]);
 
-  // Keep activeGeneratorId accessible inside onChange without causing re-subscription
+  // Keep activeGeneratorId / activeVideoGenId accessible inside onChange without causing re-subscription
   const activeGeneratorIdRef = useRef(activeGeneratorId);
   activeGeneratorIdRef.current = activeGeneratorId;
+  const activeVideoGenIdRef = useRef(activeVideoGenId);
+  activeVideoGenIdRef.current = activeVideoGenId;
 
   // Subscribe to Excalidraw changes
   useEffect(() => {
@@ -134,34 +153,76 @@ export function CanvasToolMenu({ accessToken, excalidrawApi, leftPanelOpen }: Ca
         );
 
         const currentId = activeGeneratorIdRef.current;
+        const currentVideoId = activeVideoGenIdRef.current;
 
-        if (
-          selectedElements.length === 1 &&
-          isImageGeneratorElement(selectedElements[0])
-        ) {
-          const el = selectedElements[0];
-          const data = getImageGeneratorData(el);
-          setActiveGeneratorId(el.id as string);
-          setGeneratorData(data);
-          setGeneratorBounds({
-            x: el.x as number,
-            y: el.y as number,
-            width: el.width as number,
-            height: el.height as number,
-          });
-        } else if (currentId) {
-          // Element is no longer selected — close the panel
-          setActiveGeneratorId(null);
-          setGeneratorData(null);
-          setGeneratorBounds(null);
+        if (selectedElements.length === 1) {
+          const sel = selectedElements[0];
+
+          if (isImageGeneratorElement(sel)) {
+            const data = getImageGeneratorData(sel);
+            setActiveGeneratorId(sel.id as string);
+            setGeneratorData(data);
+            setGeneratorBounds({
+              x: sel.x as number,
+              y: sel.y as number,
+              width: sel.width as number,
+              height: sel.height as number,
+            });
+            // Close video panel if open
+            if (currentVideoId) {
+              setActiveVideoGenId(null);
+              setVideoGenData(null);
+              setVideoGenBounds(null);
+            }
+          } else if (isVideoGeneratorElement(sel)) {
+            const data = getVideoGeneratorData(sel);
+            setActiveVideoGenId(sel.id as string);
+            setVideoGenData(data);
+            setVideoGenBounds({
+              x: sel.x as number,
+              y: sel.y as number,
+              width: sel.width as number,
+              height: sel.height as number,
+            });
+            // Close image panel if open
+            if (currentId) {
+              setActiveGeneratorId(null);
+              setGeneratorData(null);
+              setGeneratorBounds(null);
+            }
+          } else {
+            // Neither image nor video generator — close both
+            if (currentId) {
+              setActiveGeneratorId(null);
+              setGeneratorData(null);
+              setGeneratorBounds(null);
+            }
+            if (currentVideoId) {
+              setActiveVideoGenId(null);
+              setVideoGenData(null);
+              setVideoGenBounds(null);
+            }
+          }
+        } else {
+          // Zero or multiple selected — close both panels
+          if (currentId) {
+            setActiveGeneratorId(null);
+            setGeneratorData(null);
+            setGeneratorBounds(null);
+          }
+          if (currentVideoId) {
+            setActiveVideoGenId(null);
+            setVideoGenData(null);
+            setVideoGenBounds(null);
+          }
         }
 
-        // Find all generating elements for shimmer overlay
+        // Find all generating elements for shimmer overlay (image + video generators)
         const generating = elements
           .filter(
             (el: any) =>
               !el.isDeleted &&
-              isImageGeneratorElement(el) &&
+              (isImageGeneratorElement(el) || isVideoGeneratorElement(el)) &&
               el.customData?.status === "generating",
           )
           .map((el: any) => ({
@@ -211,6 +272,35 @@ export function CanvasToolMenu({ accessToken, excalidrawApi, leftPanelOpen }: Ca
     setActiveGeneratorId(null);
     setGeneratorData(null);
     setGeneratorBounds(null);
+  }, []);
+
+  const handleCreateVideoGenerator = useCallback(() => {
+    if (!excalidrawApi) return;
+    const videoId = createVideoGeneratorElement(excalidrawApi, {
+      aspectRatio: "16:9",
+    });
+    excalidrawApi.updateScene({
+      appState: { selectedElementIds: { [videoId]: true } },
+    });
+    setActiveVideoGenId(videoId);
+    // Read back the created element to populate initial state
+    const elements = excalidrawApi.getSceneElements();
+    const el = elements.find((e: any) => e.id === videoId);
+    if (el) {
+      setVideoGenData(getVideoGeneratorData(el));
+      setVideoGenBounds({
+        x: el.x as number,
+        y: el.y as number,
+        width: el.width as number,
+        height: el.height as number,
+      });
+    }
+  }, [excalidrawApi]);
+
+  const handleCloseVideoGenerator = useCallback(() => {
+    setActiveVideoGenId(null);
+    setVideoGenData(null);
+    setVideoGenBounds(null);
   }, []);
 
   return (
@@ -273,15 +363,13 @@ export function CanvasToolMenu({ accessToken, excalidrawApi, leftPanelOpen }: Ca
           <Sparkles className="size-[16px]" />
         </button>
 
-        {/* AI Video */}
+        {/* AI Video — creates a placeholder on canvas */}
         <button
           type="button"
-          title="AI 生成视频 (Coming soon)"
-          onClick={() =>
-            setActivePanel(activePanel === "ai-video" ? null : "ai-video")
-          }
+          title="AI 生成视频"
+          onClick={handleCreateVideoGenerator}
           className={`flex items-center justify-center h-8 w-8 rounded-lg transition-colors cursor-pointer ${
-            activePanel === "ai-video"
+            activeVideoGenId
               ? "bg-black/[0.08] text-[#1b1b1f]"
               : "text-[#1b1b1f]/60 hover:bg-black/[0.04] hover:text-[#1b1b1f]"
           }`}
@@ -300,6 +388,19 @@ export function CanvasToolMenu({ accessToken, excalidrawApi, leftPanelOpen }: Ca
           accessToken={accessToken}
           canvasScrollZoom={canvasScrollZoom}
           onClose={handleCloseGenerator}
+        />
+      )}
+
+      {/* Video Generator Panel — floats below the selected placeholder */}
+      {activeVideoGenId && videoGenData && videoGenBounds && (
+        <VideoGeneratorPanel
+          elementId={activeVideoGenId}
+          elementBounds={videoGenBounds}
+          data={videoGenData}
+          excalidrawApi={excalidrawApi}
+          accessToken={accessToken}
+          canvasScrollZoom={canvasScrollZoom}
+          onClose={handleCloseVideoGenerator}
         />
       )}
 
@@ -348,23 +449,6 @@ export function CanvasToolMenu({ accessToken, excalidrawApi, leftPanelOpen }: Ca
           document.body,
         )}
 
-      {/* AI Video panel */}
-      {activePanel === "ai-video" && (
-        <div className="absolute bottom-[72px] left-1/2 -translate-x-1/2 z-50 w-80 rounded-xl bg-white shadow-xl border border-neutral-200 p-4">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold text-[#2F3640]">AI Video</h3>
-            <button
-              onClick={() => setActivePanel(null)}
-              className="text-[#A4A9B2] hover:text-[#2F3640] transition-colors"
-            >
-              <svg className="h-4 w-4" viewBox="0 0 16 16" fill="currentColor">
-                <path d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.75.75 0 1 1 1.06 1.06L9.06 8l3.22 3.22a.75.75 0 1 1-1.06 1.06L8 9.06l-3.22 3.22a.75.75 0 0 1-1.06-1.06L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06Z" />
-              </svg>
-            </button>
-          </div>
-          <p className="text-sm text-[#A4A9B2]">Coming soon</p>
-        </div>
-      )}
     </>
   );
 }
