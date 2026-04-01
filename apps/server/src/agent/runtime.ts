@@ -269,7 +269,9 @@ export function createAgentRunService(options: CreateAgentRuntimeOptions) {
     },
   ): void {
     const canvasTarget = canvasId ?? run.conversationId;
-    if (opts.connectionManager && canvasTarget) {
+    if (!opts.connectionManager || !canvasTarget) {
+      console.warn(`[billing] pushBillingErrorAndAbort: no connectionManager or canvasTarget, billing.error (${code}) not sent to client`);
+    } else {
       opts.connectionManager.pushToCanvas(canvasTarget, {
         type: "billing.error",
         runId: run.runId,
