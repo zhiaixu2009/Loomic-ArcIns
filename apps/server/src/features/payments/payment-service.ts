@@ -174,8 +174,8 @@ export function createPaymentService(options: {
             })
             .eq("workspace_id", workspaceId);
 
-          // Grant monthly credits for the new plan
-          await grantMonthlyCredits(getAdminClient(), workspaceId, plan);
+          // Credits are granted by the subscription_payment_success event
+          // which always fires alongside subscription_created on initial purchase.
           break;
         }
 
