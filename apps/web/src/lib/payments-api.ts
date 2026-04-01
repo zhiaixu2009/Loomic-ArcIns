@@ -1,3 +1,4 @@
+// @credits-system — Frontend API client for payments: checkout, subscription, cancellation, plan change
 import type { BillingPeriod, SubscriptionPlan } from "@loomic/shared";
 
 import { getServerBaseUrl } from "./env";

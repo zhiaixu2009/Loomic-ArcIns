@@ -1,6 +1,6 @@
 "use client";
 
-import { ImageUp } from "lucide-react";
+import { ImageUp, Lock, Zap } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
@@ -265,7 +265,7 @@ export function ImageGeneratorPanel({
                     key={m.id}
                     type="button"
                     onClick={() => handleModelChange(m.id)}
-                    className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs transition-colors hover:bg-muted ${m.id === model ? "bg-muted" : ""}`}
+                    className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs transition-colors hover:bg-muted ${m.id === model ? "bg-muted" : ""} ${m.accessible === false ? "opacity-60" : ""}`}
                   >
                     {m.iconUrl && (
                       <img
@@ -274,10 +274,21 @@ export function ImageGeneratorPanel({
                         className="h-3.5 w-3.5 rounded-full"
                       />
                     )}
-                    <span className="text-foreground">{m.displayName}</span>
+                    <span className="flex-1 text-foreground">
+                      {m.displayName}
+                      {m.accessible === false && (
+                        <Lock className="ml-1 inline h-2.5 w-2.5 text-neutral-500" />
+                      )}
+                    </span>
+                    {typeof m.creditCost === "number" && (
+                      <span className="inline-flex items-center gap-0.5 text-[10px] tabular-nums text-amber-500/80">
+                        <Zap className="h-2.5 w-2.5" />
+                        {m.creditCost}
+                      </span>
+                    )}
                     {m.id === model && (
                       <svg
-                        className="ml-auto h-3 w-3 text-foreground"
+                        className="h-3 w-3 text-foreground"
                         viewBox="0 0 14 14"
                         fill="currentColor"
                       >

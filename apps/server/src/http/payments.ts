@@ -1,3 +1,4 @@
+// @credits-system — Payment API routes: checkout, subscription status, plan change, cancellation
 import type { FastifyInstance, FastifyReply } from "fastify";
 import type { BillingPeriod, SubscriptionPlan } from "@loomic/shared";
 import {

@@ -1,3 +1,4 @@
+// @credits-system — React hook for credit balance, daily claim, and auto-refresh on focus
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";

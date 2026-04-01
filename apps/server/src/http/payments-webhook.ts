@@ -1,3 +1,4 @@
+// @credits-system — Lemon Squeezy webhook handler: subscription events, payment confirmation
 import crypto from "node:crypto";
 import type { FastifyInstance } from "fastify";
 

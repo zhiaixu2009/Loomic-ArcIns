@@ -1,3 +1,4 @@
+// @credits-system — Image model list with tier annotations, credit costs, and accessibility flags
 import type { FastifyInstance } from "fastify";
 
 import {

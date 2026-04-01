@@ -1,3 +1,4 @@
+// @credits-system — Payment lifecycle: checkout creation, subscription sync, cancellation, plan changes
 import type { BillingPeriod, SubscriptionPlan } from "@loomic/shared";
 import { PLAN_CONFIGS } from "@loomic/shared";
 

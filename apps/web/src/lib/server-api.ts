@@ -423,6 +423,9 @@ export type ImageModelInfo = {
   description: string;
   provider: string;
   iconUrl?: string;
+  creditCost?: number;
+  accessible?: boolean;
+  minTier?: string;
 };
 
 export async function fetchImageModels(): Promise<{ models: ImageModelInfo[] }> {
@@ -439,6 +442,9 @@ export type VideoModelInfo = {
   description: string;
   provider: string;
   iconUrl?: string;
+  creditCost?: number;
+  accessible?: boolean;
+  minTier?: string;
 };
 
 export async function fetchVideoModels(): Promise<{ models: VideoModelInfo[] }> {

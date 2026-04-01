@@ -1,3 +1,4 @@
+// @credits-system — Credit API routes: balance, transactions, daily claim, admin plan override
 import type { FastifyInstance, FastifyReply } from "fastify";
 
 import {

@@ -20,6 +20,7 @@ import { BrandKitSelector } from "../../components/brand-kit-selector";
 import { CanvasBottomBar } from "../../components/canvas-bottom-bar";
 import { CanvasFilesPanel } from "../../components/canvas-files-panel";
 import { CanvasLayersPanel } from "../../components/canvas-layers-panel";
+import { CreditHeaderButton } from "../../components/credits/credit-header-button";
 
 function CanvasPageContent() {
   const searchParams = useSearchParams();
@@ -200,6 +201,11 @@ function CanvasPageContent() {
 
   return (
     <div className="flex h-screen w-screen overflow-hidden">
+      {/* Top-right credits button */}
+      <div className="absolute top-3 right-3 z-20">
+        <CreditHeaderButton />
+      </div>
+
       {/* Top-left navigation bar */}
       <div className="absolute top-3 left-3 z-20 flex items-center gap-1.5">
         <CanvasLogoMenu

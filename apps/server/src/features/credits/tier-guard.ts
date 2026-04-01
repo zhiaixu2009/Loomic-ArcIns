@@ -1,3 +1,4 @@
+// @credits-system — Tier enforcement: model access, resolution limits, concurrency guards per plan
 import type {
   BackgroundJobType,
   ImageQualityLevel,

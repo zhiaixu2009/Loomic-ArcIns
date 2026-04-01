@@ -1,3 +1,4 @@
+// @credits-system — Job creation routes with credit balance checks and tier enforcement
 import type { FastifyInstance, FastifyReply } from "fastify";
 
 import type { BackgroundJobStatus, BackgroundJobType, ImageQualityLevel } from "@loomic/shared";

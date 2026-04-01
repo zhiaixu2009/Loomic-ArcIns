@@ -1,3 +1,4 @@
+// @credits-system — Image generation executor: applies watermark for free-tier users
 import { registerExecutor, type ExecutorContext } from "../job-executor.js";
 import { generateImage } from "../../../generation/image-generation.js";
 import { resolveImageProviderName } from "../../../generation/providers/registry.js";

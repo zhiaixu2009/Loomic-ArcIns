@@ -1,3 +1,4 @@
+// @credits-system — Direct generation routes with credit deduction and tier checks
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 

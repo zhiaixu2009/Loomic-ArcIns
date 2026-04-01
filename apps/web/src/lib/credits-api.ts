@@ -1,3 +1,4 @@
+// @credits-system — Frontend API client for credit balance, transactions, daily claim, admin ops
 import type {
   CreditBalanceResponse,
   CreditTransactionsResponse,

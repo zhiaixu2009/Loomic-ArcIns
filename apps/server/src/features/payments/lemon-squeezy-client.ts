@@ -1,3 +1,4 @@
+// @credits-system — Lemon Squeezy API client for checkout, subscription, and webhook operations
 /**
  * Thin HTTP client for the Lemon Squeezy JSON:API.
  *

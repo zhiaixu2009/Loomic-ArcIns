@@ -1,3 +1,4 @@
+// @credits-system — Free-user watermark overlay applied to generated images
 import sharp from "sharp";
 
 /**

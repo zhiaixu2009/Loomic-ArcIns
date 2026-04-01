@@ -1,3 +1,4 @@
+// @credits-system — Shared types, configs, and cost tables for the credits/billing system
 import { z } from "zod";
 
 // ── Plan types ───────────────────────────────────────────────

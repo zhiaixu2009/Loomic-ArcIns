@@ -1,3 +1,4 @@
+// @credits-system — Insufficient credits dialog: shown when balance is too low for a generation
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";

@@ -1,3 +1,4 @@
+// @credits-system — Sidebar credit balance widget with popover, animated counter, and daily claim
 "use client";
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";

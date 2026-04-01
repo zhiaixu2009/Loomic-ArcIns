@@ -1,3 +1,4 @@
+// @credits-system — Core credit operations: balance queries, deductions, refunds, grants, plan updates
 import type {
   CreditTransaction,
   SubscriptionPlan,

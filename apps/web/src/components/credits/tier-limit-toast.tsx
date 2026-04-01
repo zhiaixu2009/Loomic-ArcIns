@@ -1,3 +1,4 @@
+// @credits-system — Tier limit toast notifications: concurrency, model access, and resolution limits
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";

@@ -1,3 +1,4 @@
+// @credits-system — Agent tool runtime with credit checks before image/video generation
 import { randomUUID } from "node:crypto";
 import { rm } from "node:fs/promises";
 import { setTimeout as delay } from "node:timers/promises";

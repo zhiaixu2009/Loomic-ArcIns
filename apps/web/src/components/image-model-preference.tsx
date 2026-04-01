@@ -2,6 +2,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { Lock, Zap } from "lucide-react";
 
 import type { ImageModelInfo } from "../lib/server-api";
 import type { VideoModelInfo } from "../lib/server-api";
@@ -169,11 +170,23 @@ export function ImageModelPreferencePopover({
                   />
                 )}
                 <div className="flex flex-1 flex-col">
-                  <span className="text-[13px] font-medium text-foreground">
+                  <span className="flex items-center gap-1.5 text-[13px] font-medium text-foreground">
                     {m.displayName}
+                    {m.accessible === false && (
+                      <span className="inline-flex items-center gap-0.5 rounded px-1 py-px text-[9px] font-semibold uppercase leading-tight tracking-wider bg-violet-900/40 text-violet-400">
+                        <Lock className="h-2.5 w-2.5" />
+                        {m.minTier ?? "PRO"}
+                      </span>
+                    )}
                   </span>
-                  <span className="text-[11px] leading-tight text-muted-foreground">
+                  <span className="flex items-center gap-1.5 text-[11px] leading-tight text-muted-foreground">
                     {m.description}
+                    {typeof m.creditCost === "number" && (
+                      <span className="inline-flex items-center gap-0.5 tabular-nums text-amber-500/80">
+                        <Zap className="h-2.5 w-2.5" />
+                        {m.creditCost}
+                      </span>
+                    )}
                   </span>
                 </div>
                 {selected && (

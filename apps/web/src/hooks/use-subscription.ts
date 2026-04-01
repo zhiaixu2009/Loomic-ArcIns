@@ -1,3 +1,4 @@
+// @credits-system — React hook for subscription status, cancellation, and plan changes
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";

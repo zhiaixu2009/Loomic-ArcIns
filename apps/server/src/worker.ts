@@ -1,3 +1,4 @@
+// @credits-system — Worker process: handles job failure refunds (credit refund on generation error)
 import { bootstrap } from "global-agent";
 
 // Enable HTTP proxy for all outbound requests if GLOBAL_AGENT_HTTP_PROXY is set
