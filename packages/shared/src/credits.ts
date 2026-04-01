@@ -120,30 +120,40 @@ export const PLAN_CONFIGS: Record<SubscriptionPlan, PlanConfig> = {
  * Models not listed here default to "pro" access.
  */
 export const MODEL_MIN_TIER: Record<string, SubscriptionPlan> = {
-  // Image — free tier (basic 3)
+  // ── Image models ──
+  // Free tier (basic 3)
   "google-official/gemini-2.5-flash-image": "free",
   "google-official/gemini-3.1-flash-image-preview": "free",
-  // Replicate image models — all need at least starter
+  "google/nano-banana": "free",
+  // Starter tier
   "google/nano-banana-pro": "starter",
   "google/nano-banana-2": "starter",
-  "google/nano-banana": "free",
   "google/imagen-4": "starter",
-  "google/imagen-3": "starter",
   "openai/gpt-image-1.5": "starter",
-  "openai/gpt-image-1": "starter",
   "black-forest-labs/flux-kontext-pro": "starter",
+  "bytedance/seedream-5-lite": "starter",
+  "bytedance/seedream-4.5": "starter",
+  "bytedance/seedream-4": "starter",
+  "recraft-ai/recraft-v3": "starter",
+  // Pro tier
   "black-forest-labs/flux-kontext-max": "pro",
-  "black-forest-labs/flux-1.1-pro": "starter",
-  "black-forest-labs/flux-pro": "starter",
-  "bytedance/seedream": "starter",
-  "recraft/recraft-v3": "starter",
-  // Video — basic 2 for starter
+
+  // ── Video models ──
+  // Starter tier (basic 2: Kling 2.6 + Wan 2.6)
+  "kwaivgi/kling-v2.6": "starter",
+  "wan-video/wan-2.6": "starter",
+  // Pro tier
   "google-official/veo-3.1-generate-preview": "pro",
-  // Replicate video models
-  "kling/kling-2.6": "starter",
-  "haiper/haiper-2.0": "starter",
-  "runway/gen-4-turbo": "pro",
-  "pika/pika-2.2": "pro",
+  "kwaivgi/kling-v3-video": "pro",
+  "kwaivgi/kling-v3-omni-video": "pro",
+  "kwaivgi/kling-o1": "pro",
+  "bytedance/seedance-1.5-pro": "pro",
+  "openai/sora-2": "pro",
+  "openai/sora-2-pro": "ultra",
+  "google/veo-3": "pro",
+  "google/veo-3.1": "pro",
+  "google/veo-3.1-fast": "pro",
+  "minimax/hailuo-2.3": "starter",
 };
 
 const PLAN_ORDER: SubscriptionPlan[] = [
@@ -209,16 +219,15 @@ export const IMAGE_MODEL_COSTS: Record<string, ImageModelCost> = {
   "google/imagen-3": { standard: 5, hd: 10, ultra: 20 },
   // Replicate — OpenAI
   "openai/gpt-image-1.5": { standard: 4, hd: 8, ultra: 16 },
-  "openai/gpt-image-1": { standard: 5, hd: 10, ultra: 20 },
   // Replicate — BFL
   "black-forest-labs/flux-kontext-pro": { standard: 8, hd: 12, ultra: 20 },
   "black-forest-labs/flux-kontext-max": { standard: 12, hd: 18, ultra: 30 },
-  "black-forest-labs/flux-1.1-pro": { standard: 4, hd: 8, ultra: 14 },
-  "black-forest-labs/flux-pro": { standard: 4, hd: 8, ultra: 14 },
   // Replicate — ByteDance
-  "bytedance/seedream": { standard: 2, hd: 4, ultra: 8 },
+  "bytedance/seedream-5-lite": { standard: 3, hd: 6, ultra: 10 },
+  "bytedance/seedream-4.5": { standard: 3, hd: 5, ultra: 8 },
+  "bytedance/seedream-4": { standard: 2, hd: 4, ultra: 8 },
   // Replicate — Recraft
-  "recraft/recraft-v3": { standard: 5, hd: 10, ultra: 18 },
+  "recraft-ai/recraft-v3": { standard: 5, hd: 10, ultra: 18 },
 };
 
 const DEFAULT_IMAGE_COST: ImageModelCost = {
@@ -233,11 +242,26 @@ const DEFAULT_IMAGE_COST: ImageModelCost = {
  * duration and resolution.
  */
 export const VIDEO_MODEL_COSTS: Record<string, VideoModelCost> = {
+  // Google Official
   "google-official/veo-3.1-generate-preview": { base: 200 },
-  "kling/kling-2.6": { base: 25, perSecond: 5 },
-  "haiper/haiper-2.0": { base: 40 },
-  "runway/gen-4-turbo": { base: 80 },
-  "pika/pika-2.2": { base: 40 },
+  // Replicate — Kling
+  "kwaivgi/kling-v3-video": { base: 50, perSecond: 10 },
+  "kwaivgi/kling-v3-omni-video": { base: 40, perSecond: 8 },
+  "kwaivgi/kling-v2.6": { base: 25, perSecond: 5 },
+  "kwaivgi/kling-o1": { base: 30, perSecond: 6 },
+  // Replicate — ByteDance
+  "bytedance/seedance-1.5-pro": { base: 25, perSecond: 5 },
+  // Replicate — Wan
+  "wan-video/wan-2.6": { base: 25, perSecond: 5 },
+  // Replicate — OpenAI
+  "openai/sora-2": { base: 40 },
+  "openai/sora-2-pro": { base: 120 },
+  // Replicate — Google
+  "google/veo-3": { base: 100 },
+  "google/veo-3.1": { base: 100 },
+  "google/veo-3.1-fast": { base: 40 },
+  // Replicate — MiniMax
+  "minimax/hailuo-2.3": { base: 20, perSecond: 4 },
 };
 
 const DEFAULT_VIDEO_COST: VideoModelCost = { base: 80 };
