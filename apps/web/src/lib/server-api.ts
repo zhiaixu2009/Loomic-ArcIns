@@ -458,7 +458,7 @@ export async function fetchVideoModels(): Promise<{ models: VideoModelInfo[] }> 
 export async function generateImageDirect(
   accessToken: string,
   prompt: string,
-  options?: { model?: string; aspectRatio?: string },
+  options?: { model?: string; aspectRatio?: string; quality?: string },
 ): Promise<GenerateImageResponse> {
   const response = await fetch(
     `${getServerBaseUrl()}/api/agent/generate-image`,
@@ -469,11 +469,52 @@ export async function generateImageDirect(
         prompt,
         ...(options?.model ? { model: options.model } : {}),
         ...(options?.aspectRatio ? { aspectRatio: options.aspectRatio } : {}),
+        ...(options?.quality ? { quality: options.quality } : {}),
       }),
     },
   );
   if (!response.ok) return handleErrorResponse(response);
   return (await response.json()) as GenerateImageResponse;
+}
+
+export type GenerateVideoResponse = {
+  url: string;
+  assetId: string;
+  prompt: string;
+  mimeType: string;
+  width: number;
+  height: number;
+  durationSeconds: number;
+};
+
+export async function generateVideoDirect(
+  accessToken: string,
+  prompt: string,
+  options?: {
+    model?: string;
+    duration?: number;
+    resolution?: string;
+    aspectRatio?: string;
+    inputImages?: string[];
+  },
+): Promise<GenerateVideoResponse> {
+  const response = await fetch(
+    `${getServerBaseUrl()}/api/agent/generate-video`,
+    {
+      method: "POST",
+      headers: authJsonHeaders(accessToken),
+      body: JSON.stringify({
+        prompt,
+        ...(options?.model ? { model: options.model } : {}),
+        ...(options?.duration != null ? { duration: options.duration } : {}),
+        ...(options?.resolution ? { resolution: options.resolution } : {}),
+        ...(options?.aspectRatio ? { aspectRatio: options.aspectRatio } : {}),
+        ...(options?.inputImages?.length ? { inputImages: options.inputImages } : {}),
+      }),
+    },
+  );
+  if (!response.ok) return handleErrorResponse(response);
+  return (await response.json()) as GenerateVideoResponse;
 }
 
 // --- Skills API ---
