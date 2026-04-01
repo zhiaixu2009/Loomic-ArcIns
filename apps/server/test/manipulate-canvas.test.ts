@@ -199,10 +199,15 @@ describe("add_shape with label", () => {
     expect(text.verticalAlign).toBe("middle");
     expect(text.text).toBe("处理请求");
 
-    // Text is centered inside shape
+    // Text is centered inside shape (shape may have been enlarged to fit text + padding)
     const textWidth = measureTextWidth("处理请求", 20);
-    expect(text.x).toBeCloseTo(100 + (160 - textWidth) / 2, 1);
-    expect(text.y).toBeCloseTo(100 + (60 - 25) / 2, 1);
+    const textHeight = 20 * 1.25; // single line
+    const actualWidth = Math.max(160, textWidth + 40);
+    const actualHeight = Math.max(60, textHeight + 40);
+    expect(shape.width).toBe(actualWidth);
+    expect(shape.height).toBe(actualHeight);
+    expect(text.x).toBeCloseTo(100 + (actualWidth - textWidth) / 2, 1);
+    expect(text.y).toBeCloseTo(100 + (actualHeight - textHeight) / 2, 1);
   });
 
   it("creates shape without label when label not provided", async () => {

@@ -5,11 +5,22 @@ import { z } from "zod";
 // Schema
 // ---------------------------------------------------------------------------
 
+// Models sometimes emit color values as numbers instead of hex strings.
+// This helper coerces numeric colors to "#RRGGBB" so validation doesn't fail.
+const colorString = (defaultVal: string) =>
+  z.preprocess(
+    (v) => {
+      if (typeof v === "number") return `#${v.toString(16).padStart(6, "0")}`;
+      return v;
+    },
+    z.string().default(defaultVal),
+  );
+
 const labelSchema = z
   .object({
     text: z.string().min(1).describe("Label text centered inside the shape"),
     fontSize: z.number().default(20).describe("Label font size"),
-    strokeColor: z.string().default("#000000").describe("Label text color"),
+    strokeColor: colorString("#000000").describe("Label text color"),
   })
   .optional()
   .describe("Optional centered text label inside the shape");
@@ -36,8 +47,8 @@ const operationSchema = z.union([
   z.object({
     action: z.enum(["update_style"]).describe("Update element style"),
     element_id: z.string().describe("ID of element to update"),
-    strokeColor: z.string().optional().describe("Stroke color hex, e.g. #FF0000"),
-    backgroundColor: z.string().optional().describe("Fill color hex"),
+    strokeColor: z.preprocess((v) => (typeof v === "number" ? `#${v.toString(16).padStart(6, "0")}` : v), z.string().optional()).describe("Stroke color hex, e.g. #FF0000"),
+    backgroundColor: z.preprocess((v) => (typeof v === "number" ? `#${v.toString(16).padStart(6, "0")}` : v), z.string().optional()).describe("Fill color hex"),
     opacity: z.number().min(0).max(100).optional().describe("Opacity 0-100"),
     fontSize: z.number().optional().describe("Font size (text elements only)"),
     strokeWidth: z.number().optional().describe("Stroke width"),
@@ -48,7 +59,7 @@ const operationSchema = z.union([
     x: z.number().describe("X coordinate"),
     y: z.number().describe("Y coordinate"),
     fontSize: z.number().default(20).describe("Font size"),
-    strokeColor: z.string().default("#000000").describe("Text color hex"),
+    strokeColor: colorString("#000000").describe("Text color hex"),
   }),
   z.object({
     action: z.enum(["add_shape"]).describe("Add a shape element"),
@@ -57,8 +68,8 @@ const operationSchema = z.union([
     y: z.number().describe("Y coordinate"),
     width: z.number().min(1).describe("Width"),
     height: z.number().min(1).describe("Height"),
-    strokeColor: z.string().default("#000000").describe("Stroke color hex"),
-    backgroundColor: z.string().default("transparent").describe("Fill color hex"),
+    strokeColor: colorString("#000000").describe("Stroke color hex"),
+    backgroundColor: colorString("transparent").describe("Fill color hex"),
     fillStyle: z
       .enum(["solid", "hachure", "cross-hatch"])
       .default("solid")
@@ -75,7 +86,7 @@ const operationSchema = z.union([
       .describe("Array of {x, y} points. Optional when using element bindings."),
     x: z.number().optional().describe("Starting x offset. Auto-computed when using bindings."),
     y: z.number().optional().describe("Starting y offset. Auto-computed when using bindings."),
-    strokeColor: z.string().default("#000000").describe("Stroke color hex"),
+    strokeColor: colorString("#000000").describe("Stroke color hex"),
     strokeWidth: z.number().default(2).describe("Stroke width"),
     start_element_id: z
       .string()
@@ -397,8 +408,19 @@ function applyAddShape(
   if (op.label) {
     const textId = generateId();
     const fontSize = op.label.fontSize;
-    const textWidth = measureTextWidth(op.label.text, fontSize);
-    const textHeight = fontSize * 1.25;
+
+    // For multi-line labels, measure the longest line and compute total height
+    const lines = op.label.text.split("\n");
+    const textWidth = Math.max(...lines.map((l) => measureTextWidth(l, fontSize)));
+    const textHeight = lines.length * fontSize * 1.25;
+
+    // Enforce minimum shape size so text never overflows the container
+    const paddingX = 40;
+    const paddingY = 40;
+    const minWidth = textWidth + paddingX;
+    const minHeight = textHeight + paddingY;
+    el.width = Math.max(el.width, minWidth);
+    el.height = Math.max(el.height, minHeight);
 
     // Bind text to shape
     ensureBoundElements(el).push({ type: "text", id: textId });
@@ -409,8 +431,8 @@ function applyAddShape(
       type: "text",
       text: op.label.text,
       originalText: op.label.text,
-      x: op.x + (op.width - textWidth) / 2,
-      y: op.y + (op.height - textHeight) / 2,
+      x: el.x + (el.width - textWidth) / 2,
+      y: el.y + (el.height - textHeight) / 2,
       width: textWidth,
       height: textHeight,
       fontSize,
