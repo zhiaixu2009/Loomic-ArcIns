@@ -4,7 +4,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Zap, ChevronRight, Gift, Crown } from "lucide-react";
+import { Zap, ChevronRight, Gift } from "lucide-react";
 import Link from "next/link";
 
 import { useAuth } from "@/lib/auth-context";
@@ -13,11 +13,11 @@ import { useCredits } from "@/hooks/use-credits";
 // ── Plan badge color map ─────────────────────────────────────
 
 const PLAN_COLORS: Record<string, string> = {
-  free: "bg-neutral-700 text-neutral-300",
-  starter: "bg-blue-900/60 text-blue-300",
-  pro: "bg-violet-900/60 text-violet-300",
-  ultra: "bg-amber-900/60 text-amber-300",
-  business: "bg-emerald-900/60 text-emerald-300",
+  free: "bg-neutral-200 text-neutral-600",
+  starter: "bg-neutral-800 text-neutral-200",
+  pro: "bg-neutral-900 text-white",
+  ultra: "bg-neutral-900 text-amber-400",
+  business: "bg-neutral-900 text-white",
 };
 
 // ── Main component ───────────────────────────────────────────
@@ -101,10 +101,10 @@ export function CreditHeaderButton() {
         {plan !== "business" && (
           <Link
             href="/pricing"
-            className="flex h-8 items-center gap-1 rounded-full bg-neutral-900 px-3 text-xs font-medium text-white transition-colors hover:bg-neutral-800"
+            className="flex h-8 items-center gap-1.5 rounded-lg bg-neutral-900 px-3 text-xs font-medium text-white transition-colors hover:bg-neutral-800"
           >
-            <Crown className="h-3.5 w-3.5 text-violet-400" />
-            <span>Upgrade</span>
+            <Zap className="h-3 w-3 text-amber-400" />
+            <span>升级</span>
           </Link>
         )}
 
@@ -112,9 +112,9 @@ export function CreditHeaderButton() {
         <button
           type="button"
           onClick={() => setOpen((v) => !v)}
-          className="flex h-8 items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3 text-xs font-medium tabular-nums text-neutral-700 transition-colors hover:bg-neutral-50"
+          className="flex h-8 items-center gap-1.5 rounded-lg bg-neutral-100 px-3 text-xs font-medium tabular-nums text-neutral-700 transition-colors hover:bg-neutral-200"
         >
-          <Zap className="h-3.5 w-3.5 text-amber-500" />
+          <Zap className="h-3 w-3 text-amber-500 fill-amber-500" />
           <span>{balance.toLocaleString()}</span>
         </button>
 

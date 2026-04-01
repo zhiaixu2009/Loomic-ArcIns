@@ -201,13 +201,9 @@ function CanvasPageContent() {
 
   return (
     <div className="flex h-screen w-screen overflow-hidden">
-      {/* Top-right credits button */}
-      <div className="absolute top-3 right-3 z-20">
-        <CreditHeaderButton />
-      </div>
-
-      {/* Top-left navigation bar */}
-      <div className="absolute top-3 left-3 z-20 flex items-center gap-1.5">
+      {/* Top navigation bar — logo/project left, credits right */}
+      <div className="absolute top-3 left-3 right-3 z-20 flex items-center justify-between pointer-events-none">
+        <div className="flex items-center gap-1.5 pointer-events-auto">
         <CanvasLogoMenu
           accessToken={accessToken}
           projectId={canvasData.projectId}
@@ -225,6 +221,11 @@ function CanvasPageContent() {
           currentBrandKitId={brandKitId}
           onBrandKitChange={(kitId) => setBrandKitId(kitId)}
         />
+        </div>
+        {/* Right side: credits button */}
+        <div className="pointer-events-auto">
+          <CreditHeaderButton />
+        </div>
       </div>
       <div className="flex-1 relative min-w-0 overflow-hidden">
         <CanvasEditor
