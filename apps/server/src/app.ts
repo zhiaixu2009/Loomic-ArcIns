@@ -304,7 +304,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     uploadService,
     viewerService,
   });
-  void registerGenerateRoutes(app, { auth, creditService, tierGuard, uploadService, viewerService });
+  void registerGenerateRoutes(app, { auth, creditService, jobService, tierGuard, uploadService, viewerService });
   void registerCreditRoutes(app, { auth, creditService, viewerService });
   if (jobService) {
     void registerJobRoutes(app, { auth, creditService, jobService, tierGuard, viewerService });
