@@ -111,6 +111,9 @@ export const applicationErrorCodeSchema = z.enum([
   "model_not_accessible",
   "resolution_not_allowed",
   "concurrency_limit",
+  "variant_not_found",
+  "checkout_failed",
+  "generation_failed",
 ]);
 
 export const applicationErrorResponseSchema = z.object({
