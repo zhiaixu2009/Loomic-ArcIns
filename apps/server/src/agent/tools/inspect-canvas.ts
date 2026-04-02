@@ -13,7 +13,7 @@ const inspectCanvasSchema = z.object({
   filter_type: z
     .array(z.string())
     .optional()
-    .describe("Filter by element type(s), e.g. ['text', 'image', 'rectangle']"),
+    .describe("Filter by element type(s), e.g. ['text', 'image', 'video', 'rectangle']. Use 'video' to match video elements (stored internally as image elements with isVideo metadata)."),
   filter_region: z
     .object({
       min_x: z.number(),
@@ -48,8 +48,16 @@ function summarizeElement(el: CanvasElement) {
 
   if (el.type === "image") {
     const customData = el.customData as Record<string, unknown> | undefined;
-    if (customData?.title) {
-      base.title = customData.title;
+    // Video elements are stored as Excalidraw image elements with customData.isVideo = true
+    if (customData?.isVideo === true) {
+      base.type = "video";
+      if (customData.videoUrl) base.videoUrl = customData.videoUrl;
+      if (customData.mimeType) base.mimeType = customData.mimeType;
+      if (customData.durationSeconds !== undefined) base.durationSeconds = customData.durationSeconds;
+    } else {
+      if (customData?.title) {
+        base.title = customData.title;
+      }
     }
   }
 
@@ -142,9 +150,13 @@ export function createInspectCanvasTool(deps: {
       let filtered = elements;
 
       if (input.filter_type && input.filter_type.length > 0) {
-        filtered = filtered.filter((el) =>
-          input.filter_type!.includes(el.type as string),
-        );
+        filtered = filtered.filter((el) => {
+          // Resolve logical type: image elements with customData.isVideo are treated as "video"
+          const customData = el.customData as Record<string, unknown> | undefined;
+          const logicalType =
+            el.type === "image" && customData?.isVideo === true ? "video" : (el.type as string);
+          return input.filter_type!.includes(logicalType);
+        });
       }
 
       if (input.filter_region) {
