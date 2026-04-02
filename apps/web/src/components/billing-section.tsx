@@ -46,7 +46,7 @@ export function BillingSection() {
 
   if (error) {
     return (
-      <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-400">
+      <div className="rounded-lg border border-destructive/20 bg-destructive/10 p-4 text-sm text-destructive">
         Failed to load subscription info. Please try again later.
       </div>
     );
@@ -158,7 +158,7 @@ export function BillingSection() {
               </p>
 
               {cancelError && (
-                <p className="mt-3 text-sm text-red-600 dark:text-red-400">
+                <p className="mt-3 text-sm text-destructive">
                   {cancelError}
                 </p>
               )}

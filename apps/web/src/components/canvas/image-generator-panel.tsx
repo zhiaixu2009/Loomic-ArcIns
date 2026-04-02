@@ -224,7 +224,7 @@ export function ImageGeneratorPanel({
       />
 
       {error && (
-        <div className="mb-2 rounded-lg bg-red-50 px-2 py-1.5 text-xs text-red-600">
+        <div className="mb-2 rounded-lg bg-destructive/10 px-2 py-1.5 text-xs text-destructive">
           {error}
         </div>
       )}

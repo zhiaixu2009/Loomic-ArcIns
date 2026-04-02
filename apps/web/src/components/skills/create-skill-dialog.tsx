@@ -189,7 +189,7 @@ export function CreateSkillDialog({
               placeholder="# Skill Name&#10;&#10;## Instructions&#10;..."
               value={skillContent}
               onChange={(e) => setSkillContent(e.target.value)}
-              className="w-full rounded-lg border border-input bg-neutral-50 px-3 py-2 font-mono text-xs leading-relaxed outline-none resize-y focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 placeholder:text-muted-foreground"
+              className="w-full rounded-lg border border-input bg-secondary px-3 py-2 font-mono text-xs leading-relaxed outline-none resize-y focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 placeholder:text-muted-foreground"
             />
           </div>
 

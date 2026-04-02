@@ -105,7 +105,7 @@ export function SkillDetailDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             {skill.name}
-            <span className="inline-flex items-center gap-1 rounded-full bg-neutral-100 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+            <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
               <SourceIcon className="size-3" />
               {sourceLabel}
             </span>
@@ -143,7 +143,7 @@ export function SkillDetailDialog({
           <span className="text-xs font-medium text-muted-foreground">
             SKILL.md
           </span>
-          <pre className="max-h-64 overflow-auto rounded-lg border border-border bg-neutral-50 p-3 font-mono text-xs leading-relaxed text-foreground whitespace-pre-wrap break-words">
+          <pre className="max-h-64 overflow-auto rounded-lg border border-border bg-secondary p-3 font-mono text-xs leading-relaxed text-foreground whitespace-pre-wrap break-words">
             {skill.skillContent}
           </pre>
         </div>

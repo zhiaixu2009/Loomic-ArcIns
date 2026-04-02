@@ -186,7 +186,7 @@ export function SessionSelector({
                         </button>
                         <button
                           type="button"
-                          className="px-2 py-0.5 rounded text-xs text-white bg-red-500 hover:bg-red-600 transition-colors"
+                          className="px-2 py-0.5 rounded text-xs text-destructive-foreground bg-destructive hover:bg-destructive/90 transition-colors"
                           onClick={(e) => {
                             e.stopPropagation();
                             handleDelete(s.id);
