@@ -7,6 +7,7 @@ import type {
   ImageArtifact,
   ImageGenerationPreference,
   MessageMention,
+  VideoArtifact,
   VideoGenerationPreference,
 } from "@loomic/shared";
 import { useAgentModel } from "../hooks/use-agent-model";
@@ -47,6 +48,7 @@ type ChatSidebarProps = {
   open: boolean;
   onToggle: () => void;
   onImageGenerated?: (artifact: ImageArtifact) => void;
+  onVideoGenerated?: (artifact: VideoArtifact) => void;
   onCanvasSync?: () => void;
   initialPrompt?: string | undefined;
   initialSessionId?: string | undefined;
@@ -63,6 +65,7 @@ export function ChatSidebar({
   open,
   onToggle,
   onImageGenerated,
+  onVideoGenerated,
   onCanvasSync,
   initialPrompt,
   initialSessionId,
@@ -414,16 +417,18 @@ export function ChatSidebar({
           // Apply event to messages (single source of truth — shared with reconnect)
           applyStreamEvent(event, assistantId, currentSessionId);
 
-          // Fire canvas insertion callback for image artifacts
+          // Fire canvas insertion callbacks for image/video artifacts
           if (
             event.type === "tool.completed" &&
             event.artifacts &&
-            event.toolName !== "screenshot_canvas" &&
-            onImageGenerated
+            event.toolName !== "screenshot_canvas"
           ) {
             for (const artifact of event.artifacts) {
-              if (artifact.type === "image") {
+              if (artifact.type === "image" && onImageGenerated) {
                 onImageGenerated(artifact as ImageArtifact);
+              }
+              if (artifact.type === "video" && onVideoGenerated) {
+                onVideoGenerated(artifact as VideoArtifact);
               }
             }
           }
@@ -517,6 +522,7 @@ export function ChatSidebar({
       applyStreamEvent,
       updateSessionMessages,
       onImageGenerated,
+      onVideoGenerated,
       onCanvasSync,
       readyAttachments,
       clearAttachments,

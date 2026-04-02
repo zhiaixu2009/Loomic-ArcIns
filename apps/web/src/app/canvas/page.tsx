@@ -3,7 +3,7 @@
 import { useSearchParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, Suspense } from "react";
 
-import type { ImageArtifact } from "@loomic/shared";
+import type { ImageArtifact, VideoArtifact } from "@loomic/shared";
 import type { CanvasImageItem } from "../../components/canvas-image-picker";
 import type { CanvasSelectedElement } from "../../components/canvas-editor";
 import { LoadingScreen } from "../../components/loading-screen";
@@ -14,7 +14,7 @@ import { ChatSidebar } from "../../components/chat-sidebar";
 import { CanvasEmptyHint } from "../../components/canvas-empty-hint";
 import { CanvasLogoMenu } from "../../components/canvas-logo-menu";
 import { EditableProjectName } from "../../components/editable-project-name";
-import { insertImageOnCanvas } from "../../lib/canvas-elements";
+import { insertImageOnCanvas, insertVideoOnCanvas } from "../../lib/canvas-elements";
 import { fetchCanvas, fetchProject, ApiAuthError } from "../../lib/server-api";
 import { BrandKitSelector } from "../../components/brand-kit-selector";
 import { CanvasBottomBar } from "../../components/canvas-bottom-bar";
@@ -76,6 +76,14 @@ function CanvasPageContent() {
     if (!api) return;
     insertImageOnCanvas(api, artifact).catch((err) => {
       console.warn("Failed to insert image on canvas:", err);
+    });
+  }, []);
+
+  const handleVideoGenerated = useCallback((artifact: VideoArtifact) => {
+    const api = excalidrawApiRef.current;
+    if (!api) return;
+    insertVideoOnCanvas(api, artifact).catch((err) => {
+      console.warn("Failed to insert video on canvas:", err);
     });
   }, []);
 
@@ -265,6 +273,7 @@ function CanvasPageContent() {
         open={chatOpen}
         onToggle={() => setChatOpen(!chatOpen)}
         onImageGenerated={handleImageGenerated}
+        onVideoGenerated={handleVideoGenerated}
         onCanvasSync={handleCanvasSync}
         initialPrompt={initialPrompt}
         initialSessionId={initialSessionId}
