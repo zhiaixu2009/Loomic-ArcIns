@@ -70,7 +70,7 @@ ENV SERVICE_MODE=api
 CMD ["sh", "-c", "\
   if [ -n \"$GOOGLE_SERVICE_ACCOUNT_JSON\" ]; then \
     mkdir -p /app/apps/server/credentials && \
-    echo \"$GOOGLE_SERVICE_ACCOUNT_JSON\" > /app/apps/server/credentials/vertex-ai-service-account.json && \
+    printf '%s' \"$GOOGLE_SERVICE_ACCOUNT_JSON\" > /app/apps/server/credentials/vertex-ai-service-account.json && \
     export GOOGLE_APPLICATION_CREDENTIALS=/app/apps/server/credentials/vertex-ai-service-account.json; \
   fi && \
   if [ \"$SERVICE_MODE\" = \"worker\" ]; then \
