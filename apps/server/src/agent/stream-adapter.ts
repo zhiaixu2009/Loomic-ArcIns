@@ -9,7 +9,7 @@ import {
   ToolMessage as ToolMessageClass,
 } from "@langchain/core/messages";
 
-import { imageArtifactSchema } from "@loomic/shared";
+import { imageArtifactSchema, videoArtifactSchema } from "@loomic/shared";
 import type { StreamEvent, ToolArtifact } from "@loomic/shared";
 
 /**
@@ -320,6 +320,8 @@ const ARTIFACT_KEYS = new Set([
   "url",
   "imageUrl",
   "screenshotUrl",
+  "videoUrl",
+  "durationSeconds",
   "mimeType",
   "width",
   "height",
@@ -435,6 +437,27 @@ function extractArtifacts(output: unknown): ToolArtifact[] | undefined {
       height: typeof record.height === "number" ? record.height : 1024,
     };
     const result = imageArtifactSchema.safeParse(candidate);
+    if (result.success) {
+      artifacts.push(result.data);
+    }
+  }
+
+  // Video format: tool response with videoUrl from generate_video
+  if (typeof record.videoUrl === "string" && record.videoUrl.length > 0) {
+    const candidate: Record<string, unknown> = {
+      type: "video" as const,
+      url: record.videoUrl,
+      mimeType: (record.mimeType as string) ?? "video/mp4",
+      width: typeof record.width === "number" ? record.width : 1280,
+      height: typeof record.height === "number" ? record.height : 720,
+    };
+    if (typeof record.durationSeconds === "number") {
+      candidate.durationSeconds = record.durationSeconds;
+    }
+    if (typeof record.summary === "string") {
+      candidate.title = record.summary.slice(0, 100);
+    }
+    const result = videoArtifactSchema.safeParse(candidate);
     if (result.success) {
       artifacts.push(result.data);
     }
