@@ -119,7 +119,7 @@ export function CreditUsageHistory() {
       </div>
 
       {/* Filter tabs */}
-      <div className="inline-flex gap-1 rounded-lg bg-neutral-100 p-1">
+      <div className="inline-flex gap-1 rounded-lg bg-muted p-1">
         {FILTER_OPTIONS.map((opt) => (
           <button
             key={opt.value}
@@ -127,7 +127,7 @@ export function CreditUsageHistory() {
             onClick={() => setFilter(opt.value)}
             className={`rounded-md px-3 py-1.5 text-xs transition-colors ${
               filter === opt.value
-                ? "bg-white font-medium text-foreground shadow-sm"
+                ? "bg-card font-medium text-foreground shadow-sm"
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
@@ -139,7 +139,7 @@ export function CreditUsageHistory() {
       {/* Table */}
       {filtered.length === 0 ? (
         <div className="flex flex-col items-center gap-2 py-12 text-center">
-          <Zap className="h-8 w-8 text-neutral-300" />
+          <Zap className="h-8 w-8 text-muted-foreground" />
           <p className="text-sm text-muted-foreground">
             No transactions found.
           </p>
@@ -148,7 +148,7 @@ export function CreditUsageHistory() {
         <div className="overflow-hidden rounded-lg border">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b bg-neutral-50 text-left text-xs font-medium text-muted-foreground">
+              <tr className="border-b bg-secondary text-left text-xs font-medium text-muted-foreground">
                 <th className="px-4 py-2.5">Description</th>
                 <th className="px-4 py-2.5">Type</th>
                 <th className="px-4 py-2.5">Date</th>
@@ -161,8 +161,8 @@ export function CreditUsageHistory() {
                 return (
                   <tr
                     key={t.id}
-                    className={`border-b last:border-b-0 transition-colors hover:bg-neutral-50 ${
-                      idx % 2 === 1 ? "bg-neutral-50/50" : ""
+                    className={`border-b last:border-b-0 transition-colors hover:bg-secondary ${
+                      idx % 2 === 1 ? "bg-secondary/50" : ""
                     }`}
                   >
                     <td className="px-4 py-2.5 text-foreground">
@@ -178,8 +178,8 @@ export function CreditUsageHistory() {
                       <span
                         className={
                           isGrant
-                            ? "font-medium text-neutral-900"
-                            : "font-medium text-red-500"
+                            ? "font-medium text-foreground"
+                            : "font-medium text-destructive"
                         }
                       >
                         {isGrant ? "+" : ""}
@@ -201,7 +201,7 @@ export function CreditUsageHistory() {
             type="button"
             onClick={handleLoadMore}
             disabled={loadingMore}
-            className="flex items-center gap-2 rounded-lg border px-4 py-2 text-sm text-muted-foreground transition-colors hover:bg-neutral-50 disabled:opacity-50"
+            className="flex items-center gap-2 rounded-lg border px-4 py-2 text-sm text-muted-foreground transition-colors hover:bg-secondary disabled:opacity-50"
           >
             {loadingMore && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
             {loadingMore ? "Loading..." : "Load More"}

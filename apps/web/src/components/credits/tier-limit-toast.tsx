@@ -35,23 +35,23 @@ interface TierToastConfig {
 
 const TOAST_CONFIG: Record<TierLimitCode, TierToastConfig> = {
   concurrency_limit: {
-    icon: <Timer className="h-5 w-5 text-neutral-400" />,
-    accentClass: "bg-neutral-500/10",
-    progressColor: "bg-neutral-500",
+    icon: <Timer className="h-5 w-5 text-muted-foreground" />,
+    accentClass: "bg-muted",
+    progressColor: "bg-primary",
     title: "\u5E76\u53D1\u4EFB\u52A1\u5DF2\u6EE1",
     cta: "\u5347\u7EA7\u5957\u9910",
   },
   model_not_accessible: {
-    icon: <Lock className="h-5 w-5 text-neutral-400" />,
-    accentClass: "bg-neutral-500/10",
-    progressColor: "bg-neutral-500",
+    icon: <Lock className="h-5 w-5 text-muted-foreground" />,
+    accentClass: "bg-muted",
+    progressColor: "bg-primary",
     title: "\u6A21\u578B\u9700\u8981\u66F4\u9AD8\u7EA7\u5957\u9910",
     cta: "\u5347\u7EA7\u89E3\u9501",
   },
   resolution_not_allowed: {
-    icon: <Maximize2 className="h-5 w-5 text-neutral-400" />,
-    accentClass: "bg-neutral-500/10",
-    progressColor: "bg-neutral-500",
+    icon: <Maximize2 className="h-5 w-5 text-muted-foreground" />,
+    accentClass: "bg-muted",
+    progressColor: "bg-primary",
     title: "\u5206\u8FA8\u7387\u8D85\u51FA\u5957\u9910\u9650\u5236",
     cta: "\u5347\u7EA7\u5957\u9910",
   },
@@ -198,7 +198,7 @@ function TierToastItem({
       transition={{ duration: 0.25, ease: [0.25, 0.46, 0.45, 0.94] }}
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
-      className="relative w-[380px] overflow-hidden rounded-xl border border-neutral-800 bg-neutral-900 shadow-2xl"
+      className="relative w-[380px] overflow-hidden rounded-xl border border-border bg-popover shadow-2xl"
     >
       <div className="p-4">
         {/* Header row: icon + title + close */}
@@ -210,16 +210,16 @@ function TierToastItem({
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex items-center justify-between">
-              <h4 className="text-sm font-semibold text-white">{config.title}</h4>
+              <h4 className="text-sm font-semibold text-foreground">{config.title}</h4>
               <button
                 type="button"
                 onClick={onDismiss}
-                className="ml-2 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-neutral-500 transition-colors hover:bg-neutral-800 hover:text-neutral-300"
+                className="ml-2 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
               >
                 <X className="h-3.5 w-3.5" />
               </button>
             </div>
-            <p className="mt-1 text-xs leading-relaxed text-neutral-400">
+            <p className="mt-1 text-xs leading-relaxed text-muted-foreground/70">
               {toast.message}
             </p>
             {/* CTA row */}
@@ -230,14 +230,14 @@ function TierToastItem({
                   onDismiss();
                   router.push("/pricing");
                 }}
-                className={`rounded-lg px-3 py-1.5 text-xs font-medium text-white transition-opacity hover:opacity-90 ${config.progressColor}`}
+                className={`rounded-lg px-3 py-1.5 text-xs font-medium text-primary-foreground transition-opacity hover:opacity-90 ${config.progressColor}`}
               >
                 {config.cta}
               </button>
               <button
                 type="button"
                 onClick={onDismiss}
-                className="rounded-lg px-3 py-1.5 text-xs text-neutral-500 transition-colors hover:text-neutral-300"
+                className="rounded-lg px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
               >
                 {"\u5173\u95ED"}
               </button>

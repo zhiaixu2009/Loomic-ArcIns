@@ -12,10 +12,10 @@ interface ModelTierBadgeProps {
 
 const TIER_BADGE_STYLES: Record<string, string> = {
   free: "",
-  starter: "bg-neutral-700/40 text-neutral-400",
-  pro: "bg-neutral-600/40 text-neutral-300",
-  ultra: "bg-neutral-500/40 text-neutral-200",
-  business: "bg-neutral-500/40 text-neutral-200",
+  starter: "bg-muted text-muted-foreground",
+  pro: "bg-primary/10 text-foreground",
+  ultra: "bg-primary/20 text-foreground",
+  business: "bg-primary/20 text-foreground",
 };
 
 export function ModelTierBadge({
@@ -43,7 +43,7 @@ export function ModelTierBadge({
 
       {/* Lock icon if inaccessible */}
       {!accessible && (
-        <Lock className="h-3 w-3 text-neutral-500" />
+        <Lock className="h-3 w-3 text-muted-foreground" />
       )}
     </span>
   );

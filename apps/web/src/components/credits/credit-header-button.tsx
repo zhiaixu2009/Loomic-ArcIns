@@ -13,11 +13,11 @@ import { useCredits } from "@/hooks/use-credits";
 // ── Plan badge color map ─────────────────────────────────────
 
 const PLAN_COLORS: Record<string, string> = {
-  free: "bg-neutral-200 text-neutral-600",
-  starter: "bg-neutral-800 text-neutral-200",
-  pro: "bg-neutral-900 text-white",
-  ultra: "bg-neutral-900 text-neutral-100",
-  business: "bg-neutral-900 text-white",
+  free: "bg-secondary text-secondary-foreground",
+  starter: "bg-primary text-primary-foreground",
+  pro: "bg-primary text-primary-foreground",
+  ultra: "bg-primary text-primary-foreground",
+  business: "bg-primary text-primary-foreground",
 };
 
 // ── Main component ───────────────────────────────────────────
@@ -89,7 +89,7 @@ export function CreditHeaderButton() {
   if (loading) {
     return (
       <div className="flex items-center gap-2">
-        <div className="h-8 w-20 animate-pulse rounded-full bg-neutral-200" />
+        <div className="h-8 w-20 animate-pulse rounded-full bg-muted" />
       </div>
     );
   }
@@ -101,9 +101,9 @@ export function CreditHeaderButton() {
         {plan !== "business" && (
           <Link
             href="/pricing"
-            className="flex h-8 items-center gap-1.5 rounded-lg bg-neutral-900 px-3 text-xs font-medium text-white transition-colors hover:bg-neutral-800"
+            className="flex h-8 items-center gap-1.5 rounded-lg bg-primary px-3 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90"
           >
-            <Zap className="h-3 w-3 text-neutral-500" />
+            <Zap className="h-3 w-3 text-muted-foreground" />
             <span>升级</span>
           </Link>
         )}
@@ -112,9 +112,9 @@ export function CreditHeaderButton() {
         <button
           type="button"
           onClick={() => setOpen((v) => !v)}
-          className="flex h-8 items-center gap-1.5 rounded-lg bg-neutral-100 px-3 text-xs font-medium tabular-nums text-neutral-700 transition-colors hover:bg-neutral-200"
+          className="flex h-8 items-center gap-1.5 rounded-lg bg-muted px-3 text-xs font-medium tabular-nums text-foreground transition-colors hover:bg-accent"
         >
-          <Zap className="h-3 w-3 text-neutral-500 fill-neutral-500" />
+          <Zap className="h-3 w-3 text-muted-foreground fill-muted-foreground" />
           <span>{balance.toLocaleString()}</span>
         </button>
 
@@ -123,10 +123,10 @@ export function CreditHeaderButton() {
           <img
             src={avatarUrl}
             alt={displayName}
-            className="h-8 w-8 rounded-full border border-neutral-200 object-cover"
+            className="h-8 w-8 rounded-full border border-border object-cover"
           />
         ) : (
-          <div className="flex h-8 w-8 items-center justify-center rounded-full border border-neutral-200 bg-neutral-100 text-xs font-medium text-neutral-600">
+          <div className="flex h-8 w-8 items-center justify-center rounded-full border border-border bg-muted text-xs font-medium text-muted-foreground">
             {displayName.charAt(0).toUpperCase()}
           </div>
         )}
@@ -143,7 +143,7 @@ export function CreditHeaderButton() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -4 }}
                 transition={{ duration: 0.15, ease: "easeOut" }}
-                className="w-72 rounded-xl border border-neutral-200 bg-white p-4 shadow-lg"
+                className="w-72 rounded-xl border border-border bg-popover p-4 text-popover-foreground shadow-lg"
               >
                 {/* Plan badge + balance */}
                 <div className="mb-3 flex items-center justify-between">
@@ -153,7 +153,7 @@ export function CreditHeaderButton() {
                     {plan}
                   </span>
                   {limits && (
-                    <span className="text-xs text-neutral-500">
+                    <span className="text-xs text-muted-foreground">
                       {isFree
                         ? `${limits.dailyCredits}/day`
                         : `${limits.monthlyCredits.toLocaleString()}/mo`}
@@ -163,14 +163,14 @@ export function CreditHeaderButton() {
 
                 {/* Balance */}
                 <div className="mb-3 flex items-center gap-2">
-                  <Zap className="h-5 w-5 text-neutral-500" />
-                  <span className="text-2xl font-semibold tabular-nums text-neutral-900">
+                  <Zap className="h-5 w-5 text-muted-foreground" />
+                  <span className="text-2xl font-semibold tabular-nums text-foreground">
                     {balance.toLocaleString()}
                   </span>
-                  <span className="text-xs text-neutral-500">credits</span>
+                  <span className="text-xs text-muted-foreground">credits</span>
                 </div>
 
-                <div className="mb-3 h-px bg-neutral-200" />
+                <div className="mb-3 h-px bg-border" />
 
                 {/* Claim daily (free plan, unclaimed) */}
                 {canClaim && (
@@ -178,11 +178,11 @@ export function CreditHeaderButton() {
                     type="button"
                     onClick={handleClaim}
                     disabled={claiming}
-                    className="mb-3 flex w-full items-center justify-center gap-2 rounded-lg bg-neutral-900 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-neutral-800 disabled:opacity-50"
+                    className="mb-3 flex w-full items-center justify-center gap-2 rounded-lg bg-success px-3 py-2 text-sm font-medium text-success-foreground transition-colors hover:bg-success/90 disabled:opacity-50"
                   >
                     {claiming ? (
                       <motion.div
-                        className="h-4 w-4 rounded-full border-2 border-white/30 border-t-white"
+                        className="h-4 w-4 rounded-full border-2 border-success-foreground/30 border-t-success-foreground"
                         animate={{ rotate: 360 }}
                         transition={{
                           duration: 0.6,
@@ -199,8 +199,8 @@ export function CreditHeaderButton() {
 
                 {/* Already claimed */}
                 {isFree && dailyClaimed && (
-                  <div className="mb-3 flex items-center gap-2 rounded-lg bg-neutral-100 px-3 py-2 text-xs text-neutral-500">
-                    <Zap className="h-3.5 w-3.5 text-neutral-500" />
+                  <div className="mb-3 flex items-center gap-2 rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">
+                    <Zap className="h-3.5 w-3.5 text-muted-foreground" />
                     Daily credits claimed
                   </div>
                 )}
@@ -209,10 +209,10 @@ export function CreditHeaderButton() {
                 <Link
                   href="/settings?tab=usage"
                   onClick={() => setOpen(false)}
-                  className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm text-neutral-600 transition-colors hover:bg-neutral-100"
+                  className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted"
                 >
                   <span>Usage Details</span>
-                  <ChevronRight className="h-4 w-4 text-neutral-400" />
+                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
                 </Link>
               </motion.div>
             </div>

@@ -45,11 +45,11 @@ function AnimatedBalance({ value }: { value: number }) {
 // ── Plan badge color map ─────────────────────────────────────
 
 const PLAN_COLORS: Record<string, string> = {
-  free: "bg-neutral-700 text-neutral-300",
-  starter: "bg-neutral-700 text-neutral-300",
-  pro: "bg-neutral-600 text-neutral-200",
-  ultra: "bg-neutral-500 text-neutral-100",
-  business: "bg-neutral-500 text-neutral-100",
+  free: "bg-muted text-muted-foreground",
+  starter: "bg-muted text-muted-foreground",
+  pro: "bg-primary/15 text-foreground",
+  ultra: "bg-primary/20 text-primary-foreground",
+  business: "bg-primary/20 text-primary-foreground",
 };
 
 // ── Main component ───────────────────────────────────────────
@@ -115,7 +115,7 @@ export function CreditBalance() {
   if (loading) {
     return (
       <div className="flex h-9 w-9 items-center justify-center">
-        <div className="h-4 w-4 animate-pulse rounded-full bg-neutral-700" />
+        <div className="h-4 w-4 animate-pulse rounded-full bg-primary" />
       </div>
     );
   }
@@ -137,11 +137,11 @@ export function CreditBalance() {
         {/* Pulsing claim indicator */}
         {canClaim && (
           <motion.span
-            className="absolute -right-0.5 -top-0.5 flex h-3 w-3 items-center justify-center rounded-full bg-neutral-900"
+            className="absolute -right-0.5 -top-0.5 flex h-3 w-3 items-center justify-center rounded-full bg-primary"
             animate={{ scale: [1, 1.3, 1] }}
             transition={{ duration: 2, repeat: Infinity }}
           >
-            <Plus className="h-2 w-2 text-white" strokeWidth={3} />
+            <Plus className="h-2 w-2 text-primary-foreground" strokeWidth={3} />
           </motion.span>
         )}
       </button>
@@ -157,17 +157,17 @@ export function CreditBalance() {
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -8 }}
                 transition={{ duration: 0.15, ease: "easeOut" }}
-                className="w-64 rounded-xl border border-neutral-800 bg-neutral-900 p-4 shadow-2xl"
+                className="w-64 rounded-xl border border-border bg-popover p-4 text-popover-foreground shadow-2xl"
               >
               {/* Balance section */}
               <div className="mb-3">
                 <div className="flex items-center gap-2">
-                  <Sparkles className="h-5 w-5 text-neutral-400" />
-                  <span className="text-2xl font-semibold tabular-nums text-white">
+                  <Sparkles className="h-5 w-5 text-muted-foreground" />
+                  <span className="text-2xl font-semibold tabular-nums text-foreground">
                     <AnimatedBalance value={balance} />
                   </span>
                 </div>
-                <p className="mt-0.5 text-xs text-neutral-500">
+                <p className="mt-0.5 text-xs text-muted-foreground">
                   Available credits
                 </p>
               </div>
@@ -180,7 +180,7 @@ export function CreditBalance() {
                   {plan}
                 </span>
                 {limits && (
-                  <span className="text-xs text-neutral-500">
+                  <span className="text-xs text-muted-foreground">
                     {isFree
                       ? `${limits.dailyCredits}/day`
                       : `${limits.monthlyCredits.toLocaleString()}/mo`}
@@ -189,7 +189,7 @@ export function CreditBalance() {
               </div>
 
               {/* Divider */}
-              <div className="mb-3 h-px bg-neutral-800" />
+              <div className="mb-3 h-px bg-border" />
 
               {/* Claim daily button (free plan, unclaimed) */}
               {canClaim && (
@@ -197,11 +197,11 @@ export function CreditBalance() {
                   type="button"
                   onClick={handleClaim}
                   disabled={claiming}
-                  className="mb-3 flex w-full items-center justify-center gap-2 rounded-lg bg-neutral-800 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-neutral-700 disabled:opacity-50"
+                  className="mb-3 flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
                 >
                   {claiming ? (
                     <motion.div
-                      className="h-4 w-4 rounded-full border-2 border-white/30 border-t-white"
+                      className="h-4 w-4 rounded-full border-2 border-primary-foreground/30 border-t-primary-foreground"
                       animate={{ rotate: 360 }}
                       transition={{
                         duration: 0.6,
@@ -218,8 +218,8 @@ export function CreditBalance() {
 
               {/* Already claimed indicator */}
               {isFree && dailyClaimed && (
-                <div className="mb-3 flex items-center gap-2 rounded-lg bg-neutral-800/60 px-3 py-2 text-xs text-neutral-400">
-                  <Zap className="h-3.5 w-3.5 text-neutral-500" />
+                <div className="mb-3 flex items-center gap-2 rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground/70">
+                  <Zap className="h-3.5 w-3.5 text-muted-foreground" />
                   Daily credits claimed
                 </div>
               )}
@@ -229,13 +229,13 @@ export function CreditBalance() {
                 <Link
                   href="/pricing"
                   onClick={() => setOpen(false)}
-                  className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm text-neutral-300 transition-colors hover:bg-neutral-800"
+                  className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted"
                 >
                   <span className="flex items-center gap-2">
-                    <Zap className="h-4 w-4 text-neutral-400" />
+                    <Zap className="h-4 w-4 text-muted-foreground" />
                     Upgrade Plan
                   </span>
-                  <ChevronRight className="h-4 w-4 text-neutral-600" />
+                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
                 </Link>
               )}
               </motion.div>
