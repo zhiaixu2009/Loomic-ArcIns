@@ -30,6 +30,7 @@ import {
 } from "../lib/canvas-video-generator";
 import { ImageGeneratorPanel } from "./canvas/image-generator-panel";
 import { VideoGeneratorPanel } from "./canvas/video-generator-panel";
+import { VideoPlayerPanel } from "./canvas/video-player-panel";
 
 type ToolType =
   | "hand"
@@ -109,6 +110,18 @@ export function CanvasToolMenu({ accessToken, excalidrawApi, leftPanelOpen }: Ca
     height: number;
   } | null>(null);
 
+  // Video player state (for completed video elements)
+  const [activeVideoPlayerId, setActiveVideoPlayerId] = useState<string | null>(null);
+  const [videoPlayerData, setVideoPlayerData] = useState<{
+    videoUrl: string;
+    mimeType: string;
+    durationSeconds?: number;
+    title?: string;
+  } | null>(null);
+  const [videoPlayerBounds, setVideoPlayerBounds] = useState<{
+    x: number; y: number; width: number; height: number;
+  } | null>(null);
+
   const [canvasScrollZoom, setCanvasScrollZoom] = useState({
     scrollX: 0,
     scrollY: 0,
@@ -131,6 +144,8 @@ export function CanvasToolMenu({ accessToken, excalidrawApi, leftPanelOpen }: Ca
   activeGeneratorIdRef.current = activeGeneratorId;
   const activeVideoGenIdRef = useRef(activeVideoGenId);
   activeVideoGenIdRef.current = activeVideoGenId;
+  const activeVideoPlayerIdRef = useRef(activeVideoPlayerId);
+  activeVideoPlayerIdRef.current = activeVideoPlayerId;
 
   // Subscribe to Excalidraw changes
   useEffect(() => {
@@ -190,8 +205,26 @@ export function CanvasToolMenu({ accessToken, excalidrawApi, leftPanelOpen }: Ca
               setGeneratorData(null);
               setGeneratorBounds(null);
             }
-          } else {
-            // Neither image nor video generator — close both
+          } else if (
+            sel.type === "image" &&
+            sel.customData?.isVideo === true &&
+            sel.customData?.videoUrl
+          ) {
+            // Completed video element — show player
+            setActiveVideoPlayerId(sel.id as string);
+            setVideoPlayerData({
+              videoUrl: sel.customData.videoUrl as string,
+              mimeType: (sel.customData.mimeType as string) ?? "video/mp4",
+              durationSeconds: sel.customData.durationSeconds as number | undefined,
+              title: sel.customData.title as string | undefined,
+            });
+            setVideoPlayerBounds({
+              x: sel.x as number,
+              y: sel.y as number,
+              width: sel.width as number,
+              height: sel.height as number,
+            });
+            // Close generator panels
             if (currentId) {
               setActiveGeneratorId(null);
               setGeneratorData(null);
@@ -202,9 +235,26 @@ export function CanvasToolMenu({ accessToken, excalidrawApi, leftPanelOpen }: Ca
               setVideoGenData(null);
               setVideoGenBounds(null);
             }
+          } else {
+            // Neither generator nor video player — close all
+            if (currentId) {
+              setActiveGeneratorId(null);
+              setGeneratorData(null);
+              setGeneratorBounds(null);
+            }
+            if (currentVideoId) {
+              setActiveVideoGenId(null);
+              setVideoGenData(null);
+              setVideoGenBounds(null);
+            }
+            if (activeVideoPlayerIdRef.current) {
+              setActiveVideoPlayerId(null);
+              setVideoPlayerData(null);
+              setVideoPlayerBounds(null);
+            }
           }
         } else {
-          // Zero or multiple selected — close both panels
+          // Zero or multiple selected — close all panels
           if (currentId) {
             setActiveGeneratorId(null);
             setGeneratorData(null);
@@ -214,6 +264,11 @@ export function CanvasToolMenu({ accessToken, excalidrawApi, leftPanelOpen }: Ca
             setActiveVideoGenId(null);
             setVideoGenData(null);
             setVideoGenBounds(null);
+          }
+          if (activeVideoPlayerIdRef.current) {
+            setActiveVideoPlayerId(null);
+            setVideoPlayerData(null);
+            setVideoPlayerBounds(null);
           }
         }
 
@@ -401,6 +456,24 @@ export function CanvasToolMenu({ accessToken, excalidrawApi, leftPanelOpen }: Ca
           accessToken={accessToken}
           canvasScrollZoom={canvasScrollZoom}
           onClose={handleCloseVideoGenerator}
+        />
+      )}
+
+      {/* Video Player Panel — floats when a completed video element is selected */}
+      {activeVideoPlayerId && videoPlayerData && videoPlayerBounds && (
+        <VideoPlayerPanel
+          elementId={activeVideoPlayerId}
+          elementBounds={videoPlayerBounds}
+          videoUrl={videoPlayerData.videoUrl}
+          mimeType={videoPlayerData.mimeType}
+          durationSeconds={videoPlayerData.durationSeconds}
+          title={videoPlayerData.title}
+          canvasScrollZoom={canvasScrollZoom}
+          onClose={() => {
+            setActiveVideoPlayerId(null);
+            setVideoPlayerData(null);
+            setVideoPlayerBounds(null);
+          }}
         />
       )}
 
