@@ -10,6 +10,8 @@ import type { WebSocketHandle } from "../hooks/use-websocket";
 import { getServerBaseUrl } from "../lib/env";
 import { saveCanvas, uploadThumbnail } from "../lib/server-api";
 import { getSupabaseBrowserClient } from "../lib/supabase-browser";
+import { VideoCanvasElement } from "./canvas/video-canvas-element";
+import { isVideoUrl } from "../lib/canvas-elements";
 import { CanvasToolMenu } from "./canvas-tool-menu";
 import { ErrorBoundary } from "./error-boundary";
 
@@ -391,6 +393,30 @@ export function CanvasEditor({
     };
   }, []);
 
+  // Render custom embeddable content for video elements on canvas.
+  // Excalidraw calls this for every embeddable element; we intercept video URLs
+  // and render an inline player, falling back to default for everything else.
+  const renderEmbeddable = useCallback(
+    (element: any, _appState: any) => {
+      const link = element?.link;
+      if (typeof link === "string" && isVideoUrl(link)) {
+        return (
+          <VideoCanvasElement
+            src={link}
+            width={element.width ?? 640}
+            height={element.height ?? 360}
+          />
+        );
+      }
+      // Return null to let Excalidraw handle non-video embeddables with default behavior
+      return null;
+    },
+    [],
+  );
+
+  // Allow any URL as a valid embeddable so our video links are accepted
+  const validateEmbeddable = useCallback(() => true, []);
+
   return (
     <ErrorBoundary
       onError={(err) => console.error("[canvas-editor] render crashed:", err)}
@@ -405,6 +431,8 @@ export function CanvasEditor({
           }}
           onChange={handleChange}
           excalidrawAPI={handleExcalidrawApi}
+          renderEmbeddable={renderEmbeddable}
+          validateEmbeddable={validateEmbeddable}
         />
         {excalidrawApi && (
           <CanvasToolMenu

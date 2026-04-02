@@ -12,10 +12,7 @@ import {
   resizeVideoGeneratorElement,
   type VideoGeneratorData,
 } from "../../lib/canvas-video-generator";
-import {
-  createExcalidrawImageElement,
-  extractVideoPosterFrame,
-} from "../../lib/canvas-elements";
+// No longer needs poster frame extraction — videos use embeddable elements
 
 type VideoGeneratorPanelProps = {
   elementId: string;
@@ -29,12 +26,6 @@ type VideoGeneratorPanelProps = {
 
 const ASPECT_RATIOS = ["16:9", "9:16"] as const;
 const DURATIONS = [4, 5, 6, 8] as const;
-
-function generateId(): string {
-  return (
-    Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2)
-  ).slice(0, 20);
-}
 
 export function VideoGeneratorPanel({
   elementId,
@@ -176,44 +167,35 @@ export function VideoGeneratorPanel({
         },
       );
 
-      // Extract poster frame from video and insert as image element on canvas
-      // Video displays as an image element with videoUrl in customData
-      const posterDataURL = await extractVideoPosterFrame(result.url);
-      const fileId = generateId();
-      excalidrawApi.addFiles([
+      // Create embeddable element for inline video playback on canvas.
+      // Dynamic import — excalidraw is client-only.
+      const { convertToExcalidrawElements } = await import("@excalidraw/excalidraw");
+
+      const newElements = convertToExcalidrawElements([
         {
-          id: fileId,
-          dataURL: posterDataURL,
-          mimeType: "image/png",
-          created: Date.now(),
-        },
+          type: "embeddable",
+          link: result.url,
+          x: elementBounds.x,
+          y: elementBounds.y,
+          width: elementBounds.width,
+          height: elementBounds.height,
+          customData: {
+            isVideo: true,
+            mimeType: result.mimeType,
+            durationSeconds: result.durationSeconds,
+            title: prompt.trim().slice(0, 60),
+          },
+        } as any,
       ]);
 
-      const videoElement = createExcalidrawImageElement({
-        fileId,
-        x: elementBounds.x,
-        y: elementBounds.y,
-        width: elementBounds.width,
-        height: elementBounds.height,
-        title: prompt.trim().slice(0, 60),
-      });
-      // Add video metadata to the element
-      videoElement.customData = {
-        ...(videoElement.customData as Record<string, unknown> | undefined),
-        isVideo: true,
-        videoUrl: result.url,
-        mimeType: result.mimeType,
-        durationSeconds: result.durationSeconds,
-      };
-
-      // Replace placeholder with video element
+      // Replace generator placeholder with video embeddable element
       const elements = excalidrawApi
         .getSceneElements()
         .map((el: any) =>
           el.id === elementId ? { ...el, isDeleted: true } : el,
         );
       excalidrawApi.updateScene({
-        elements: [...elements, videoElement],
+        elements: [...elements, ...newElements],
         captureUpdate: "IMMEDIATELY",
       });
 

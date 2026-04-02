@@ -28,6 +28,7 @@ import {
   getVideoGeneratorData,
   type VideoGeneratorData,
 } from "../lib/canvas-video-generator";
+import { isVideoUrl } from "../lib/canvas-elements";
 import { ImageGeneratorPanel } from "./canvas/image-generator-panel";
 import { VideoGeneratorPanel } from "./canvas/video-generator-panel";
 import { VideoPlayerPanel } from "./canvas/video-player-panel";
@@ -207,17 +208,21 @@ export function CanvasToolMenu({ accessToken, excalidrawApi, leftPanelOpen }: Ca
               setGeneratorBounds(null);
             }
           } else if (
-            sel.type === "image" &&
-            sel.customData?.isVideo === true &&
-            sel.customData?.videoUrl
+            sel.type === "embeddable" &&
+            (isVideoUrl(sel.link as string) || sel.customData?.isVideo === true)
           ) {
-            // Completed video element — show player
+            // Completed video embeddable element — show player panel for detailed controls
+            const videoLink = sel.link as string;
             setActiveVideoPlayerId(sel.id as string);
             setVideoPlayerData({
-              videoUrl: sel.customData.videoUrl as string,
-              mimeType: (sel.customData.mimeType as string) ?? "video/mp4",
-              durationSeconds: sel.customData.durationSeconds as number | undefined,
-              title: sel.customData.title as string | undefined,
+              videoUrl: videoLink,
+              mimeType: (sel.customData?.mimeType as string) ?? "video/mp4",
+              ...(sel.customData?.durationSeconds != null
+                ? { durationSeconds: sel.customData.durationSeconds as number }
+                : {}),
+              ...(sel.customData?.title != null
+                ? { title: sel.customData.title as string }
+                : {}),
             });
             setVideoPlayerBounds({
               x: sel.x as number,
@@ -468,8 +473,8 @@ export function CanvasToolMenu({ accessToken, excalidrawApi, leftPanelOpen }: Ca
           elementBounds={videoPlayerBounds}
           videoUrl={videoPlayerData.videoUrl}
           mimeType={videoPlayerData.mimeType}
-          durationSeconds={videoPlayerData.durationSeconds}
-          title={videoPlayerData.title}
+          {...(videoPlayerData.durationSeconds != null ? { durationSeconds: videoPlayerData.durationSeconds } : {})}
+          {...(videoPlayerData.title != null ? { title: videoPlayerData.title } : {})}
           canvasScrollZoom={canvasScrollZoom}
           onClose={() => {
             setActiveVideoPlayerId(null);
