@@ -1,4 +1,4 @@
-import type { ImageArtifact } from "@loomic/shared";
+import type { ImageArtifact, VideoArtifact } from "@loomic/shared";
 
 import { getServerBaseUrl } from "./env";
 
@@ -199,6 +199,177 @@ export async function insertImageOnCanvas(
 
   api.updateScene({
     elements: [...api.getSceneElements(), element],
+    captureUpdate: "IMMEDIATELY",
+  });
+}
+
+/**
+ * Extract the first frame of a video as a PNG data URL.
+ * Uses a hidden <video> + <canvas> to capture the frame in-browser.
+ * Falls back to a generated placeholder if extraction fails.
+ */
+export function extractVideoPosterFrame(videoUrl: string): Promise<string> {
+  return new Promise((resolve) => {
+    const video = document.createElement("video");
+    video.crossOrigin = "anonymous";
+    video.muted = true;
+    video.preload = "auto";
+
+    const timeout = setTimeout(() => {
+      video.src = "";
+      resolve(generateVideoPlaceholder());
+    }, 10_000);
+
+    video.addEventListener("loadeddata", () => {
+      video.currentTime = 0.1;
+    });
+
+    video.addEventListener("seeked", () => {
+      clearTimeout(timeout);
+      try {
+        const canvas = document.createElement("canvas");
+        canvas.width = video.videoWidth || 1280;
+        canvas.height = video.videoHeight || 720;
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          resolve(canvas.toDataURL("image/png"));
+        } else {
+          resolve(generateVideoPlaceholder());
+        }
+      } catch {
+        resolve(generateVideoPlaceholder());
+      } finally {
+        video.src = "";
+      }
+    });
+
+    video.addEventListener("error", () => {
+      clearTimeout(timeout);
+      resolve(generateVideoPlaceholder());
+    });
+
+    // Route through proxy to avoid CORS issues
+    const proxyUrl = `${getServerBaseUrl()}/api/proxy-image?url=${encodeURIComponent(videoUrl)}`;
+    video.src = proxyUrl;
+  });
+}
+
+function generateVideoPlaceholder(width = 1280, height = 720): string {
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d")!;
+
+  ctx.fillStyle = "#1a1a2e";
+  ctx.fillRect(0, 0, width, height);
+
+  const cx = width / 2;
+  const cy = height / 2;
+  const size = Math.min(width, height) * 0.15;
+  ctx.fillStyle = "rgba(255, 255, 255, 0.7)";
+  ctx.beginPath();
+  ctx.moveTo(cx - size * 0.4, cy - size * 0.5);
+  ctx.lineTo(cx + size * 0.6, cy);
+  ctx.lineTo(cx - size * 0.4, cy + size * 0.5);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.fillStyle = "rgba(255, 255, 255, 0.5)";
+  ctx.font = `${Math.round(size * 0.3)}px sans-serif`;
+  ctx.textAlign = "center";
+  ctx.fillText("Video", cx, cy + size * 0.9);
+
+  return canvas.toDataURL("image/png");
+}
+
+/**
+ * Insert a video artifact onto the Excalidraw canvas.
+ * Videos display as image elements (poster frame) with video metadata in customData.
+ */
+export async function insertVideoOnCanvas(
+  api: {
+    addFiles: (
+      files: { id: any; dataURL: any; mimeType: string; created: number }[],
+    ) => void;
+    getSceneElements: () => readonly any[];
+    getAppState: () => any;
+    updateScene: (scene: {
+      elements: any[];
+      captureUpdate?: string;
+    }) => void;
+  },
+  artifact: VideoArtifact,
+): Promise<void> {
+  const posterDataURL = await extractVideoPosterFrame(artifact.url);
+  const fileId = generateId();
+
+  api.addFiles([
+    {
+      id: fileId as any,
+      dataURL: posterDataURL as any,
+      mimeType: "image/png",
+      created: Date.now(),
+    },
+  ]);
+
+  let x: number;
+  let y: number;
+  let width: number;
+  let height: number;
+
+  if (artifact.placement) {
+    x = artifact.placement.x;
+    y = artifact.placement.y;
+    width = artifact.placement.width;
+    height = artifact.placement.height;
+  } else {
+    const scaled = scaleToFit(artifact.width, artifact.height, 600);
+    width = scaled.width;
+    height = scaled.height;
+
+    const elements = api.getSceneElements().filter((el: any) => !el.isDeleted);
+
+    if (elements.length === 0) {
+      const center = getViewportCenter(api.getAppState());
+      x = center.x - width / 2;
+      y = center.y - height / 2;
+    } else {
+      const GAP = 40;
+      let maxRight = -Infinity;
+      let rightEdgeY = 0;
+      for (const el of elements) {
+        const elRight = (el.x ?? 0) + (el.width ?? 0);
+        if (elRight > maxRight) {
+          maxRight = elRight;
+          rightEdgeY = (el.y ?? 0);
+        }
+      }
+      x = maxRight + GAP;
+      y = rightEdgeY;
+    }
+  }
+
+  const element = createExcalidrawImageElement({
+    fileId,
+    x,
+    y,
+    width,
+    height,
+    title: artifact.title,
+  });
+
+  element.customData = {
+    ...(element.customData as Record<string, unknown> | undefined),
+    isVideo: true,
+    videoUrl: artifact.url,
+    mimeType: artifact.mimeType,
+    durationSeconds: artifact.durationSeconds,
+  };
+
+  const existing = api.getSceneElements();
+  api.updateScene({
+    elements: [...existing, element],
     captureUpdate: "IMMEDIATELY",
   });
 }
