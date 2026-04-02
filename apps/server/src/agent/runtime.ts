@@ -41,6 +41,7 @@ import type { AgentPersistenceService } from "./persistence/index.js";
 import { adaptDeepAgentStream } from "./stream-adapter.js";
 import { sanitizeErrorForClient } from "../utils/error-sanitizer.js";
 import { loadWorkspaceSkills, type WorkspaceSkillEntry } from "./workspace-skills.js";
+import { buildCanvasSummaryForContext } from "./tools/inspect-canvas.js";
 
 /**
  * Build the text portion of a user message, appending <input_images> XML
@@ -52,8 +53,14 @@ export function buildUserMessage(
   imageGenerationPreference?: ImageGenerationPreference,
   mentions: MessageMention[] = [],
   videoGenerationPreference?: VideoGenerationPreference,
+  canvasSummary?: string | null,
 ): { text: string } {
   const xmlBlocks: string[] = [];
+
+  // Canvas state context (auto-injected, not user-provided)
+  if (canvasSummary) {
+    xmlBlocks.push(`<canvas_state>\n${canvasSummary}\n</canvas_state>`);
+  }
 
   const inputImagesXml = buildInputImagesXml(attachments);
   if (inputImagesXml) xmlBlocks.push(inputImagesXml);
@@ -874,6 +881,27 @@ export function createAgentRunService(options: CreateAgentRuntimeOptions) {
 
       let stream: AsyncIterable<unknown>;
       try {
+        // Auto-inject canvas state summary so the agent has immediate awareness
+        // of what's on the canvas without needing to call inspect_canvas first.
+        let canvasSummary: string | null = null;
+        if (run.canvasId && run.accessToken && options.createUserClient) {
+          try {
+            const canvasClient = options.createUserClient(run.accessToken) as any;
+            const { data: canvasData } = await canvasClient
+              .from("canvases")
+              .select("content")
+              .eq("id", run.canvasId)
+              .single();
+            if (canvasData?.content?.elements) {
+              canvasSummary = buildCanvasSummaryForContext(
+                canvasData.content.elements as Array<Record<string, unknown>>,
+              );
+            }
+          } catch {
+            // Non-critical — agent can still call inspect_canvas manually
+          }
+        }
+
         const hasAttachments = run.attachments && run.attachments.length > 0;
         let userMessage: HumanMessage;
         let attachmentDataMap: Record<string, string> = {};
@@ -927,6 +955,7 @@ export function createAgentRunService(options: CreateAgentRuntimeOptions) {
             run.imageGenerationPreference,
             run.mentions,
             run.videoGenerationPreference,
+            canvasSummary,
           );
 
           // Build assetId → data URI map for tool-level resolution
@@ -945,6 +974,7 @@ export function createAgentRunService(options: CreateAgentRuntimeOptions) {
             run.imageGenerationPreference,
             run.mentions,
             run.videoGenerationPreference,
+            canvasSummary,
           );
           userMessage = new HumanMessage(enrichedPrompt);
         }
