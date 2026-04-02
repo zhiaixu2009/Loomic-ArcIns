@@ -45,10 +45,10 @@ function buildImageGenerateSchema(models: AvailableModel[]) {
     prompt: z.string().min(1).describe("Detailed image generation prompt"),
     model: modelField,
     aspectRatio: z
-      .enum(["1:1", "16:9", "9:16", "4:3", "3:4"])
+      .string()
       .optional()
       .default("1:1")
-      .describe("Aspect ratio of the generated image"),
+      .describe("Aspect ratio (e.g. 1:1, 16:9, 9:16, 4:3, 3:4, 4:5, 5:4, 2:3, 3:2). Provider auto-normalizes unsupported ratios to nearest match."),
     quality: z
       .enum(["standard", "hd", "ultra"])
       .optional()
