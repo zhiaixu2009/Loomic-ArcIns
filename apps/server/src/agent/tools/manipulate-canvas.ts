@@ -24,7 +24,7 @@ const operationSchema = z.object({
     .enum([
       "move", "resize", "delete", "update_style",
       "add_text", "add_shape", "add_line",
-      "reorder", "align", "distribute",
+      "reorder", "align", "distribute", "update_text",
     ])
     .describe("The operation to perform"),
 
@@ -45,8 +45,8 @@ const operationSchema = z.object({
   strokeWidth: z.number().optional().describe("Stroke width"),
   fillStyle: z.enum(["solid", "hachure", "cross-hatch"]).optional().describe("Fill style"),
 
-  // add_text
-  text: z.string().optional().describe("Text content (add_text)"),
+  // add_text / update_text
+  text: z.string().optional().describe("Text content (add_text / update_text)"),
 
   // add_shape
   shape: z.enum(["rectangle", "ellipse", "diamond"]).optional().describe("Shape type (add_shape)"),
@@ -105,7 +105,9 @@ function generateId(): string {
 
 /**
  * Estimate text width accounting for CJK characters.
- * CJK characters ≈ 1.0× fontSize; Latin/ASCII ≈ 0.6× fontSize.
+ * Calibrated for Excalidraw's Virgil font:
+ *   CJK characters ≈ 1.05× fontSize; Latin/ASCII ≈ 0.65× fontSize.
+ * A 15% safety margin is applied to avoid text overflow.
  */
 export function measureTextWidth(text: string, fontSize: number): number {
   let width = 0;
@@ -121,9 +123,10 @@ export function measureTextWidth(text: string, fontSize: number): number {
       (code >= 0xff00 && code <= 0xffef) || // Fullwidth Forms
       (code >= 0xf900 && code <= 0xfaff) || // CJK Compatibility Ideographs
       (code >= 0x20000 && code <= 0x2a6df); // CJK Extension B
-    width += isCJK ? fontSize : fontSize * 0.6;
+    width += isCJK ? fontSize * 1.05 : fontSize * 0.65;
   }
-  return width;
+  // +15% safety margin so text never clips on real render
+  return width * 1.15;
 }
 
 /** Coerce numeric color values to hex strings at runtime (models sometimes emit numbers). */
@@ -186,6 +189,39 @@ function ensureBoundElements(el: CanvasElement): unknown[] {
     el.boundElements = [];
   }
   return el.boundElements as unknown[];
+}
+
+/**
+ * Post-processing pass: remove stale binding references after any operation
+ * (e.g. after delete). Fixes orphaned boundElements, containerId, and arrow
+ * bindings pointing to deleted elements.
+ */
+function validateBindings(elements: CanvasElement[]): void {
+  const activeIds = new Set(
+    elements.filter((el) => !el.isDeleted).map((el) => el.id as string),
+  );
+  for (const el of elements) {
+    if (el.isDeleted) continue;
+    if (Array.isArray(el.boundElements)) {
+      const before = (el.boundElements as Array<{ id: string }>).length;
+      el.boundElements = (el.boundElements as Array<{ id: string; type: string }>).filter(
+        (b) => activeIds.has(b.id),
+      );
+      if ((el.boundElements as unknown[]).length !== before) bumpVersion(el);
+    }
+    if (el.containerId && !activeIds.has(el.containerId as string)) {
+      el.containerId = null;
+      bumpVersion(el);
+    }
+    if (el.startBinding) {
+      const binding = el.startBinding as { elementId: string };
+      if (!activeIds.has(binding.elementId)) { el.startBinding = null; bumpVersion(el); }
+    }
+    if (el.endBinding) {
+      const binding = el.endBinding as { elementId: string };
+      if (!activeIds.has(binding.elementId)) { el.endBinding = null; bumpVersion(el); }
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -251,6 +287,28 @@ function computeEdgePoint(
   };
 }
 
+/**
+ * Compute the normalized fixedPoint [x, y] on the source shape's boundary
+ * that best faces the target shape. Values are in [0, 1] space (top-left = 0,0).
+ * This stabilizes arrow endpoints so Excalidraw doesn't recompute them on resize.
+ */
+function computeFixedPoint(
+  fromShape: CanvasElement,
+  toShape: CanvasElement,
+): [number, number] {
+  const fromCenter = getElementCenter(fromShape);
+  const toCenter = getElementCenter(toShape);
+  const dx = toCenter.cx - fromCenter.cx;
+  const dy = toCenter.cy - fromCenter.cy;
+  const absDx = Math.abs(dx);
+  const absDy = Math.abs(dy);
+  if (absDx > absDy) {
+    return dx > 0 ? [1, 0.5] : [0, 0.5];
+  } else {
+    return dy > 0 ? [0.5, 1] : [0.5, 0];
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Operation handlers
 // ---------------------------------------------------------------------------
@@ -281,6 +339,12 @@ function applyResize(
   };
 }
 
+/**
+ * Delete an element with full cascade:
+ * - Marks the target as deleted
+ * - Cascades deletion to bound text elements (label cleanup)
+ * - Clears startBinding / endBinding on arrows pointing to deleted element
+ */
 function applyDelete(
   elements: CanvasElement[],
   op: Operation,
@@ -289,7 +353,40 @@ function applyDelete(
   if (!el) return { description: `[skip] element ${op.element_id} not found` };
   el.isDeleted = true;
   bumpVersion(el);
-  return { description: `deleted ${shortLabel(el)}` };
+
+  const cascaded: string[] = [];
+
+  // Cascade to bound text children (labels)
+  if (Array.isArray(el.boundElements)) {
+    for (const bound of el.boundElements as Array<{ type: string; id: string }>) {
+      if (bound.type === "text") {
+        const textEl = findElement(elements, bound.id);
+        if (textEl) {
+          textEl.isDeleted = true;
+          bumpVersion(textEl);
+          cascaded.push(`text(${bound.id})`);
+        }
+      }
+    }
+  }
+
+  // Clean up arrow bindings pointing at the deleted element
+  for (const other of elements) {
+    if (other.isDeleted) continue;
+    const startBinding = other.startBinding as { elementId: string } | null;
+    const endBinding = other.endBinding as { elementId: string } | null;
+    if (startBinding?.elementId === op.element_id) {
+      other.startBinding = null;
+      bumpVersion(other);
+    }
+    if (endBinding?.elementId === op.element_id) {
+      other.endBinding = null;
+      bumpVersion(other);
+    }
+  }
+
+  const cascadeInfo = cascaded.length > 0 ? ` (cascaded: ${cascaded.join(", ")})` : "";
+  return { description: `deleted ${shortLabel(el)}${cascadeInfo}` };
 }
 
 function applyUpdateStyle(
@@ -352,6 +449,73 @@ function applyAddText(
   };
 }
 
+/**
+ * Update the text content of a standalone text element or a shape's label.
+ * Resizes the text element and expands the container if needed.
+ */
+function applyUpdateText(
+  elements: CanvasElement[],
+  op: Operation,
+): HandlerResult {
+  const el = findElement(elements, op.element_id!);
+  if (!el) return { description: `[skip] element ${op.element_id} not found` };
+
+  let textEl: CanvasElement | undefined;
+  if (el.type === "text") {
+    textEl = el;
+  } else if (Array.isArray(el.boundElements)) {
+    const boundText = (el.boundElements as Array<{ type: string; id: string }>).find(
+      (b) => b.type === "text",
+    );
+    if (boundText) textEl = findElement(elements, boundText.id);
+  }
+
+  if (!textEl) return { description: `[skip] no text found for element ${op.element_id}` };
+
+  const newText = op.text!;
+  const fontSize = (op.fontSize ?? textEl.fontSize ?? 20) as number;
+  textEl.text = newText;
+  textEl.originalText = newText;
+
+  const lines = newText.split("\n");
+  const textWidth = Math.max(...lines.map((l) => measureTextWidth(l, fontSize)));
+  const textHeight = lines.length * fontSize * 1.25;
+  textEl.width = textWidth;
+  textEl.height = textHeight;
+
+  if (op.fontSize !== undefined) textEl.fontSize = fontSize;
+  bumpVersion(textEl);
+
+  // Expand container if text no longer fits
+  const containerId = textEl.containerId as string | null;
+  if (containerId) {
+    const container = findElement(elements, containerId);
+    if (container) {
+      const paddingX = Math.max(fontSize * 1.5, 30);
+      const paddingY = Math.max(fontSize * 1.2, 24);
+      const minWidth = textWidth + paddingX * 2;
+      const minHeight = textHeight + paddingY * 2;
+      let resized = false;
+      if ((Number(container.width) || 0) < minWidth) { container.width = minWidth; resized = true; }
+      if ((Number(container.height) || 0) < minHeight) { container.height = minHeight; resized = true; }
+      if (resized) {
+        // Re-center text within the (possibly expanded) container
+        textEl.x = Number(container.x) + (Number(container.width) - textWidth) / 2;
+        textEl.y = Number(container.y) + (Number(container.height) - textHeight) / 2;
+        bumpVersion(container);
+      }
+    }
+  }
+
+  const short = newText.length > 20 ? newText.slice(0, 17) + "..." : newText;
+  return { description: `updated text to '${short}' on ${op.element_id}` };
+}
+
+/**
+ * Add a shape with optional centered label.
+ * Uses proportional padding based on fontSize to ensure text never overflows.
+ * Enforces absolute minimum sizes per shape type.
+ */
 function applyAddShape(
   elements: CanvasElement[],
   op: Operation,
@@ -365,8 +529,8 @@ function applyAddShape(
     y: op.y,
     width: op.width,
     height: op.height,
-    strokeColor: op.strokeColor ?? "#000000",
-    backgroundColor: op.backgroundColor ?? "transparent",
+    strokeColor: coerceColor(op.strokeColor, "#000000"),
+    backgroundColor: coerceColor(op.backgroundColor, "transparent"),
     fillStyle: op.fillStyle ?? "solid",
   };
 
@@ -379,13 +543,15 @@ function applyAddShape(
     const textWidth = Math.max(...lines.map((l) => measureTextWidth(l, fontSize)));
     const textHeight = lines.length * fontSize * 1.25;
 
-    // Enforce minimum shape size so text never overflows the container
-    const paddingX = 40;
-    const paddingY = 40;
-    const minWidth = textWidth + paddingX;
-    const minHeight = textHeight + paddingY;
-    el.width = Math.max(Number(el.width) || 0, minWidth);
-    el.height = Math.max(Number(el.height) || 0, minHeight);
+    // Proportional padding — scales with font size to avoid overflow at any size
+    const paddingX = Math.max(fontSize * 1.5, 30);
+    const paddingY = Math.max(fontSize * 1.2, 24);
+    const minWidth = textWidth + paddingX * 2;
+    const minHeight = textHeight + paddingY * 2;
+
+    // Enforce minimum shape size so text never overflows, plus absolute floor
+    el.width = Math.max(Number(el.width) || 0, minWidth, 120);
+    el.height = Math.max(Number(el.height) || 0, minHeight, 60);
 
     // Bind text to shape
     ensureBoundElements(el).push({ type: "text", id: textId });
@@ -404,7 +570,7 @@ function applyAddShape(
       fontFamily: 1,
       textAlign: "center",
       verticalAlign: "middle",
-      strokeColor: op.label.strokeColor,
+      strokeColor: coerceColor(op.label.strokeColor, "#000000"),
       containerId: shapeId,
       autoResize: true,
       lineHeight: 1.25,
@@ -418,14 +584,24 @@ function applyAddShape(
         ? op.label.text.slice(0, 17) + "..."
         : op.label.text;
     return {
-      description: `added ${op.shape} ${op.width}x${op.height} with label '${short}' at (${op.x}, ${op.y}) [id=${shapeId}]`,
+      description: `added ${op.shape} ${el.width}x${el.height} with label '${short}' at (${op.x}, ${op.y}) [id=${shapeId}]`,
       createdId: shapeId,
     };
   }
 
+  // No label — enforce minimum sizes per shape type
+  const shapeType = op.shape as string;
+  if (shapeType === "ellipse") {
+    el.width = Math.max(Number(el.width) || 0, 140);
+    el.height = Math.max(Number(el.height) || 0, 70);
+  } else {
+    el.width = Math.max(Number(el.width) || 0, 120);
+    el.height = Math.max(Number(el.height) || 0, 60);
+  }
+
   elements.push(el);
   return {
-    description: `added ${op.shape} ${op.width}x${op.height} at (${op.x}, ${op.y}) [id=${shapeId}]`,
+    description: `added ${op.shape} ${el.width}x${el.height} at (${op.x}, ${op.y}) [id=${shapeId}]`,
     createdId: shapeId,
   };
 }
@@ -469,7 +645,7 @@ function applyAddLine(
     width,
     height,
     points: excalidrawPoints,
-    strokeColor: op.strokeColor ?? "#000000",
+    strokeColor: coerceColor(op.strokeColor, "#000000"),
     strokeWidth: op.strokeWidth ?? 2,
     lastCommittedPoint: excalidrawPoints[excalidrawPoints.length - 1],
     startBinding: null,
@@ -484,6 +660,11 @@ function applyAddLine(
   };
 }
 
+/**
+ * Add an arrow/line with element bindings.
+ * Uses computeFixedPoint to set stable fixedPoint values so Excalidraw does
+ * not recompute endpoints when bound shapes are resized.
+ */
 function applyAddBoundLine(
   elements: CanvasElement[],
   op: Operation,
@@ -531,22 +712,28 @@ function applyAddBoundLine(
   let endBinding: unknown = null;
 
   if (startEl) {
+    const fixedPoint = endEl
+      ? computeFixedPoint(startEl, endEl)
+      : [1, 0.5] as [number, number];
     startBinding = {
       elementId: op.start_element_id,
       focus: 0,
       gap: BINDING_GAP,
-      fixedPoint: null,
+      fixedPoint,
     };
     ensureBoundElements(startEl).push({ type: "arrow", id: arrowId });
     bumpVersion(startEl);
   }
 
   if (endEl) {
+    const fixedPoint = startEl
+      ? computeFixedPoint(endEl, startEl)
+      : [0, 0.5] as [number, number];
     endBinding = {
       elementId: op.end_element_id,
       focus: 0,
       gap: BINDING_GAP,
-      fixedPoint: null,
+      fixedPoint,
     };
     ensureBoundElements(endEl).push({ type: "arrow", id: arrowId });
     bumpVersion(endEl);
@@ -564,7 +751,7 @@ function applyAddBoundLine(
       [0, 0],
       [relEnd.x, relEnd.y],
     ],
-    strokeColor: op.strokeColor ?? "#000000",
+    strokeColor: coerceColor(op.strokeColor, "#000000"),
     strokeWidth: op.strokeWidth ?? 2,
     lastCommittedPoint: [relEnd.x, relEnd.y],
     startBinding,
@@ -766,6 +953,7 @@ const handlers: Record<
   reorder: applyReorder,
   align: applyAlign,
   distribute: applyDistribute,
+  update_text: applyUpdateText,
 };
 
 // ---------------------------------------------------------------------------
@@ -832,6 +1020,10 @@ export function createManipulateCanvasTool(deps: {
         }
       }
 
+      // --- Post-processing: clean up orphan bindings ---------------------------
+      // Must run after all operations so cascaded deletes are visible.
+      validateBindings(elements);
+
       // --- Write back ----------------------------------------------------------
       const updatedContent = { ...content, elements };
       const { error: writeError } = await client
@@ -863,7 +1055,7 @@ export function createManipulateCanvasTool(deps: {
     {
       name: "manipulate_canvas",
       description:
-        "Manipulate elements on the canvas. Supports: move, resize, delete, update_style, add_text, add_shape (with optional label for centered text), add_line (with optional element binding for auto-connected arrows), align, distribute, reorder. Use inspect_canvas first to understand the current layout. Returns created element IDs for subsequent binding.",
+        "Manipulate elements on the canvas. Supports: move, resize, delete (cascades to bound text), update_style, update_text (modify text content of any element or its label), add_text, add_shape (with optional label for centered text), add_line (with optional element binding for auto-connected arrows), align, distribute, reorder. Use inspect_canvas first to understand the current layout. Returns created element IDs for subsequent binding.",
       schema: manipulateCanvasSchema,
     },
   );
