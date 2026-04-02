@@ -219,16 +219,15 @@ export function VideoGeneratorPanel({
 
       onClose();
     } catch (err) {
+      console.error("[video-gen] Generation error:", err);
       const handled = handleGenerationError(err);
-      const msg =
-        err instanceof Error ? err.message : "Generation failed";
       if (!handled) {
-        setError(msg);
+        setError("视频生成失败，请重试或更换模型。");
       }
       setLoading(false);
       updateVideoGeneratorElement(excalidrawApi, elementId, {
         status: "error",
-        errorMessage: msg,
+        errorMessage: "生成失败",
       });
     }
   }, [

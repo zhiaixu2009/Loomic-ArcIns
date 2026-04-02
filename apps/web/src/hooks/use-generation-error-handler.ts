@@ -29,9 +29,9 @@ export function useGenerationErrorHandler() {
   const handleGenerationError = useCallback(
     (error: unknown): boolean => {
       if (!(error instanceof ApiApplicationError)) {
-        // Not an application error — let caller handle or show generic toast
-        const msg = error instanceof Error ? error.message : "Generation failed";
-        showErrorToast(msg);
+        // Not an application error — log for debugging, show generic toast to user
+        console.error("[generation-error] Unexpected error:", error);
+        showErrorToast("生成失败，请重试。");
         return false;
       }
 
@@ -46,8 +46,9 @@ export function useGenerationErrorHandler() {
         return true;
       }
 
-      // Other application errors: generic toast
-      showErrorToast(error.message);
+      // Other application errors: log raw message, show generic toast to user
+      console.error("[generation-error] Application error:", error.code, error.message);
+      showErrorToast("生成失败，请重试。");
       return false;
     },
     [showTierLimit, showErrorToast],

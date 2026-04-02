@@ -174,15 +174,15 @@ export function ImageGeneratorPanel({
 
       onClose();
     } catch (err) {
+      console.error("[image-gen] Generation error:", err);
       const handled = handleGenerationError(err);
-      const msg = err instanceof Error ? err.message : "Generation failed";
       if (!handled) {
-        setError(msg);
+        setError("图片生成失败，请重试或更换模型。");
       }
       setLoading(false);
       updateImageGeneratorElement(excalidrawApi, elementId, {
         status: "error",
-        errorMessage: msg,
+        errorMessage: "生成失败",
       });
     }
   }, [

@@ -113,13 +113,14 @@ export function useChatStream(updateSessionMessages: MessageUpdater) {
           break;
 
         case "run.failed":
+          console.error("[chat-stream] run.failed:", event.error);
           update((prev) =>
             prev.map((m) => {
               if (m.id !== assistantId) return m;
               // Mark all running tool blocks as completed so spinners stop
               const blocks = m.contentBlocks.map((block) =>
                 block.type === "tool" && block.status === "running"
-                  ? { ...block, status: "completed" as const, outputSummary: event.error.message }
+                  ? { ...block, status: "completed" as const, outputSummary: "处理失败" }
                   : block,
               );
               const hasText = blocks.some((b) => b.type === "text");
@@ -131,7 +132,7 @@ export function useChatStream(updateSessionMessages: MessageUpdater) {
                       ...blocks,
                       {
                         type: "text" as const,
-                        text: `Error: ${event.error.message}`,
+                        text: "抱歉，处理过程中遇到问题，请重试。",
                       },
                     ],
               };
