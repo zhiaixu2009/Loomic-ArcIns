@@ -85,6 +85,7 @@ import { registerRunRoutes } from "./http/runs.js";
 import { registerSettingsRoutes } from "./http/settings.js";
 import { registerUploadRoutes } from "./http/uploads.js";
 import { registerSkillRoutes } from "./http/skills.js";
+import { registerMarketplaceRoutes } from "./http/skills-marketplace.js";
 import { registerViewerRoutes } from "./http/viewer.js";
 import { CanvasEventBuffer } from "./ws/event-buffer.js";
 import { ConnectionManager } from "./ws/connection-manager.js";
@@ -311,6 +312,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     void registerJobRoutes(app, { auth, creditService, jobService, tierGuard, viewerService });
   }
   void registerSkillRoutes(app, { auth, createUserClient, viewerService });
+  void registerMarketplaceRoutes(app, { auth, createUserClient, viewerService });
 
   // Payment routes — only registered when Lemon Squeezy is configured
   if (paymentService) {

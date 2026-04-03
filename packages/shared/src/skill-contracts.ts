@@ -120,3 +120,37 @@ export const skillFilesResponseSchema = z.object({
   files: z.array(skillFileEntrySchema),
 });
 export type SkillFilesResponse = z.infer<typeof skillFilesResponseSchema>;
+
+// === Marketplace Schemas ===
+
+export const marketplaceSkillSchema = z.object({
+  packageName: z.string(),
+  name: z.string(),
+  description: z.string(),
+  author: z.string(),
+  version: z.string(),
+  downloads: z.number(),
+  keywords: z.array(z.string()),
+  homepage: z.string().optional(),
+  repository: z.string().optional(),
+  license: z.string().optional(),
+});
+export type MarketplaceSkill = z.infer<typeof marketplaceSkillSchema>;
+
+export const marketplaceSearchResponseSchema = z.object({
+  skills: z.array(marketplaceSkillSchema),
+  total: z.number(),
+});
+export type MarketplaceSearchResponse = z.infer<typeof marketplaceSearchResponseSchema>;
+
+export const marketplaceDetailSchema = marketplaceSkillSchema.extend({
+  readme: z.string(),
+  versions: z.array(z.string()),
+  tarballUrl: z.string(),
+});
+export type MarketplaceDetail = z.infer<typeof marketplaceDetailSchema>;
+
+export const marketplaceInstallRequestSchema = z.object({
+  packageName: z.string().min(1),
+});
+export type MarketplaceInstallRequest = z.infer<typeof marketplaceInstallRequestSchema>;
