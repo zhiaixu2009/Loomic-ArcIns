@@ -23,6 +23,8 @@ import type {
   SkillUpdateRequest,
   WorkspaceSkillListResponse,
   JobResponse,
+  MarketplaceSearchResponse,
+  MarketplaceDetail,
 } from "@loomic/shared";
 
 import { getServerBaseUrl } from "./env";
@@ -661,4 +663,70 @@ export async function toggleSkill(
     },
   );
   if (!response.ok) return handleErrorResponse(response);
+}
+
+// --- Marketplace API ---
+
+export async function searchMarketplace(
+  accessToken: string,
+  query: string,
+  page: number = 1,
+  limit: number = 20,
+): Promise<MarketplaceSearchResponse> {
+  const params = new URLSearchParams({
+    q: query,
+    page: String(page),
+    limit: String(limit),
+  });
+  const response = await fetch(
+    `${getServerBaseUrl()}/api/skills/marketplace/search?${params}`,
+    { headers: authHeaders(accessToken) },
+  );
+  if (!response.ok) return handleErrorResponse(response);
+  return (await response.json()) as MarketplaceSearchResponse;
+}
+
+export async function getMarketplaceDetail(
+  accessToken: string,
+  packageName: string,
+): Promise<MarketplaceDetail> {
+  const params = new URLSearchParams({ name: packageName });
+  const response = await fetch(
+    `${getServerBaseUrl()}/api/skills/marketplace/detail?${params}`,
+    { headers: authHeaders(accessToken) },
+  );
+  if (!response.ok) return handleErrorResponse(response);
+  return (await response.json()) as MarketplaceDetail;
+}
+
+export async function installMarketplaceSkill(
+  accessToken: string,
+  packageName: string,
+): Promise<SkillDetailResponse> {
+  const response = await fetch(
+    `${getServerBaseUrl()}/api/skills/marketplace/install`,
+    {
+      method: "POST",
+      headers: authJsonHeaders(accessToken),
+      body: JSON.stringify({ packageName }),
+    },
+  );
+  if (!response.ok) return handleErrorResponse(response);
+  return (await response.json()) as SkillDetailResponse;
+}
+
+export async function importSkillFromUrl(
+  accessToken: string,
+  url: string,
+): Promise<SkillDetailResponse> {
+  const response = await fetch(
+    `${getServerBaseUrl()}/api/skills/import`,
+    {
+      method: "POST",
+      headers: authJsonHeaders(accessToken),
+      body: JSON.stringify({ url }),
+    },
+  );
+  if (!response.ok) return handleErrorResponse(response);
+  return (await response.json()) as SkillDetailResponse;
 }
