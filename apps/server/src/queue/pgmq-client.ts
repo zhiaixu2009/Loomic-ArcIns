@@ -11,6 +11,15 @@ export type PgmqMessage<T = Record<string, unknown>> = {
 export type PgmqClient = {
   send(queue: string, payload: Record<string, unknown>, delay?: number): Promise<number>;
   read<T = Record<string, unknown>>(queue: string, vt: number, qty: number): Promise<PgmqMessage<T>[]>;
+  /**
+   * Server-side long poll — blocks in Postgres until messages arrive or
+   * `maxPollSeconds` elapses. Drastically reduces idle query volume vs
+   * client-side sleep + read().
+   */
+  readWithPoll<T = Record<string, unknown>>(
+    queue: string, vt: number, qty: number,
+    maxPollSeconds?: number, pollIntervalMs?: number,
+  ): Promise<PgmqMessage<T>[]>;
   deleteMsg(queue: string, msgId: number): Promise<boolean>;
   archive(queue: string, msgId: number): Promise<boolean>;
   setVt(queue: string, msgId: number, vt: number): Promise<void>;
@@ -45,6 +54,17 @@ export function createPgmqClient(databaseUrl: string): PgmqClient {
       const { rows } = await pool.query(
         `SELECT * FROM pgmq.read($1::text, $2::integer, $3::integer)`,
         [queue, vt, qty],
+      );
+      return rows as PgmqMessage<T>[];
+    },
+
+    async readWithPoll<T>(
+      queue: string, vt: number, qty: number,
+      maxPollSeconds = 5, pollIntervalMs = 500,
+    ) {
+      const { rows } = await pool.query(
+        `SELECT * FROM pgmq.read_with_poll($1::text, $2::integer, $3::integer, $4::integer, $5::integer)`,
+        [queue, vt, qty, maxPollSeconds, pollIntervalMs],
       );
       return rows as PgmqMessage<T>[];
     },

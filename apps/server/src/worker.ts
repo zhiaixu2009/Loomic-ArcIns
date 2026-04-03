@@ -81,7 +81,10 @@ async function main() {
     QUEUES.map((q) => [q, new Set()]),
   );
 
-  const pollIntervalMs = env.workerPollIntervalMs ?? 2000;
+  // Server-side long poll: wait up to N seconds inside Postgres for messages,
+  // checking every 500ms. This replaces the old client-side sleep(2000) + read()
+  // pattern that generated ~340K idle queries per monitoring period.
+  const pollTimeoutSeconds = Math.max(1, Math.floor((env.workerPollIntervalMs ?? 5000) / 1000));
   const workerId = env.workerId ?? randomUUID().slice(0, 8);
   const tag = `[worker:${workerId}]`;
 
@@ -105,7 +108,7 @@ async function main() {
 
   const concurrencyDesc = QUEUES.map((q) => `${q}=${CONCURRENCY_BY_QUEUE[q] ?? 1}`).join(", ");
   console.log(
-    `${tag} Started. concurrency={${concurrencyDesc}}, poll=${pollIntervalMs}ms`,
+    `${tag} Started. concurrency={${concurrencyDesc}}, longPollTimeout=${pollTimeoutSeconds}s`,
   );
 
   while (running) {
@@ -117,7 +120,7 @@ async function main() {
         if (available <= 0) continue;
 
         const vt = VT_BY_QUEUE[queue] ?? 120;
-        const messages = await pgmq.read(queue, vt, available);
+        const messages = await pgmq.readWithPoll(queue, vt, available, pollTimeoutSeconds, 500);
 
         for (const msg of messages) {
           const ctx: ExecutorContext = {
@@ -137,8 +140,6 @@ async function main() {
         console.error(`${tag} Error polling ${queue}:`, err);
       }
     }
-
-    await sleep(pollIntervalMs);
   }
 }
 
