@@ -30,6 +30,7 @@ type SkillErrorCode =
   | "skill_update_failed"
   | "skill_delete_failed"
   | "skill_query_failed"
+  | "skill_file_query_failed"
   | "skill_install_failed"
   | "skill_uninstall_failed"
   | "skill_toggle_failed";
@@ -98,11 +99,46 @@ export async function registerSkillRoutes(
         );
       }
 
-      const skill = mapSkillDetailRow(data);
+      // Fetch associated files
+      const { data: fileData } = await untypedFrom(client, "skill_files")
+        .select("*")
+        .eq("skill_id", id)
+        .order("file_path", { ascending: true });
+
+      const skill = {
+        ...mapSkillDetailRow(data),
+        files: (fileData ?? []).map(mapSkillFileRow),
+      };
       return reply.code(200).send(skillDetailResponseSchema.parse({ skill }));
     } catch (error) {
       request.log.error({ err: error }, "skill detail error");
       return sendSkillError(reply, "skill_query_failed", "Unable to load skill.");
+    }
+  });
+
+  // GET /api/skills/:id/files — list all files for a skill
+  app.get("/api/skills/:id/files", async (request, reply) => {
+    try {
+      const user = await options.auth.authenticate(request);
+      if (!user) return sendUnauthenticated(reply);
+
+      const { id } = request.params as { id: string };
+      const client = options.createUserClient(user.accessToken);
+
+      const { data, error } = await untypedFrom(client, "skill_files")
+        .select("*")
+        .eq("skill_id", id)
+        .order("file_path", { ascending: true });
+
+      if (error) {
+        request.log.error({ err: error }, "skill files list failed");
+        return sendSkillError(reply, "skill_file_query_failed", "Unable to load skill files.");
+      }
+
+      return reply.code(200).send({ files: (data ?? []).map(mapSkillFileRow) });
+    } catch (error) {
+      request.log.error({ err: error }, "skill files list error");
+      return sendSkillError(reply, "skill_file_query_failed", "Unable to load skill files.");
     }
   });
 
@@ -144,7 +180,31 @@ export async function registerSkillRoutes(
         return sendSkillError(reply, "skill_create_failed", "Unable to create skill.");
       }
 
-      const skill = mapSkillDetailRow(data);
+      // Insert associated files if provided
+      if (payload.files?.length && data?.id) {
+        const fileRows = payload.files.map((f) => ({
+          skill_id: data.id,
+          file_path: f.filePath,
+          content: f.content,
+          mime_type: f.mimeType ?? "text/plain",
+        }));
+        const { error: fileError } = await untypedFrom(client, "skill_files").insert(fileRows);
+        if (fileError) {
+          // Non-fatal: skill was created but files failed — log and continue
+          request.log.error({ err: fileError }, "skill file insert failed (non-fatal)");
+        }
+      }
+
+      // Fetch files back so the response includes them
+      const { data: fileData } = await untypedFrom(client, "skill_files")
+        .select("*")
+        .eq("skill_id", data.id)
+        .order("file_path", { ascending: true });
+
+      const skill = {
+        ...mapSkillDetailRow(data),
+        files: (fileData ?? []).map(mapSkillFileRow),
+      };
       return reply.code(201).send(skillDetailResponseSchema.parse({ skill }));
     } catch (error) {
       if (isZodError(error)) {
@@ -524,6 +584,20 @@ type SkillRow = {
   created_by: string | null;
   created_at: string;
   updated_at: string;
+  // Added by 20260403100000_skill_files migration
+  source_url?: string | null;
+  package_name?: string | null;
+};
+
+/** Shape of a row from the `skill_files` table. */
+type SkillFileRow = {
+  id: string;
+  skill_id: string;
+  file_path: string;
+  content: string;
+  mime_type: string;
+  created_at: string;
+  updated_at: string;
 };
 
 function mapSkillRow(row: SkillRow) {
@@ -544,12 +618,25 @@ function mapSkillRow(row: SkillRow) {
   };
 }
 
+function mapSkillFileRow(row: SkillFileRow) {
+  return {
+    id: row.id,
+    filePath: row.file_path,
+    content: row.content,
+    mimeType: row.mime_type,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
 function mapSkillDetailRow(row: SkillRow) {
   return {
     ...mapSkillRow(row),
     license: row.license,
     skillContent: row.skill_content,
     createdBy: row.created_by,
+    sourceUrl: row.source_url ?? null,
+    packageName: row.package_name ?? null,
   };
 }
 
