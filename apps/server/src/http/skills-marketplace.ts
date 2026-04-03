@@ -188,11 +188,13 @@ export async function registerMarketplaceRoutes(
           version: imported.manifest.version ?? "1.0",
           license: imported.manifest.license ?? null,
           category: "custom",
-          source: "community",
+          source: "user",
           skill_content: imported.skillContent,
-          source_url: `https://www.npmjs.com/package/${packageName}`,
-          package_name: pkgName,
-          metadata: imported.manifest.metadata ?? {},
+          metadata: {
+            ...(imported.manifest.metadata ?? {}),
+            source_url: `https://www.npmjs.com/package/${packageName}`,
+            package_name: pkgName,
+          },
           created_by: user.id,
         })
         .select("*")

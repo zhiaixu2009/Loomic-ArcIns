@@ -249,10 +249,12 @@ export async function registerSkillRoutes(
           version: imported.manifest.version ?? "1.0",
           license: imported.manifest.license ?? null,
           category: "custom",
-          source: "community",
+          source: "user",
           skill_content: imported.skillContent,
-          source_url: imported.sourceUrl,
-          metadata: imported.manifest.metadata ?? {},
+          metadata: {
+            ...(imported.manifest.metadata ?? {}),
+            source_url: imported.sourceUrl,
+          },
           created_by: user.id,
         })
         .select("*")
