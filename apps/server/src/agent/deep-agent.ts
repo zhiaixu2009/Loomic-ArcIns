@@ -87,7 +87,7 @@ export function createLoomicDeepAgent(options: {
         if (s.files.length > 0) {
           const counts: Record<string, number> = {};
           for (const f of s.files) {
-            const dir = f.path.split("/")[0];
+            const dir = f.path.split("/")[0] ?? "other";
             counts[dir] = (counts[dir] ?? 0) + 1;
           }
           const summary = Object.entries(counts)
