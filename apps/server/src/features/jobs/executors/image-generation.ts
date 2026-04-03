@@ -61,7 +61,7 @@ registerExecutor("image_generation", async (jobId, _rawPayload, ctx: ExecutorCon
 
   try {
     // Generate image via the registered provider
-    lap("replicate_call_start");
+    lap(`${providerName}_call_start`);
     let generated;
     try {
       generated = await generateImage(providerName, {
@@ -77,7 +77,7 @@ registerExecutor("image_generation", async (jobId, _rawPayload, ctx: ExecutorCon
         (genError as { code?: string })?.code ?? "executor_error";
       throw wrapped;
     }
-    lap("replicate_call_done");
+    lap(`${providerName}_call_done`);
 
     // Download the generated image from the provider CDN
     const response = await fetch(generated.url);

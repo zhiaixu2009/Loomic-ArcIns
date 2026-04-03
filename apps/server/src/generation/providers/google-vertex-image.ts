@@ -119,19 +119,29 @@ export class GoogleVertexImageProvider implements ImageProvider {
       }
     }
 
+    // 120s timeout — prevent Vertex AI from hanging indefinitely
+    const VERTEX_IMAGE_TIMEOUT = 120_000;
     let response;
     try {
-      response = await this.client.models.generateContent({
-        model: apiModel,
-        contents: [{ role: "user", parts }],
-        config: {
-          responseModalities: ["IMAGE"],
-          imageConfig: {
-            aspectRatio,
-            imageSize,
+      response = await Promise.race([
+        this.client.models.generateContent({
+          model: apiModel,
+          contents: [{ role: "user", parts }],
+          config: {
+            responseModalities: ["IMAGE"],
+            imageConfig: {
+              aspectRatio,
+              imageSize,
+            },
           },
-        },
-      });
+        }),
+        new Promise<never>((_, reject) =>
+          setTimeout(
+            () => reject(new Error("Vertex AI image generation timed out after 120s")),
+            VERTEX_IMAGE_TIMEOUT,
+          ),
+        ),
+      ]);
     } catch (err) {
       throw new GenerationError(
         PROVIDER_NAME,
