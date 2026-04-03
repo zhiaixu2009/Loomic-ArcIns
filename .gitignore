@@ -51,3 +51,12 @@ supabase/supabase/
 
 tmp/
 temp/.claude/worktrees/
+
+# internal dev docs (keep locally, exclude from repo)
+docs/superpowers/
+docs/CODE_QUALITY_AUDIT_REPORT.md
+docs/DEPLOY_CHECKLIST.md
+docs/home-discovery-library.md
+docs/lovart-deep-analysis-*.md
+docs/tech/pricing-profitability-report.md
+docs/tech/replicate-models-pricing.md
