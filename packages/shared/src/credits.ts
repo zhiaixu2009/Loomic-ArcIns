@@ -157,6 +157,13 @@ export const MODEL_MIN_TIER: Record<string, SubscriptionPlan> = {
   "wan-video/wan-2.6": "starter",
   // Pro tier
   "google-official/veo-3.1-generate-preview": "pro",
+  // Google Vertex AI video models
+  "google-vertex/veo-3.1-generate-001": "pro",
+  "google-vertex/veo-3.1-fast-generate-001": "pro",
+  "google-vertex/veo-3.1-lite-generate-001": "starter",
+  "google-vertex/veo-3.0-generate-001": "pro",
+  "google-vertex/veo-3.0-fast-generate-001": "pro",
+  "google-vertex/veo-2.0-generate-001": "starter",
   "kwaivgi/kling-v3-video": "pro",
   "kwaivgi/kling-v3-omni-video": "pro",
   "kwaivgi/kling-o1": "pro",
@@ -264,6 +271,13 @@ export const VIDEO_MODEL_COSTS: Record<string, VideoModelCost> = {
   "google-official/veo-3.0-generate-001": { base: 70, perSecond: 12, multiplier1080p: 2, multiplier4k: 4 },
   "google-official/veo-3.0-fast-generate-001": { base: 50, perSecond: 8, multiplier1080p: 2, multiplier4k: 4 },
   "google-official/veo-2.0-generate-001": { base: 20, perSecond: 3 },
+  // Google Vertex AI (same pricing as google-official equivalents)
+  "google-vertex/veo-3.1-generate-001": { base: 80, perSecond: 15, multiplier1080p: 2, multiplier4k: 4 },
+  "google-vertex/veo-3.1-fast-generate-001": { base: 60, perSecond: 10, multiplier1080p: 2, multiplier4k: 4 },
+  "google-vertex/veo-3.1-lite-generate-001": { base: 30, perSecond: 5, multiplier1080p: 2 },
+  "google-vertex/veo-3.0-generate-001": { base: 70, perSecond: 12, multiplier1080p: 2, multiplier4k: 4 },
+  "google-vertex/veo-3.0-fast-generate-001": { base: 50, perSecond: 8, multiplier1080p: 2, multiplier4k: 4 },
+  "google-vertex/veo-2.0-generate-001": { base: 20, perSecond: 3 },
   // Replicate — Kling
   "kwaivgi/kling-v3-video": { base: 50, perSecond: 10 },
   "kwaivgi/kling-v3-omni-video": { base: 40, perSecond: 8 },

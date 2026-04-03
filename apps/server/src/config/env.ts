@@ -16,6 +16,7 @@ export type ServerEnv = {
   googleFontsApiKey?: string;
   googleVertexLocation?: string;
   googleVertexProject?: string;
+  googleVertexVideoLocation?: string;
   openAIApiBase?: string;
   openAIApiKey?: string;
   port: number;
@@ -86,6 +87,8 @@ export function loadServerEnv(
     overrides.googleVertexProject ?? normalizeOptionalString(source.GOOGLE_VERTEX_PROJECT);
   const googleVertexLocation =
     overrides.googleVertexLocation ?? normalizeOptionalString(source.GOOGLE_VERTEX_LOCATION);
+  const googleVertexVideoLocation =
+    overrides.googleVertexVideoLocation ?? normalizeOptionalString(source.GOOGLE_VERTEX_VIDEO_LOCATION);
   const replicateApiToken =
     overrides.replicateApiToken ?? normalizeOptionalString(source.REPLICATE_API_TOKEN);
   const volcesApiKey =
@@ -160,6 +163,7 @@ export function loadServerEnv(
     ...(googleFontsApiKey ? { googleFontsApiKey } : {}),
     ...(googleVertexProject ? { googleVertexProject } : {}),
     ...(googleVertexLocation ? { googleVertexLocation } : {}),
+    ...(googleVertexVideoLocation ? { googleVertexVideoLocation } : {}),
     ...(replicateApiToken ? { replicateApiToken } : {}),
     ...(volcesApiKey ? { volcesApiKey } : {}),
     ...(volcesBaseUrl ? { volcesBaseUrl } : {}),

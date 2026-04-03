@@ -37,13 +37,20 @@ export function registerAllProviders(env: ServerEnv): void {
   }
 
   // Google Vertex AI — image + video (coexists with Developer API)
+  // Image/LLM models use the default location (global), while video models
+  // require a separate regional endpoint (us-central1).
   if (env.googleVertexProject && env.googleVertexLocation) {
     const vertexConfig = {
       project: env.googleVertexProject,
       location: env.googleVertexLocation,
     };
     registerImageProvider(new GoogleVertexImageProvider(vertexConfig));
-    registerVideoProvider(new GoogleVertexVideoProvider(vertexConfig));
+
+    const videoLocation = env.googleVertexVideoLocation ?? env.googleVertexLocation;
+    registerVideoProvider(new GoogleVertexVideoProvider({
+      project: env.googleVertexProject,
+      location: videoLocation,
+    }));
   }
 
   // OpenAI — image only

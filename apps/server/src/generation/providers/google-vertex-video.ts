@@ -21,8 +21,9 @@ const ICON_GOOGLE =
  * actual Veo API model name.
  */
 const MODEL_MAP: Record<string, string> = {
-  "google-vertex/veo-3.1-generate-preview": "veo-3.1-generate-preview",
-  "google-vertex/veo-3.1-fast-generate-preview": "veo-3.1-fast-generate-preview",
+  "google-vertex/veo-3.1-generate-001": "veo-3.1-generate-001",
+  "google-vertex/veo-3.1-fast-generate-001": "veo-3.1-fast-generate-001",
+  "google-vertex/veo-3.1-lite-generate-001": "veo-3.1-lite-generate-001",
   "google-vertex/veo-3.0-generate-001": "veo-3.0-generate-001",
   "google-vertex/veo-3.0-fast-generate-001": "veo-3.0-fast-generate-001",
   "google-vertex/veo-2.0-generate-001": "veo-2.0-generate-001",
@@ -39,16 +40,23 @@ interface ModelCapabilities {
 }
 
 const MODEL_CAPABILITIES: Record<string, ModelCapabilities> = {
-  "veo-3.1-generate-preview": {
+  "veo-3.1-generate-001": {
     allowedDurations: [4, 6, 8],
     allowedResolutions: ["720p", "1080p", "4k"],
     allowedAspectRatios: ["16:9", "9:16"],
     defaultDuration: 8,
     supportsAudio: true,
   },
-  "veo-3.1-fast-generate-preview": {
+  "veo-3.1-fast-generate-001": {
     allowedDurations: [4, 6, 8],
     allowedResolutions: ["720p", "1080p", "4k"],
+    allowedAspectRatios: ["16:9", "9:16"],
+    defaultDuration: 8,
+    supportsAudio: true,
+  },
+  "veo-3.1-lite-generate-001": {
+    allowedDurations: [4, 6, 8],
+    allowedResolutions: ["720p", "1080p"],
     allowedAspectRatios: ["16:9", "9:16"],
     defaultDuration: 8,
     supportsAudio: true,
@@ -80,7 +88,7 @@ const MODEL_CAPABILITIES: Record<string, ModelCapabilities> = {
 
 const GOOGLE_VERTEX_VIDEO_MODELS: readonly VideoModelInfo[] = [
   {
-    id: "google-vertex/veo-3.1-generate-preview",
+    id: "google-vertex/veo-3.1-generate-001",
     displayName: "Veo 3.1 (Vertex)",
     description:
       "Google flagship via Vertex AI. T2V + I2V, native audio, reference images, 4–8s, up to 4K. Best quality.",
@@ -89,13 +97,22 @@ const GOOGLE_VERTEX_VIDEO_MODELS: readonly VideoModelInfo[] = [
     limits: { maxDuration: 8, allowedDurations: [4, 6, 8], maxResolution: "2160p", maxInputImages: 1 },
   },
   {
-    id: "google-vertex/veo-3.1-fast-generate-preview",
+    id: "google-vertex/veo-3.1-fast-generate-001",
     displayName: "Veo 3.1 Fast (Vertex)",
     description:
       "Speed-optimized Veo 3.1 via Vertex AI. T2V + I2V, native audio, 4–8s, up to 4K. Faster generation.",
     iconUrl: ICON_GOOGLE,
     capabilities: { textToVideo: true, imageToVideo: true, videoToVideo: false, audio: true },
     limits: { maxDuration: 8, allowedDurations: [4, 6, 8], maxResolution: "2160p", maxInputImages: 1 },
+  },
+  {
+    id: "google-vertex/veo-3.1-lite-generate-001",
+    displayName: "Veo 3.1 Lite (Vertex)",
+    description:
+      "Lightweight Veo 3.1 via Vertex AI. T2V + I2V, native audio, 4–8s, up to 1080p. Most cost-effective 3.1 variant.",
+    iconUrl: ICON_GOOGLE,
+    capabilities: { textToVideo: true, imageToVideo: true, videoToVideo: false, audio: true },
+    limits: { maxDuration: 8, allowedDurations: [4, 6, 8], maxResolution: "1080p", maxInputImages: 1 },
   },
   {
     id: "google-vertex/veo-3.0-generate-001",
