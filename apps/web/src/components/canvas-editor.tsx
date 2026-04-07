@@ -92,6 +92,12 @@ export function CanvasEditor({
   // Tracks whether the one-time normalization pass has already run
   const normalizedRef = useRef(false);
 
+  // Guard: prevent auto-save until Excalidraw has fully hydrated with initial data.
+  // Without this, a page reload can fire onChange with empty elements before
+  // initialData is applied, causing a FULL REPLACE that wipes existing content.
+  const hydratedRef = useRef(false);
+  const initialElementCountRef = useRef(initialContent.elements.filter((e) => !e.isDeleted).length);
+
   // Track pending save payload so we can flush on tab close / unmount
   const pendingSaveRef = useRef<{
     elements: Record<string, unknown>[];
@@ -206,12 +212,23 @@ export function CanvasEditor({
       } catch (err) {
         console.warn("[canvas-editor] normalization failed:", err);
       }
+
+      // Mark hydrated after normalization — auto-save is now safe.
+      // Before this point, onChange may fire with incomplete element lists
+      // during Excalidraw's internal initialization, which would cause a
+      // FULL REPLACE with empty content and silently wipe existing data.
+      hydratedRef.current = true;
     });
     return () => cic(idleHandle);
   }, [excalidrawApi]);
 
   const handleChange = useCallback(
     (elements: readonly any[], appState: any) => {
+      // Skip auto-save until Excalidraw has fully hydrated with initial data.
+      // During initialization, onChange may fire with empty/partial elements
+      // which would wipe the persisted canvas via FULL REPLACE.
+      if (!hydratedRef.current) return;
+
       // --- 1. Debounced save ---
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
 
@@ -422,10 +439,20 @@ export function CanvasEditor({
   // Used by both beforeunload and unmount to flush pending changes.
   const buildSavePayload = useCallback(() => {
     if (!excalidrawApi) return null;
+    // Never flush before hydration — Excalidraw may not have loaded elements yet
+    if (!hydratedRef.current) return null;
     try {
       const sceneElements = excalidrawApi.getSceneElements();
       const rawFiles = excalidrawApi.getFiles() as Record<string, any>;
       const appState = excalidrawApi.getAppState();
+
+      // Safety: refuse to save empty when we loaded with elements — prevents
+      // race conditions from wiping canvas content during page teardown.
+      const liveCount = sceneElements.filter((el: any) => !el.isDeleted).length;
+      if (liveCount === 0 && initialElementCountRef.current > 0) {
+        console.warn("[canvas-editor] skipping save: 0 elements but loaded with", initialElementCountRef.current);
+        return null;
+      }
       const files: Record<string, Record<string, unknown>> = {};
       for (const [id, file] of Object.entries(rawFiles)) {
         files[id] = {
