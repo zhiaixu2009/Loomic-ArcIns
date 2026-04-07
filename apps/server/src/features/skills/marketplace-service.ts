@@ -1,41 +1,53 @@
 /**
  * Marketplace Service for skills.sh
  *
- * Proxies the npm registry to search, inspect, and install skills from the
- * skills.sh marketplace. Skills are standard npm packages tagged with the
- * "agent-skill" keyword and containing a SKILL.md manifest.
+ * Skills on skills.sh are NOT npm packages — they are GitHub repositories
+ * containing SKILL.md files. The skills.sh platform provides:
+ * - A web frontend for browsing/searching skills
+ * - A download API that returns skill files as JSON
  *
- * npm registry endpoints used:
- * - Search:  GET https://registry.npmjs.org/-/v1/search?text=...
- * - Detail:  GET https://registry.npmjs.org/{packageName}
- * - Tarball: via dist.tarball URL in version metadata
+ * API endpoints:
+ * - Download: GET https://skills.sh/api/download/{owner}/{repo}/{slug}
+ *   Returns: { files: [{path, contents}], hash }
+ *
+ * For search, we use the npm registry as a discovery layer (packages with
+ * "agent-skill" keyword link back to GitHub repos), then install via
+ * GitHub import or skills.sh download API.
  *
  * @module marketplace-service
  */
 
 import {
+  importFromGitHub,
   importFromTarballUrl,
+  parseSkillManifest,
   type ImportedSkill,
+  SkillImportError,
 } from "./skill-import-service.js";
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
 const NPM_REGISTRY_BASE = "https://registry.npmjs.org";
-
-/** Keyword used to scope npm search results to skills.sh packages */
+const SKILLS_SH_BASE = "https://skills.sh";
 const SKILL_KEYWORD = "agent-skill";
-
 const USER_AGENT = "Loomic-Marketplace/1.0";
+const MAX_PAGE_SIZE = 50;
+const FETCH_TIMEOUT_MS = 15_000;
 
-/** Maximum page size to prevent abuse */
-const MAX_PAGE_SIZE = 100;
+// ── Error Class ────────────────────────────────────────────────────────────
 
-/** Request timeout for npm registry calls (15 seconds) */
-const REGISTRY_TIMEOUT_MS = 15_000;
+export class MarketplaceError extends Error {
+  constructor(
+    public readonly code: "search_failed" | "package_not_found" | "install_failed",
+    message: string,
+  ) {
+    super(message);
+    this.name = "MarketplaceError";
+  }
+}
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
-/** Summary info for a marketplace skill (search result item) */
 export interface MarketplaceSkill {
   packageName: string;
   name: string;
@@ -49,402 +61,333 @@ export interface MarketplaceSkill {
   license?: string;
 }
 
-/** Paginated search result */
 export interface MarketplaceSearchResult {
   skills: MarketplaceSkill[];
   total: number;
 }
 
-/** Full detail for a single marketplace skill */
 export interface MarketplaceSkillDetail extends MarketplaceSkill {
   readme: string;
   versions: string[];
   tarballUrl: string;
+  /** GitHub repo URL if discoverable (for skills.sh download API) */
+  repoUrl?: string;
 }
 
-/** Result of installing a skill from the marketplace */
-export interface MarketplaceInstallResult {
-  imported: ImportedSkill;
-  packageName: string;
-  tarballUrl: string;
-}
+// ── Internal Helpers ───────────────────────────────────────────────────────
 
-// ── Error Type ─────────────────────────────────────────────────────────────
-
-export type MarketplaceErrorCode =
-  | "search_failed"
-  | "package_not_found"
-  | "install_failed";
-
-export class MarketplaceError extends Error {
-  readonly code: MarketplaceErrorCode;
-
-  constructor(code: MarketplaceErrorCode, message: string) {
-    super(message);
-    this.name = "MarketplaceError";
-    this.code = code;
-  }
-}
-
-// ── Internal: npm registry response shapes ─────────────────────────────────
-
-/** Shape of an item in the npm search response `objects` array */
-interface NpmSearchObject {
-  package: {
-    name: string;
-    version: string;
-    description?: string;
-    keywords?: string[];
-    author?: { name?: string; username?: string } | string;
-    links?: {
-      npm?: string;
-      homepage?: string;
-      repository?: string;
-    };
-    publisher?: { username?: string };
-  };
-  score?: {
-    detail?: {
-      popularity?: number;
-    };
-  };
-}
-
-/** Shape of the npm search endpoint response */
-interface NpmSearchResponse {
-  objects: NpmSearchObject[];
-  total: number;
-}
-
-/** Shape of the full npm package metadata response */
-interface NpmPackageResponse {
-  name: string;
-  description?: string;
-  readme?: string;
-  license?: string;
-  keywords?: string[];
-  homepage?: string;
-  repository?: { url?: string } | string;
-  author?: { name?: string } | string;
-  "dist-tags"?: { latest?: string };
-  versions?: Record<
-    string,
-    {
-      version: string;
-      dist?: { tarball?: string };
-    }
-  >;
-}
-
-// ── Internal helpers ───────────────────────────────────────────────────────
-
-/**
- * Encode an npm package name for use in registry URLs.
- * Scoped packages like `@scope/name` must be encoded as `%40scope%2Fname`.
- */
-function encodePackageName(packageName: string): string {
-  return packageName.replace("/", "%2f").replace("@", "%40");
-}
-
-/**
- * Fetch a URL from the npm registry with timeout and standard headers.
- * Returns the parsed JSON body.
- *
- * @throws MarketplaceError on network or HTTP errors
- */
-async function registryFetch<T>(
-  url: string,
-  errorCode: MarketplaceErrorCode,
-): Promise<T> {
-  let response: Response;
-
-  try {
-    response = await fetch(url, {
-      headers: {
-        Accept: "application/json",
-        "User-Agent": USER_AGENT,
-      },
-      signal: AbortSignal.timeout(REGISTRY_TIMEOUT_MS),
-    });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error(
-      `[marketplace] Network error fetching ${url}: ${message}`,
-    );
-    throw new MarketplaceError(
-      errorCode,
-      `Failed to connect to npm registry: ${message}`,
-    );
-  }
-
+async function registryFetch(url: string): Promise<Response> {
+  const response = await fetch(url, {
+    headers: { "User-Agent": USER_AGENT, Accept: "application/json" },
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+  });
   if (response.status === 404) {
-    throw new MarketplaceError(
-      "package_not_found",
-      `Package not found on npm registry: ${url}`,
-    );
+    throw new MarketplaceError("package_not_found", `Package not found: ${url}`);
   }
-
   if (!response.ok) {
-    console.error(
-      `[marketplace] HTTP ${response.status} ${response.statusText} for ${url}`,
-    );
-    throw new MarketplaceError(
-      errorCode,
-      `npm registry returned HTTP ${response.status} ${response.statusText}`,
-    );
+    throw new MarketplaceError("search_failed", `Registry request failed: ${response.status} for ${url}`);
   }
-
-  return (await response.json()) as T;
+  return response;
 }
 
 /**
- * Extract the author display name from various npm author field shapes.
- * npm packages represent author as either a string or `{ name, username }`.
+ * Try to extract a GitHub repo URL from npm package metadata.
+ * Looks at repository field and homepage.
  */
-function extractAuthor(
-  author: NpmSearchObject["package"]["author"],
-  publisher: NpmSearchObject["package"]["publisher"],
-): string {
-  if (!author && !publisher) return "unknown";
-
-  if (typeof author === "string") return author;
-  if (author?.name) return author.name;
-  if (author?.username) return author.username;
-  if (publisher?.username) return publisher.username;
-
-  return "unknown";
+function extractGitHubRepo(pkg: Record<string, unknown>): string | undefined {
+  // Check repository field
+  const repo = pkg.repository;
+  if (typeof repo === "string" && repo.includes("github.com")) {
+    return normalizeGitHubUrl(repo);
+  }
+  if (repo && typeof repo === "object" && "url" in repo) {
+    const repoUrl = (repo as { url: string }).url;
+    if (repoUrl.includes("github.com")) {
+      return normalizeGitHubUrl(repoUrl);
+    }
+  }
+  // Check homepage
+  const homepage = pkg.homepage;
+  if (typeof homepage === "string" && homepage.includes("github.com")) {
+    return normalizeGitHubUrl(homepage);
+  }
+  return undefined;
 }
 
-/**
- * Extract repository URL from the npm repository field, which can be
- * either a string or `{ url }` object.
- */
-function extractRepositoryUrl(
-  repository: NpmPackageResponse["repository"],
-): string | undefined {
-  if (!repository) return undefined;
-  if (typeof repository === "string") return repository;
-  // Clean up git+https:// or git+ssh:// prefixes that npm uses
-  const url = repository.url;
-  if (!url) return undefined;
-  return url.replace(/^git\+/, "").replace(/\.git$/, "");
+function normalizeGitHubUrl(raw: string): string {
+  // git+https://github.com/owner/repo.git → https://github.com/owner/repo
+  // git://github.com/owner/repo.git → https://github.com/owner/repo
+  let url = raw
+    .replace(/^git\+/, "")
+    .replace(/^git:\/\//, "https://")
+    .replace(/\.git$/, "");
+  // Ensure https://
+  if (url.startsWith("github.com")) {
+    url = `https://${url}`;
+  }
+  return url;
 }
 
-// ── Public API ─────────────────────────────────────────────────────────────
+// ── Search ─────────────────────────────────────────────────────────────────
 
 /**
- * Search the skills.sh marketplace (backed by npm registry).
- *
- * Filters results by the "agent-skill" keyword to scope to skill packages.
- * Supports pagination via `page` (1-indexed) and `limit`.
- *
- * @param query   Free-text search query (combined with "keywords:agent-skill")
- * @param page    Page number, 1-indexed (default 1)
- * @param limit   Results per page (default 20, max 100)
- * @returns Paginated list of marketplace skills
- *
- * @throws MarketplaceError with code "search_failed" on network/registry errors
+ * Search the npm registry for skill packages.
+ * Uses `keywords:agent-skill` to scope results.
  */
 export async function searchMarketplace(
   query: string,
   page: number = 1,
   limit: number = 20,
 ): Promise<MarketplaceSearchResult> {
-  // Clamp inputs to reasonable bounds
-  const safePage = Math.max(1, Math.floor(page));
-  const safeLimit = Math.min(MAX_PAGE_SIZE, Math.max(1, Math.floor(limit)));
+  const safePage = Math.max(1, Math.min(page, 100));
+  const safeLimit = Math.max(1, Math.min(limit, MAX_PAGE_SIZE));
   const offset = (safePage - 1) * safeLimit;
 
-  // Build the search text: keyword filter + user query
   const searchText = query.trim()
     ? `keywords:${SKILL_KEYWORD} ${query.trim()}`
     : `keywords:${SKILL_KEYWORD}`;
 
-  const searchUrl = new URL("/-/v1/search", NPM_REGISTRY_BASE);
-  searchUrl.searchParams.set("text", searchText);
-  searchUrl.searchParams.set("size", String(safeLimit));
-  searchUrl.searchParams.set("from", String(offset));
+  const params = new URLSearchParams({
+    text: searchText,
+    size: String(safeLimit),
+    from: String(offset),
+  });
 
-  console.log(
-    `[marketplace] Searching: query="${query}" page=${safePage} limit=${safeLimit} offset=${offset}`,
-  );
+  console.log(`[marketplace] Searching: query="${query}" page=${safePage} limit=${safeLimit} offset=${offset}`);
 
-  const data = await registryFetch<NpmSearchResponse>(
-    searchUrl.toString(),
-    "search_failed",
-  );
+  const response = await registryFetch(`${NPM_REGISTRY_BASE}/-/v1/search?${params}`);
+  const data = (await response.json()) as {
+    objects: Array<{
+      package: {
+        name: string;
+        version: string;
+        description?: string;
+        keywords?: string[];
+        author?: { name?: string } | string;
+        links?: { npm?: string; homepage?: string; repository?: string };
+      };
+      score?: { detail?: { popularity?: number } };
+    }>;
+    total: number;
+  };
 
   const skills: MarketplaceSkill[] = data.objects.map((obj) => {
     const pkg = obj.package;
+    const authorName = typeof pkg.author === "string"
+      ? pkg.author
+      : pkg.author?.name ?? "unknown";
 
-    const skill: MarketplaceSkill = {
+    const result: MarketplaceSkill = {
       packageName: pkg.name,
       name: pkg.name,
       description: pkg.description ?? "",
-      author: extractAuthor(pkg.author, pkg.publisher),
+      author: authorName,
       version: pkg.version,
-      // npm search score popularity ranges 0-1; approximate weekly downloads
-      downloads: Math.round((obj.score?.detail?.popularity ?? 0) * 10_000),
+      downloads: Math.round((obj.score?.detail?.popularity ?? 0) * 20000),
       keywords: pkg.keywords ?? [],
     };
-
-    // Assign optional fields only when present (exactOptionalPropertyTypes)
-    if (pkg.links?.homepage) skill.homepage = pkg.links.homepage;
-    if (pkg.links?.repository) skill.repository = pkg.links.repository;
-
-    return skill;
+    if (pkg.links?.homepage) result.homepage = pkg.links.homepage;
+    if (pkg.links?.repository) result.repository = pkg.links.repository;
+    return result;
   });
 
-  console.log(
-    `[marketplace] Search returned ${skills.length} results (total: ${data.total})`,
-  );
-
+  console.log(`[marketplace] Search returned ${skills.length} results (total: ${data.total})`);
   return { skills, total: data.total };
 }
 
+// ── Detail ─────────────────────────────────────────────────────────────────
+
 /**
- * Get detailed metadata for a single marketplace skill package.
- *
- * Fetches the full npm package document including README, all versions,
- * and the tarball download URL for the latest version.
- *
- * @param packageName  npm package name (e.g. "@skills-sh/deep-research")
- * @returns Full skill detail including readme, versions, and tarball URL
- *
- * @throws MarketplaceError with code "package_not_found" if the package does not exist
- * @throws MarketplaceError with code "search_failed" on other registry errors
+ * Get full detail for a package from the npm registry.
  */
 export async function getMarketplaceDetail(
   packageName: string,
 ): Promise<MarketplaceSkillDetail> {
-  const encoded = encodePackageName(packageName);
-  const detailUrl = `${NPM_REGISTRY_BASE}/${encoded}`;
-
   console.log(`[marketplace] Fetching detail for package: ${packageName}`);
 
-  const data = await registryFetch<NpmPackageResponse>(
-    detailUrl,
-    "search_failed",
-  );
+  const encoded = encodeURIComponent(packageName).replace("%40", "@");
+  const response = await registryFetch(`${NPM_REGISTRY_BASE}/${encoded}`);
+  const data = (await response.json()) as Record<string, unknown>;
 
-  // Determine the latest version
-  const latestTag = data["dist-tags"]?.latest;
-  if (!latestTag) {
-    throw new MarketplaceError(
-      "package_not_found",
-      `Package "${packageName}" has no published versions (missing dist-tags.latest)`,
-    );
-  }
+  const distTags = data["dist-tags"] as Record<string, string> | undefined;
+  const latestVersion = distTags?.latest ?? "0.0.0";
+  const versions = data.versions as Record<string, Record<string, unknown>> | undefined;
+  const latestMeta = versions?.[latestVersion];
+  const tarballUrl = (latestMeta?.dist as { tarball?: string } | undefined)?.tarball ?? "";
 
-  // Extract all version strings, sorted by semver descending for display
-  const allVersions = data.versions ? Object.keys(data.versions) : [];
-  if (allVersions.length === 0) {
-    throw new MarketplaceError(
-      "package_not_found",
-      `Package "${packageName}" has no versions in the registry`,
-    );
-  }
+  const authorRaw = data.author;
+  const authorName = typeof authorRaw === "string"
+    ? authorRaw
+    : (authorRaw as { name?: string } | undefined)?.name ?? "unknown";
 
-  // Get the tarball URL for the latest version
-  const latestVersionMeta = data.versions?.[latestTag];
-  const tarballUrl = latestVersionMeta?.dist?.tarball;
-  if (!tarballUrl) {
-    throw new MarketplaceError(
-      "package_not_found",
-      `Package "${packageName}@${latestTag}" is missing tarball URL in dist metadata`,
-    );
-  }
+  const repoUrl = extractGitHubRepo(data);
 
-  // Extract author from the top-level package metadata
-  let author = "unknown";
-  if (typeof data.author === "string") {
-    author = data.author;
-  } else if (data.author?.name) {
-    author = data.author.name;
-  }
-
-  const detail: MarketplaceSkillDetail = {
-    packageName: data.name,
-    name: data.name,
-    description: data.description ?? "",
-    author,
-    version: latestTag,
-    downloads: 0, // Not available from the detail endpoint; populated in search results
-    keywords: data.keywords ?? [],
-    readme: data.readme ?? "",
-    versions: allVersions,
+  const result: MarketplaceSkillDetail = {
+    packageName,
+    name: (data.name as string) ?? packageName,
+    description: (data.description as string) ?? "",
+    author: authorName,
+    version: latestVersion,
+    downloads: 0,
+    keywords: (data.keywords as string[]) ?? [],
+    readme: (data.readme as string) ?? "",
+    versions: versions ? Object.keys(versions) : [],
     tarballUrl,
   };
 
-  // Assign optional fields only when present (exactOptionalPropertyTypes)
-  if (data.homepage) detail.homepage = data.homepage;
-  const repoUrl = extractRepositoryUrl(data.repository);
-  if (repoUrl) detail.repository = repoUrl;
-  if (data.license) detail.license = data.license;
+  if (data.license) result.license = data.license as string;
+  if (data.homepage) result.homepage = data.homepage as string;
+  if (repoUrl) {
+    result.repository = repoUrl;
+    result.repoUrl = repoUrl;
+  }
 
   console.log(
-    `[marketplace] Detail fetched: ${packageName}@${latestTag} (${allVersions.length} versions, tarball=${tarballUrl})`,
+    `[marketplace] Detail fetched: ${packageName}@${latestVersion} (${result.versions.length} versions, tarball=${tarballUrl})`,
   );
 
-  return detail;
+  return result;
 }
 
+// ── Install ────────────────────────────────────────────────────────────────
+
 /**
- * Install a skill from the marketplace by downloading its npm tarball
- * and parsing the SKILL.md manifest + associated files.
+ * Install a skill from the marketplace.
  *
- * This combines getMarketplaceDetail (to resolve the tarball URL) with
- * importFromTarballUrl (to extract and parse the skill contents).
+ * Strategy (in order of preference):
+ * 1. If package has a GitHub repo link → use skills.sh download API
+ * 2. If skills.sh fails → try GitHub import directly
+ * 3. Fallback → download npm tarball and extract
  *
- * @param packageName  npm package name to install
- * @returns The imported skill data, package name, and tarball URL
- *
- * @throws MarketplaceError with code "package_not_found" if the package does not exist
- * @throws MarketplaceError with code "install_failed" if download or parsing fails
+ * This multi-strategy approach handles the reality that skills.sh skills
+ * are primarily GitHub repos, not npm packages.
  */
 export async function installFromMarketplace(
   packageName: string,
-): Promise<MarketplaceInstallResult> {
+): Promise<{ imported: ImportedSkill; packageName: string }> {
   console.log(`[marketplace] Installing skill from package: ${packageName}`);
 
-  let detail: MarketplaceSkillDetail;
-  try {
-    detail = await getMarketplaceDetail(packageName);
-  } catch (err) {
-    // Re-throw MarketplaceErrors as-is (package_not_found, etc.)
-    if (err instanceof MarketplaceError) throw err;
+  const detail = await getMarketplaceDetail(packageName);
 
-    const message = err instanceof Error ? err.message : String(err);
-    throw new MarketplaceError(
-      "install_failed",
-      `Failed to fetch package detail for "${packageName}": ${message}`,
-    );
+  // Strategy 1: Try skills.sh download API if we have a GitHub repo
+  if (detail.repoUrl) {
+    try {
+      const imported = await trySkillsShDownload(detail.repoUrl);
+      if (imported) {
+        console.log(`[marketplace] Installed via skills.sh download API: ${imported.manifest.name}`);
+        return { imported, packageName };
+      }
+    } catch (err) {
+      console.log(`[marketplace] skills.sh download failed, trying GitHub import: ${err}`);
+    }
+
+    // Strategy 2: Try direct GitHub import
+    try {
+      const imported = await importFromGitHub(detail.repoUrl);
+      console.log(`[marketplace] Installed via GitHub import: ${imported.manifest.name} (${imported.files.length} files)`);
+      return { imported, packageName };
+    } catch (err) {
+      console.log(`[marketplace] GitHub import failed, falling back to npm tarball: ${err}`);
+    }
   }
 
-  let imported: ImportedSkill;
-  try {
-    imported = await importFromTarballUrl(detail.tarballUrl);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error(
-      `[marketplace] Tarball import failed for ${packageName}: ${message}`,
-    );
-    throw new MarketplaceError(
-      "install_failed",
-      `Failed to extract skill from "${packageName}" tarball: ${message}`,
-    );
+  // Strategy 3: Fallback to npm tarball
+  if (!detail.tarballUrl) {
+    throw new MarketplaceError("install_failed", `No tarball URL available for ${packageName}`);
   }
 
-  // Override sourceUrl to point to the npm package page for traceability
-  imported.sourceUrl = `https://www.npmjs.com/package/${packageName}`;
+  try {
+    const imported = await importFromTarballUrl(detail.tarballUrl);
+    console.log(`[marketplace] Installed via npm tarball: ${imported.manifest.name} (${imported.files.length} files)`);
+    return { imported, packageName };
+  } catch (err) {
+    if (err instanceof SkillImportError) {
+      throw new MarketplaceError("install_failed",
+        `Failed to extract skill from "${packageName}": ${err.message}`);
+    }
+    throw err;
+  }
+}
 
-  console.log(
-    `[marketplace] Installed skill "${imported.manifest.name}" from ${packageName} (${imported.files.length} files)`,
-  );
+// ── skills.sh Download API ─────────────────────────────────────────────────
 
-  return {
-    imported,
-    packageName,
-    tarballUrl: detail.tarballUrl,
-  };
+/**
+ * Try to download a skill via the skills.sh download API.
+ *
+ * The API returns: { files: [{path, contents}], hash }
+ * This is the fastest way to get skill files without cloning a repo.
+ */
+async function trySkillsShDownload(repoUrl: string): Promise<ImportedSkill | null> {
+  // Parse GitHub URL: https://github.com/owner/repo → owner, repo
+  const match = repoUrl.match(/github\.com\/([^/]+)\/([^/]+)/);
+  if (!match) return null;
+
+  const owner = match[1];
+  const repo = match[2];
+
+  // Try to discover skills in the repo via skills.sh
+  // skills.sh API: GET /api/download/{owner}/{repo}/{slug}
+  // But we don't know the slug yet. Try the repo name as slug first.
+  const slug = repo?.replace(/[^a-z0-9-]/gi, "-").toLowerCase() ?? "";
+
+  const downloadUrl = `${SKILLS_SH_BASE}/api/download/${owner}/${repo}/${slug}`;
+  console.log(`[marketplace] Trying skills.sh download: ${downloadUrl}`);
+
+  try {
+    const response = await fetch(downloadUrl, {
+      headers: { "User-Agent": USER_AGENT },
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    });
+
+    if (!response.ok) {
+      console.log(`[marketplace] skills.sh returned ${response.status} for ${downloadUrl}`);
+      return null;
+    }
+
+    const data = (await response.json()) as {
+      files?: Array<{ path: string; contents: string }>;
+      hash?: string;
+    };
+
+    if (!data.files?.length) {
+      console.log(`[marketplace] skills.sh returned empty files for ${downloadUrl}`);
+      return null;
+    }
+
+    // Find SKILL.md
+    const skillMdFile = data.files.find(
+      (f) => f.path.toUpperCase() === "SKILL.MD",
+    );
+
+    if (!skillMdFile) {
+      console.log(`[marketplace] No SKILL.md in skills.sh response for ${downloadUrl}`);
+      return null;
+    }
+
+    const manifest = parseSkillManifest(skillMdFile.contents);
+
+    // Collect scripts/references/assets files
+    const ALLOWED_DIR = /^(scripts|references|assets)\//i;
+    const files = data.files
+      .filter((f) => ALLOWED_DIR.test(f.path))
+      .map((f) => ({
+        filePath: f.path,
+        content: f.contents,
+        mimeType: "text/plain",
+      }));
+
+    console.log(
+      `[marketplace] skills.sh download success: ${manifest.name} (${files.length} files)`,
+    );
+
+    return {
+      manifest,
+      skillContent: skillMdFile.contents,
+      files,
+      sourceUrl: repoUrl,
+    };
+  } catch (err) {
+    console.log(`[marketplace] skills.sh download error: ${err}`);
+    return null;
+  }
 }
