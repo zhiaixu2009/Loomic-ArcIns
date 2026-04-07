@@ -300,19 +300,21 @@ export function ChatSidebar({
     fetchWorkspaceSkills(accessToken)
       .then((data) => {
         if (cancelled) return;
+        const allSkills = data.skills ?? [];
+        const enabledSkills = allSkills.filter((s) => s.enabled);
+        console.log(`[chat-sidebar] Workspace skills loaded: ${allSkills.length} total, ${enabledSkills.length} enabled`);
         setSkillMentionItems(
-          (data.skills ?? [])
-            .filter((s) => s.enabled)
-            .map((s) => ({
-              kind: "skill" as const,
-              id: s.id,
-              label: s.name,
-              slug: s.slug,
-              description: s.description,
-            })),
+          enabledSkills.map((s) => ({
+            kind: "skill" as const,
+            id: s.id,
+            label: s.name,
+            slug: s.slug,
+            description: s.description,
+          })),
         );
       })
-      .catch(() => {
+      .catch((err) => {
+        console.error("[chat-sidebar] Failed to load workspace skills:", err);
         if (!cancelled) setSkillMentionItems([]);
       });
 
