@@ -672,14 +672,64 @@ export async function importFromTarballUrl(url: string): Promise<ImportedSkill> 
     (e) => e.path.toUpperCase() === "SKILL.MD",
   );
 
-  if (!skillMdEntry) {
+  // Also look for SKILL.md in subdirectories (multi-skill packages like skills/xxx/SKILL.md)
+  const nestedSkillMd = !skillMdEntry
+    ? entries.find((e) => /\/SKILL\.MD$/i.test(e.path))
+    : null;
+
+  // Fallback: use README.md + package.json when no SKILL.md exists
+  const readmeEntry = entries.find(
+    (e) => e.path.toUpperCase() === "README.MD",
+  );
+  const pkgJsonEntry = entries.find(
+    (e) => e.path === "package.json",
+  );
+
+  const effectiveSkillMd = skillMdEntry ?? nestedSkillMd;
+
+  let manifest: SkillManifest;
+  let skillContent: string;
+
+  if (effectiveSkillMd) {
+    manifest = parseSkillManifest(effectiveSkillMd.content);
+    skillContent = effectiveSkillMd.content;
+  } else if (pkgJsonEntry) {
+    // Fallback: build manifest from package.json + use README as content
+    let pkgJson: Record<string, unknown>;
+    try {
+      pkgJson = JSON.parse(pkgJsonEntry.content) as Record<string, unknown>;
+    } catch {
+      throw new SkillImportError(
+        "manifest_parse_error",
+        `Failed to parse package.json in tarball: ${url}`,
+      );
+    }
+    const pkgName = (pkgJson.name as string) ?? "unknown-skill";
+    const shortName = pkgName.replace(/^@[^/]+\//, ""); // strip scope
+    manifest = {
+      name: shortName,
+      description: (pkgJson.description as string) ?? "Imported from npm",
+    };
+    if (pkgJson.version) manifest.version = pkgJson.version as string;
+    if (pkgJson.license) manifest.license = pkgJson.license as string;
+    if (typeof pkgJson.author === "string") manifest.author = pkgJson.author;
+    else if (pkgJson.author && typeof (pkgJson.author as any).name === "string") {
+      manifest.author = (pkgJson.author as any).name;
+    }
+
+    // Use README.md as skill content, or a minimal placeholder
+    skillContent = readmeEntry?.content
+      ?? `# ${shortName}\n\n${manifest.description}`;
+
+    console.log(
+      `[skill-import] No SKILL.md found, using package.json + README.md fallback for "${shortName}"`,
+    );
+  } else {
     throw new SkillImportError(
       "manifest_not_found",
-      `SKILL.md not found in tarball: ${url}`,
+      `Neither SKILL.md nor package.json found in tarball: ${url}`,
     );
   }
-
-  const manifest = parseSkillManifest(skillMdEntry.content);
 
   console.log(
     `[skill-import] Parsed tarball manifest: name="${manifest.name}" version="${manifest.version ?? "unversioned"}"`,
@@ -708,7 +758,7 @@ export async function importFromTarballUrl(url: string): Promise<ImportedSkill> 
 
   return {
     manifest,
-    skillContent: skillMdEntry.content,
+    skillContent,
     files,
     sourceUrl: url,
   };
