@@ -100,6 +100,20 @@ function CanvasPageContent() {
     });
   }, []);
 
+  // Must be defined BEFORE useJobFallbackPolling which references it
+  const handleCanvasSync = useCallback(async () => {
+    const api = excalidrawApiRef.current;
+    const token = accessTokenRef.current;
+    if (!api || !token || !canvasData) return;
+    try {
+      const { canvas } = await fetchCanvas(token, canvasData.id);
+      const elements = canvas.content.elements ?? [];
+      api.updateScene({ elements, captureUpdate: "IMMEDIATELY" });
+    } catch (err) {
+      console.warn("Failed to sync canvas:", err);
+    }
+  }, [canvasData]);
+
   // Fallback polling for timed-out generation jobs.
   // When the agent's tool times out but the worker eventually succeeds,
   // the backend will have already inserted the element into the canvas.
@@ -148,19 +162,6 @@ function CanvasPageContent() {
         };
       });
   }, []);
-
-  const handleCanvasSync = useCallback(async () => {
-    const api = excalidrawApiRef.current;
-    const token = accessTokenRef.current;
-    if (!api || !token || !canvasData) return;
-    try {
-      const { canvas } = await fetchCanvas(token, canvasData.id);
-      const elements = canvas.content.elements ?? [];
-      api.updateScene({ elements, captureUpdate: "IMMEDIATELY" });
-    } catch (err) {
-      console.warn("Failed to sync canvas:", err);
-    }
-  }, [canvasData]);
 
   // Only re-fetch when canvasId changes or on initial auth resolution.
   // Token refreshes (e.g. tab switch back) should NOT trigger a reload —
