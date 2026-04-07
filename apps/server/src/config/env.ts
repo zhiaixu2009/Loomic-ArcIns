@@ -2,8 +2,23 @@ import { readFileSync } from "node:fs";
 
 export const DEFAULT_AGENT_BACKEND_MODE = "state";
 export const DEFAULT_AGENT_MODEL = "gpt-4.1";
+export const DEFAULT_GOOGLE_AGENT_MODEL = "gemini-2.5-flash";
 export const DEFAULT_SERVER_PORT = 3001;
 export const DEFAULT_WEB_ORIGIN = "http://localhost:3000";
+
+/**
+ * Resolve the default agent model based on available provider configuration.
+ * When Google/Vertex is configured but OpenAI is not, defaults to Gemini 2.5 Flash.
+ */
+export function resolveDefaultAgentModel(
+  env: Pick<ServerEnv, "googleApiKey" | "googleVertexProject" | "openAIApiKey">,
+): string {
+  const hasOpenAI = !!env.openAIApiKey;
+  const hasGoogle = !!(env.googleApiKey || env.googleVertexProject);
+
+  if (!hasOpenAI && hasGoogle) return DEFAULT_GOOGLE_AGENT_MODEL;
+  return DEFAULT_AGENT_MODEL;
+}
 
 export type AgentBackendMode = "filesystem" | "state";
 
@@ -137,14 +152,24 @@ export function loadServerEnv(
     (source.WORKER_MAX_BATCH_SIZE
       ? parseInt(source.WORKER_MAX_BATCH_SIZE, 10) : undefined);
 
+  // Resolve default agent model based on available provider keys.
+  // Explicit LOOMIC_AGENT_MODEL always takes precedence; otherwise fall back
+  // to Gemini 2.5 Flash when only Google/Vertex is configured.
+  const explicitModel =
+    overrides.agentModel ?? parseAgentModel(source.LOOMIC_AGENT_MODEL);
+  const resolvedAgentModel =
+    explicitModel ??
+    resolveDefaultAgentModel({
+      googleApiKey,
+      googleVertexProject,
+      openAIApiKey,
+    });
+
   return {
     agentBackendMode:
       overrides.agentBackendMode ??
       parseAgentBackendMode(source.LOOMIC_AGENT_BACKEND_MODE),
-    agentModel:
-      overrides.agentModel ??
-      parseAgentModel(source.LOOMIC_AGENT_MODEL) ??
-      DEFAULT_AGENT_MODEL,
+    agentModel: resolvedAgentModel,
     port: overrides.port ?? parsePort(source.LOOMIC_SERVER_PORT ?? source.PORT),
     version: overrides.version ?? readServerVersion(),
     webOrigin:

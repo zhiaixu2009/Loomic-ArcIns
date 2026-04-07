@@ -5,7 +5,7 @@ import { ChatVertexAI } from "@langchain/google-vertexai";
 import { ChatOpenAI } from "@langchain/openai";
 import { createDeepAgent } from "deepagents";
 
-import { DEFAULT_AGENT_MODEL, type ServerEnv } from "../config/env.js";
+import { DEFAULT_AGENT_MODEL, DEFAULT_GOOGLE_AGENT_MODEL, type ServerEnv } from "../config/env.js";
 import type { ConnectionManager } from "../ws/connection-manager.js";
 import { createAgentBackend, type AgentBackendResult } from "./backends/index.js";
 import { LOOMIC_SYSTEM_PROMPT } from "./prompts/loomic-main.js";
@@ -149,7 +149,7 @@ function createStreamingChatModel(specifier: string): BaseLanguageModel {
   if (provider === "openai" && !process.env.OPENAI_API_KEY && hasGoogle) {
     console.warn(`[model] OpenAI unavailable (no OPENAI_API_KEY), falling back to Google for: ${specifier}`);
     provider = "google";
-    modelName = "gemini-2.5-flash";
+    modelName = DEFAULT_GOOGLE_AGENT_MODEL;
   }
 
   switch (provider) {

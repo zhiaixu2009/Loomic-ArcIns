@@ -2,7 +2,7 @@ import type { WorkspaceSettings } from "@loomic/shared";
 
 import type { AuthenticatedUser, UserSupabaseClient } from "../../supabase/user.js";
 
-const DEFAULT_MODEL = "gpt-5.4-mini";
+const FALLBACK_MODEL = "gpt-5.4-mini";
 
 export class SettingsServiceError extends Error {
   readonly statusCode: number;
@@ -39,7 +39,11 @@ export type SettingsService = {
 
 export function createSettingsService(options: {
   createUserClient: (accessToken: string) => UserSupabaseClient;
+  /** Override the fallback model when no workspace setting exists. */
+  defaultModel?: string;
 }): SettingsService {
+  const defaultModel = options.defaultModel ?? FALLBACK_MODEL;
+
   return {
     async getWorkspaceSettings(user, workspaceId) {
       const client = options.createUserClient(user.accessToken);
@@ -58,7 +62,7 @@ export function createSettingsService(options: {
       }
 
       return {
-        defaultModel: data?.default_model ?? DEFAULT_MODEL,
+        defaultModel: data?.default_model ?? defaultModel,
       };
     },
 

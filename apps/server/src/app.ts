@@ -46,7 +46,7 @@ import {
   createUploadService,
   type UploadService,
 } from "./features/uploads/upload-service.js";
-import { type ServerEnv, loadServerEnv } from "./config/env.js";
+import { type ServerEnv, loadServerEnv, resolveDefaultAgentModel } from "./config/env.js";
 import { createPgmqClient } from "./queue/pgmq-client.js";
 import {
   createCreditService,
@@ -174,7 +174,11 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   const agentPersistenceService =
     options.agentPersistenceService ?? createAgentPersistenceService(env);
   const settingsService =
-    options.settingsService ?? createSettingsService({ createUserClient });
+    options.settingsService ??
+      createSettingsService({
+        createUserClient,
+        defaultModel: resolveDefaultAgentModel(env),
+      });
   const uploadService =
     options.uploadService ?? createUploadService({ createUserClient });
   const pgmq = env.supabaseDbUrl
