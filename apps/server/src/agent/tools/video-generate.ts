@@ -52,6 +52,12 @@ function buildVideoGenerateSchema(models: AvailableModel[]) {
       : z.string().default(DEFAULT_MODEL).describe(modelDescription);
 
   return z.object({
+    title: z
+      .string()
+      .min(1)
+      .describe(
+        "Short descriptive title for the generated video, used as metadata so the video content is understood without re-analysis (e.g. 'Autumn forest bus scene', '恐龙追逐镜头')",
+      ),
     prompt: z
       .string()
       .min(1)
@@ -122,10 +128,13 @@ function buildVideoGenerateSchema(models: AvailableModel[]) {
 
 // ── Result type ────────────────────────────────────────────────────────────
 
+// Infer input type from schema — includes the new `title` field
 type VideoGenerateInput = z.infer<ReturnType<typeof buildVideoGenerateSchema>>;
 
 type VideoGenerateResult = {
   summary: string;
+  title?: string;
+  prompt?: string;
   videoUrl?: string;
   mimeType?: string;
   width?: number;
@@ -189,6 +198,8 @@ export async function runVideoGenerate(
 
       const result: VideoGenerateResult = {
         summary: `Generated ${jobResult.durationSeconds ?? input.duration}s video (${jobResult.width ?? 0}x${jobResult.height ?? 0}) via ${input.model}`,
+        title: input.title,
+        prompt: input.prompt,
         mimeType: jobResult.mimeType ?? "video/mp4",
         ...(jobResult.videoUrl != null ? { videoUrl: jobResult.videoUrl } : {}),
         ...(jobResult.width != null ? { width: jobResult.width } : {}),
@@ -231,6 +242,8 @@ export async function runVideoGenerate(
 
     const directResult: VideoGenerateResult = {
       summary: `Generated ${result.durationSeconds}s video (${result.width}x${result.height}) via ${input.model}`,
+      title: input.title,
+      prompt: input.prompt,
       videoUrl: result.url,
       mimeType: result.mimeType,
       width: result.width,

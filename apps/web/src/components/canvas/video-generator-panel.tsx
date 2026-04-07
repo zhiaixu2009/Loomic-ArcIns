@@ -221,6 +221,7 @@ export function VideoGeneratorPanel({
             mimeType: result.mimeType,
             durationSeconds: result.durationSeconds,
             title: prompt.trim().slice(0, 60),
+            prompt: prompt.trim(),
           },
         } as any,
       ]);

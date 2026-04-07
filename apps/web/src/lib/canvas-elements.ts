@@ -294,7 +294,8 @@ export async function insertVideoOnCanvas(
         isVideo: true,
         mimeType: artifact.mimeType,
         durationSeconds: artifact.durationSeconds,
-        title: artifact.title,
+        title: artifact.title?.slice(0, 60),
+        prompt: artifact.title,
       },
     } as any, // ExcalidrawElementSkeleton includes IframeLikeElement but TS needs a nudge
   ]);

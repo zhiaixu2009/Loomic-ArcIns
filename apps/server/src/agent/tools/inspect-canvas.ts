@@ -61,6 +61,18 @@ function summarizeElement(el: CanvasElement) {
     }
   }
 
+  // Embeddable elements: video elements are stored as Excalidraw embeddable with customData.isVideo
+  if (el.type === "embeddable") {
+    const customData = el.customData as Record<string, unknown> | undefined;
+    if (customData?.isVideo === true) {
+      base.type = "video";
+      if (customData.title) base.title = customData.title;
+      if (customData.prompt) base.prompt = customData.prompt;
+      if (customData.mimeType) base.mimeType = customData.mimeType;
+      if (customData.durationSeconds !== undefined) base.durationSeconds = customData.durationSeconds;
+    }
+  }
+
   if (SHAPE_TYPES.has(el.type as string)) {
     if (el.strokeColor && el.strokeColor !== DEFAULT_STROKE_COLOR) {
       base.strokeColor = el.strokeColor;
@@ -124,6 +136,7 @@ export function buildCanvasSummaryForContext(
     if (s.title) parts.push(`title="${s.title}"`);
     if (s.type === "video") {
       if (s.durationSeconds) parts.push(`${s.durationSeconds}s`);
+      if (s.prompt) parts.push(`prompt="${(s.prompt as string).slice(0, 120)}"`);
     }
     if (s.strokeColor) parts.push(`stroke=${s.strokeColor}`);
     if (s.backgroundColor) parts.push(`fill=${s.backgroundColor}`);
@@ -193,10 +206,11 @@ export function createInspectCanvasTool(deps: {
 
       if (input.filter_type && input.filter_type.length > 0) {
         filtered = filtered.filter((el) => {
-          // Resolve logical type: image elements with customData.isVideo are treated as "video"
+          // Resolve logical type: image/embeddable elements with customData.isVideo are treated as "video"
           const customData = el.customData as Record<string, unknown> | undefined;
-          const logicalType =
-            el.type === "image" && customData?.isVideo === true ? "video" : (el.type as string);
+          const isVideoElement =
+            (el.type === "image" || el.type === "embeddable") && customData?.isVideo === true;
+          const logicalType = isVideoElement ? "video" : (el.type as string);
           return input.filter_type!.includes(logicalType);
         });
       }

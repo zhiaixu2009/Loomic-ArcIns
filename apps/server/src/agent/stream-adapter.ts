@@ -461,7 +461,12 @@ function extractArtifacts(output: unknown): ToolArtifact[] | undefined {
     if (typeof record.durationSeconds === "number") {
       candidate.durationSeconds = record.durationSeconds;
     }
-    if (typeof record.summary === "string") {
+    // Prefer LLM-authored title, then original prompt, then technical summary
+    if (typeof record.title === "string" && record.title.length > 0) {
+      candidate.title = record.title.slice(0, 120);
+    } else if (typeof record.prompt === "string") {
+      candidate.title = record.prompt.slice(0, 200);
+    } else if (typeof record.summary === "string") {
       candidate.title = record.summary.slice(0, 100);
     }
     if (record.placement && typeof record.placement === "object") {
