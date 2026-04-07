@@ -102,40 +102,14 @@ function CanvasPageContent() {
 
   // Fallback polling for timed-out generation jobs.
   // When the agent's tool times out but the worker eventually succeeds,
-  // this hook polls the job API and inserts the result onto the canvas.
+  // the backend will have already inserted the element into the canvas.
+  // This hook detects completion and triggers a canvas re-fetch.
   const { checkForTimedOutJobs } = useJobFallbackPolling({
     accessTokenRef,
-    onImageReady: useCallback((payload) => {
-      const api = excalidrawApiRef.current;
-      if (!api) return;
-      const artifact: ImageArtifact = {
-        type: "image",
-        url: payload.url,
-        width: payload.width,
-        height: payload.height,
-        mimeType: payload.mimeType,
-      };
-      insertImageOnCanvas(api, artifact).catch((err) => {
-        console.warn("[job-fallback] Failed to insert recovered image:", err);
-      });
-    }, []),
-    onVideoReady: useCallback((payload) => {
-      const api = excalidrawApiRef.current;
-      if (!api) return;
-      const artifact: VideoArtifact = {
-        type: "video",
-        url: payload.url,
-        width: payload.width,
-        height: payload.height,
-        mimeType: payload.mimeType,
-        ...(payload.durationSeconds != null
-          ? { durationSeconds: payload.durationSeconds }
-          : {}),
-      };
-      insertVideoOnCanvas(api, artifact).catch((err) => {
-        console.warn("[job-fallback] Failed to insert recovered video:", err);
-      });
-    }, []),
+    onJobSucceeded: useCallback((_jobId: string, _jobType: string) => {
+      // Element was inserted by backend — just refresh the canvas
+      handleCanvasSync();
+    }, [handleCanvasSync]),
   });
 
   const handleSessionChange = useCallback(

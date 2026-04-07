@@ -17,24 +17,9 @@ const TERMINAL_FAILURE_STATUSES = new Set(["failed", "dead_letter", "canceled"])
 
 // --- Types ---
 
-type ImageReadyPayload = {
-  url: string;
-  width: number;
-  height: number;
-  mimeType: string;
-};
-
-type VideoReadyPayload = {
-  url: string;
-  width: number;
-  height: number;
-  mimeType: string;
-  durationSeconds?: number;
-};
-
 type UseJobFallbackPollingOptions = {
-  onImageReady: (artifact: ImageReadyPayload) => void;
-  onVideoReady: (artifact: VideoReadyPayload) => void;
+  /** Called when a timed-out job succeeds — trigger canvas re-fetch */
+  onJobSucceeded: (jobId: string, jobType: string) => void;
   /** Ref to the current access token — avoids stale closure issues */
   accessTokenRef: React.RefObject<string | undefined>;
 };
@@ -53,24 +38,24 @@ type ActivePoll = {
  * When the agent's generate_image/generate_video tool times out on the server
  * (poll timeout), the worker may still succeed later. This hook detects the
  * timeout from the `tool.completed` stream event and starts polling the job
- * API until the worker finishes, then inserts the result onto the canvas.
+ * API until the worker finishes, then notifies the caller to re-fetch the canvas.
  *
  * This prevents users from losing both their result and credits when the
  * backend times out but the worker eventually succeeds.
+ *
+ * Since the backend now inserts elements into the canvas directly, this hook
+ * simply notifies the caller so it can trigger a canvas re-fetch (canvas.sync).
  */
 export function useJobFallbackPolling({
-  onImageReady,
-  onVideoReady,
+  onJobSucceeded,
   accessTokenRef,
 }: UseJobFallbackPollingOptions) {
   // Track active polls by jobId to avoid duplicates
   const activePollsRef = useRef<Map<string, ActivePoll>>(new Map());
 
-  // Keep callback refs current to avoid stale closures in intervals
-  const onImageReadyRef = useRef(onImageReady);
-  onImageReadyRef.current = onImageReady;
-  const onVideoReadyRef = useRef(onVideoReady);
-  onVideoReadyRef.current = onVideoReady;
+  // Keep callback ref current to avoid stale closures in intervals
+  const onJobSucceededRef = useRef(onJobSucceeded);
+  onJobSucceededRef.current = onJobSucceeded;
 
   // Cleanup: stop all active polls on unmount
   useEffect(() => {
@@ -141,32 +126,9 @@ export function useJobFallbackPolling({
               `[job-fallback] Job ${jobId} succeeded after fallback polling (${Math.round(elapsed / 1000)}s)`,
             );
             stopPolling(jobId);
-
-            const result = job.result as Record<string, unknown>;
-            const url = result.signed_url as string;
-            const width = (result.width as number) ?? 1024;
-            const height = (result.height as number) ?? 1024;
-            const mimeType = (result.mime_type as string) ?? "image/png";
-
-            if (job.job_type === "image_generation") {
-              onImageReadyRef.current({
-                url,
-                width,
-                height,
-                mimeType,
-              });
-            } else if (job.job_type === "video_generation") {
-              const durationSeconds = result.duration_seconds as
-                | number
-                | undefined;
-              onVideoReadyRef.current({
-                url,
-                width,
-                height,
-                mimeType,
-                ...(durationSeconds != null ? { durationSeconds } : {}),
-              });
-            }
+            // Backend has already inserted the element into the canvas.
+            // Notify caller to trigger a canvas re-fetch.
+            onJobSucceededRef.current(jobId, job.job_type ?? "unknown");
             return;
           }
 
