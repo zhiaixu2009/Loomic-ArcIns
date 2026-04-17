@@ -207,11 +207,11 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
       if (!textarea) return;
 
       textarea.style.height = "auto";
-      const maxHeight = 240;
+      const maxHeight = immersiveArchitecture ? 72 : 240;
       textarea.style.height = `${Math.min(textarea.scrollHeight, maxHeight)}px`;
       textarea.style.overflowY =
         textarea.scrollHeight > maxHeight ? "auto" : "hidden";
-    }, [value]);
+    }, [immersiveArchitecture, value]);
 
     useEffect(() => {
       if (!externalDraft) {
@@ -589,14 +589,359 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
     const architectureResolutionLabel = imageOutputPreference.resolution;
     const uploadButtonLabel = immersiveArchitecture ? "添加图片" : "上传图片";
 
-    const architectureContainerClass = immersiveArchitecture
-      ? "flex min-h-[120px] flex-col justify-between gap-2 rounded-[10px] border border-slate-200 bg-white p-3 shadow-[0_16px_40px_rgba(15,23,42,0.08)] transition-[border] focus-within:border-slate-300"
-      : "flex min-h-[120px] flex-col justify-between gap-2 rounded-[10px] border-[0.5px] border-border bg-card p-2 transition-[border] focus-within:border-border";
+    const nonImmersiveContainerClass =
+      "flex min-h-[120px] flex-col justify-between gap-2 rounded-[10px] border-[0.5px] border-border bg-card p-2 transition-[border] focus-within:border-border";
+    const showImmersiveMetaRail =
+      immersiveArchitecture &&
+      (showImmersiveSelectionChips ||
+        Boolean(attachments && attachments.length > 0) ||
+        Boolean(mentions && mentions.length > 0 && onRemoveMention));
+
+    if (immersiveArchitecture) {
+      return (
+        <div className="px-2 pb-2">
+          <div
+            data-testid="chat-input-immersive-shell"
+            data-layout="fixed"
+            className="flex h-[156px] max-h-[156px] flex-col gap-2 rounded-[10px] border border-slate-200 bg-white p-3 shadow-[0_16px_40px_rgba(15,23,42,0.08)] transition-[border] focus-within:border-slate-300"
+            onDrop={handleDrop}
+            onDragOver={handleDragOver}
+          >
+            {showImmersiveMetaRail ? (
+              <div
+                data-testid="chat-input-immersive-meta-rail"
+                className="flex min-h-[60px] items-start gap-2 overflow-x-auto pb-1"
+              >
+                {showImmersiveSelectionChips
+                  ? selectedImageElements.map((element, index) =>
+                      renderSelectedCanvasChip(
+                        element,
+                        index,
+                        selectedImageElements.length,
+                      ),
+                    )
+                  : null}
+
+                {attachments && onRemoveAttachment ? (
+                  <div className="shrink-0">
+                    <ImageAttachmentBar
+                      attachments={attachments}
+                      onRemove={onRemoveAttachment}
+                      {...(onRetryAttachment ? { onRetry: onRetryAttachment } : {})}
+                    />
+                  </div>
+                ) : null}
+
+                {mentions && mentions.length > 0 && onRemoveMention ? (
+                  <div className="flex shrink-0 items-center gap-1 px-1 py-1">
+                    {mentions.map((mention) => (
+                      <button
+                        key={`${mention.mentionType}:${mention.id}`}
+                        type="button"
+                        onClick={() => onRemoveMention(mention)}
+                        className="inline-flex items-center gap-1 rounded-[8px] border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] text-slate-700 transition-colors hover:bg-slate-100"
+                        title="移除引用"
+                      >
+                        <span className="text-slate-400">@</span>
+                        <span className="max-w-[120px] truncate">{mention.label}</span>
+                        <svg
+                          className="h-3 w-3 text-slate-400"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth={2}
+                        >
+                          <path d="M18 6 6 18M6 6l12 12" />
+                        </svg>
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+
+            <div className="relative flex min-h-0 flex-1 flex-col rounded-[10px] border border-slate-200 bg-white px-3 py-2">
+              <div
+                data-testid="chat-input-immersive-input-row"
+                className="flex min-h-[52px] items-end gap-2"
+              >
+                {onAddFiles ? (
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/gif"
+                    multiple
+                    className="hidden"
+                    onChange={handleFileChange}
+                  />
+                ) : null}
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  aria-label={uploadButtonLabel}
+                  className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] border border-slate-200 bg-white text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-45"
+                  title={uploadButtonLabel}
+                  disabled={!onAddFiles}
+                >
+                  <svg
+                    className="h-[16px] w-[16px]"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    aria-hidden="true"
+                  >
+                    <path
+                      d="M8 12h8M12 8v8"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                    />
+                    <rect
+                      x="4.75"
+                      y="4.75"
+                      width="14.5"
+                      height="14.5"
+                      rx="3.25"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                    />
+                  </svg>
+                </button>
+
+                <textarea
+                  ref={textareaRef}
+                  data-chat-input
+                  value={value}
+                  onChange={handleChange}
+                  onKeyDown={handleKeyDown}
+                  onFocus={onInputFocus}
+                  onPaste={handlePaste}
+                  placeholder={placeholder}
+                  aria-label={"输入消息"}
+                  rows={1}
+                  style={{ scrollbarWidth: "none" }}
+                  className="min-h-[48px] max-h-[72px] flex-1 resize-none bg-transparent px-1 text-sm leading-[1.8] text-foreground placeholder:text-muted-foreground focus:outline-none [&::-webkit-scrollbar]:hidden"
+                />
+
+                <button
+                  onClick={handleSubmit}
+                  disabled={disabled || !hasContent || isUploading}
+                  className="flex h-8 min-w-8 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground transition-colors hover:bg-primary/80 active:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-20"
+                >
+                  <svg
+                    className="h-[14px] w-[14px]"
+                    viewBox="0 0 14 14"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth={1.6}
+                    strokeLinecap="round"
+                  >
+                    <path d="M7 11.5V2.5" />
+                    <path d="M3 6.5L7 2.5L11 6.5" />
+                  </svg>
+                </button>
+              </div>
+
+              <div
+                data-testid="chat-input-immersive-control-row"
+                className="mt-2 flex items-center justify-between gap-2"
+              >
+                <div className="flex items-center gap-1">
+                  <AgentModelSelector
+                    compact
+                    fallbackLabel="Banana Pro"
+                    source="image"
+                  />
+
+                  <div className="relative">
+                    <button
+                      ref={aspectRatioBtnRef}
+                      type="button"
+                      onClick={() => {
+                        setAspectRatioMenuOpen((prev) => !prev);
+                        setResolutionMenuOpen(false);
+                        setTemplateMenuOpen(false);
+                      }}
+                      title={architectureAspectRatioLabel}
+                      aria-label={architectureAspectRatioLabel}
+                      className={`flex h-8 items-center justify-center rounded-[10px] border px-2.5 text-[11px] font-medium transition-colors ${
+                        aspectRatioMenuOpen
+                          ? "border-slate-300 bg-slate-100 text-foreground"
+                          : "border-slate-200 bg-white text-foreground hover:bg-slate-50"
+                      }`}
+                    >
+                      <span>{architectureAspectRatioLabel}</span>
+                    </button>
+
+                    {aspectRatioMenuOpen ? (
+                      <div
+                        ref={aspectRatioMenuRef}
+                        className="absolute bottom-full left-0 z-20 mb-2 rounded-[10px] border border-slate-200 bg-white p-2 shadow-[0_18px_48px_rgba(15,23,42,0.1)]"
+                      >
+                        <div className="mb-2 px-2 text-[11px] font-medium text-muted-foreground">
+                          画幅比例
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {IMAGE_ASPECT_RATIO_OPTIONS.map((option) => {
+                            const selected =
+                              imageOutputPreference.aspectRatio === option;
+                            const label = option === "auto" ? "自动" : option;
+                            return (
+                              <button
+                                key={option}
+                                type="button"
+                                onClick={() => handleSelectAspectRatio(option)}
+                                className={`inline-flex items-center rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+                                  selected
+                                    ? "border-slate-300 bg-slate-100 text-foreground"
+                                    : "border-slate-200 bg-white text-foreground hover:bg-slate-50"
+                                }`}
+                              >
+                                {label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+
+                  <div className="relative">
+                    <button
+                      ref={resolutionBtnRef}
+                      type="button"
+                      aria-label={architectureResolutionLabel}
+                      title={architectureResolutionLabel}
+                      onClick={() => {
+                        setResolutionMenuOpen((prev) => !prev);
+                        setAspectRatioMenuOpen(false);
+                        setTemplateMenuOpen(false);
+                      }}
+                      className={`flex h-8 items-center justify-center rounded-[10px] border px-2.5 text-[11px] font-medium transition-colors ${
+                        resolutionMenuOpen
+                          ? "border-slate-300 bg-slate-100 text-foreground"
+                          : "border-slate-200 bg-white text-foreground hover:bg-slate-50"
+                      }`}
+                    >
+                      <span>{architectureResolutionLabel}</span>
+                    </button>
+
+                    {resolutionMenuOpen ? (
+                      <div
+                        ref={resolutionMenuRef}
+                        className="absolute bottom-full left-0 z-20 mb-2 rounded-[10px] border border-slate-200 bg-white p-2 shadow-[0_18px_48px_rgba(15,23,42,0.1)]"
+                      >
+                        <div className="mb-2 px-2 text-[11px] font-medium text-muted-foreground">
+                          输出分辨率
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {IMAGE_RESOLUTION_OPTIONS.map((option) => {
+                            const selected =
+                              imageOutputPreference.resolution === option;
+                            return (
+                              <button
+                                key={option}
+                                type="button"
+                                onClick={() => handleSelectResolution(option)}
+                                className={`inline-flex items-center rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+                                  selected
+                                    ? "border-slate-300 bg-slate-100 text-foreground"
+                                    : "border-slate-200 bg-white text-foreground hover:bg-slate-50"
+                                }`}
+                              >
+                                {option}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <p className="mt-2 px-2 text-[11px] text-muted-foreground">
+                          高分辨率实际生成受账号权限影响
+                        </p>
+                      </div>
+                    ) : null}
+                  </div>
+
+                  {templateCategories.length > 0 ? (
+                    <div className="relative">
+                      <button
+                        ref={templateBtnRef}
+                        type="button"
+                        aria-label="模版"
+                        onClick={() => {
+                          setTemplateMenuOpen((prev) => !prev);
+                          setAspectRatioMenuOpen(false);
+                          setResolutionMenuOpen(false);
+                        }}
+                        className={`flex h-8 items-center gap-1.5 rounded-[10px] border border-slate-200 px-2.5 text-[11px] font-medium transition-colors ${
+                          templateMenuOpen
+                            ? "border-slate-300 bg-slate-100 text-foreground"
+                            : "bg-white text-foreground hover:bg-slate-50"
+                        }`}
+                      >
+                        <LayoutTemplate className="h-3.5 w-3.5" />
+                        <span>模版</span>
+                      </button>
+
+                      {templateMenuOpen ? (
+                        <div
+                          ref={templateMenuRef}
+                          className="absolute bottom-full left-0 z-20 mb-2 w-[320px] rounded-[10px] border border-slate-200 bg-white p-2 shadow-[0_18px_48px_rgba(15,23,42,0.1)]"
+                        >
+                          <div className="mb-2 px-2 text-[11px] font-medium text-muted-foreground">
+                            快捷模版
+                          </div>
+                          {templateCategories.length > 1 ? (
+                            <div className="mb-3 flex flex-wrap gap-2 px-1">
+                              {templateCategories.map((category) => {
+                                const selected =
+                                  activeTemplateCategory?.id === category.id;
+                                return (
+                                  <button
+                                    key={category.id}
+                                    type="button"
+                                    aria-pressed={selected}
+                                    onClick={() =>
+                                      setActiveTemplateCategoryId(category.id)
+                                    }
+                                    className={`inline-flex items-center rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+                                      selected
+                                        ? "border-slate-300 bg-slate-100 text-foreground"
+                                        : "border-slate-200 bg-white text-foreground hover:bg-slate-50"
+                                    }`}
+                                  >
+                                    {category.label}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          ) : null}
+                          <div className="flex flex-wrap gap-2">
+                            {activeTemplateCategory?.suggestions.map((template) => (
+                              <button
+                                key={template.id}
+                                type="button"
+                                onClick={() => handleApplyTemplate(template)}
+                                className="inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-slate-50"
+                              >
+                                {template.label}
+                              </button>
+                            )) ?? null}
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
 
     return (
       <div className="px-2 pb-2">
         <div
-          className={architectureContainerClass}
+          className={nonImmersiveContainerClass}
           onDrop={handleDrop}
           onDragOver={handleDragOver}
         >

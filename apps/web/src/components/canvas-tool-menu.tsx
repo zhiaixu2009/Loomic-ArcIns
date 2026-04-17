@@ -131,6 +131,13 @@ type MyCreationSourceId =
   | "site-coloring"
   | "hand-drawing"
   | "inpaint";
+type GallerySampleItem = {
+  id: string;
+  label: string;
+  url: string;
+  width: number;
+  height: number;
+};
 type ShapeToolbarStyle = {
   strokeColor: string;
   backgroundColor: string;
@@ -345,6 +352,105 @@ const MY_CREATION_SOURCES: Array<{
   { id: "inpaint", label: "局部重绘" },
 ];
 
+const MY_CREATION_SAMPLE_ITEMS: Record<MyCreationSourceId, GallerySampleItem[]> = {
+  "ai-drawing": [
+    {
+      id: "my-ai-drawing-1",
+      label: "AI创作绘图 1",
+      url: "http://image-assets.soutushenqi.com/jzxz_photo/top_tier_architectural_rendering/8b19a4cf-c1be-4ff0-834b-02ba814eb4fd.png?x-tos-process=image/resize,w_480",
+      width: 1600,
+      height: 900,
+    },
+    {
+      id: "my-ai-drawing-2",
+      label: "AI创作绘图 2",
+      url: "http://image-assets.soutushenqi.com/jzxz_photo/top_tier_architectural_rendering/9ee1d14e-b422-4587-8fda-4c4dac6eb128.png?x-tos-process=image/resize,w_480",
+      width: 1600,
+      height: 900,
+    },
+  ],
+  "banana-agent": [
+    {
+      id: "my-banana-agent-1",
+      label: "Banana智能体 1",
+      url: "http://image-assets.soutushenqi.com/jzxz_photo/top_tier_architectural_rendering/9c3d4e53-ba53-4cc5-a526-53906020b225.png?x-tos-process=image/resize,w_480",
+      width: 1600,
+      height: 900,
+    },
+    {
+      id: "my-banana-agent-2",
+      label: "Banana智能体 2",
+      url: "http://image-assets.soutushenqi.com/jzxz_photo/top_tier_architectural_rendering/c03941e9-2cc5-4c10-a3db-9737d562e1a1.png?x-tos-process=image/resize,w_480",
+      width: 1600,
+      height: 900,
+    },
+  ],
+  "model-render": [
+    {
+      id: "my-model-render-1",
+      label: "AI模型渲染 1",
+      url: "http://image-assets.soutushenqi.com/jzxz_photo/top_tier_architectural_rendering/562251b1-bc95-487e-b033-b24dec7e7537.png?x-tos-process=image/resize,w_480",
+      width: 1600,
+      height: 900,
+    },
+    {
+      id: "my-model-render-2",
+      label: "AI模型渲染 2",
+      url: "http://image-assets.soutushenqi.com/jzxz_photo/top_tier_architectural_rendering/ef7ae925-d089-4b7d-bd96-6d937a709bd3.png?x-tos-process=image/resize,w_480",
+      width: 1600,
+      height: 900,
+    },
+  ],
+  "site-coloring": [
+    {
+      id: "my-site-coloring-1",
+      label: "AI总图彩平填色 1",
+      url: "http://image-assets.soutushenqi.com/jzxz_photo/top_tier_architectural_rendering/8b19a4cf-c1be-4ff0-834b-02ba814eb4fd.png?x-tos-process=image/resize,w_480",
+      width: 1600,
+      height: 900,
+    },
+    {
+      id: "my-site-coloring-2",
+      label: "AI总图彩平填色 2",
+      url: "http://image-assets.soutushenqi.com/jzxz_photo/top_tier_architectural_rendering/9c3d4e53-ba53-4cc5-a526-53906020b225.png?x-tos-process=image/resize,w_480",
+      width: 1600,
+      height: 900,
+    },
+  ],
+  "hand-drawing": [
+    {
+      id: "my-hand-drawing-1",
+      label: "手绘创作 1",
+      url: "http://image-assets.soutushenqi.com/jzxz_photo/top_tier_architectural_rendering/9ee1d14e-b422-4587-8fda-4c4dac6eb128.png?x-tos-process=image/resize,w_480",
+      width: 1600,
+      height: 900,
+    },
+    {
+      id: "my-hand-drawing-2",
+      label: "手绘创作 2",
+      url: "http://image-assets.soutushenqi.com/jzxz_photo/top_tier_architectural_rendering/562251b1-bc95-487e-b033-b24dec7e7537.png?x-tos-process=image/resize,w_480",
+      width: 1600,
+      height: 900,
+    },
+  ],
+  inpaint: [
+    {
+      id: "my-inpaint-1",
+      label: "局部重绘 1",
+      url: "http://image-assets.soutushenqi.com/jzxz_photo/top_tier_architectural_rendering/c03941e9-2cc5-4c10-a3db-9737d562e1a1.png?x-tos-process=image/resize,w_480",
+      width: 1600,
+      height: 900,
+    },
+    {
+      id: "my-inpaint-2",
+      label: "局部重绘 2",
+      url: "http://image-assets.soutushenqi.com/jzxz_photo/top_tier_architectural_rendering/ef7ae925-d089-4b7d-bd96-6d937a709bd3.png?x-tos-process=image/resize,w_480",
+      width: 1600,
+      height: 900,
+    },
+  ],
+};
+
 const SHAPE_TOOL_IDS: ToolType[] = [
   "rectangle",
   "ellipse",
@@ -352,18 +458,6 @@ const SHAPE_TOOL_IDS: ToolType[] = [
   "arrow",
   "line",
 ];
-
-const SHAPE_STROKE_OPTIONS = [
-  { id: "transparent", label: "设置描边为透明", value: "transparent" },
-  { id: "dark", label: "设置描边为深色", value: "#0f172a" },
-  { id: "slate", label: "设置描边为灰色", value: "#64748b" },
-] as const;
-
-const SHAPE_FILL_OPTIONS = [
-  { id: "transparent", label: "设置填充为透明", value: "transparent" },
-  { id: "white", label: "设置填充为浅色", value: "#ffffff" },
-  { id: "dark", label: "设置填充为深色", value: "#111827" },
-] as const;
 
 function isShapeToolId(tool: string): tool is ToolType {
   return SHAPE_TOOL_IDS.includes(tool as ToolType);
@@ -429,12 +523,6 @@ function normalizeShapeToolbarStyle(style?: Partial<ShapeToolbarStyle> | null): 
   };
 }
 
-function swatchClass(selected: boolean) {
-  return selected
-    ? "border-slate-900 ring-2 ring-slate-300"
-    : "border-slate-200 hover:border-slate-400";
-}
-
 function areShapeToolbarStylesEqual(
   left: ShapeToolbarStyle,
   right: ShapeToolbarStyle,
@@ -477,6 +565,18 @@ function bumpSceneElement(element: Record<string, any>) {
     versionNonce: Math.floor(Math.random() * 2_000_000_000),
     updated: Date.now(),
   };
+}
+
+function normalizeColorInputValue(color: string | undefined, fallback: string) {
+  if (typeof color === "string" && /^#[0-9a-f]{6}$/i.test(color)) {
+    return color;
+  }
+
+  return fallback;
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max);
 }
 
 /** Memoized shimmer overlay for a single generating element */
@@ -1149,6 +1249,8 @@ export function CanvasToolMenu({
         ? OFFICIAL_GALLERY_SAMPLE_ITEMS.filter((item) => item.id.includes("villa"))
         : OFFICIAL_GALLERY_SAMPLE_ITEMS.filter((item) => item.id.includes("default"))
       : OFFICIAL_GALLERY_SAMPLE_ITEMS.filter((item) => item.id.includes("default"));
+  const activeMyCreationItems =
+    MY_CREATION_SAMPLE_ITEMS[activeMyCreationSource] ?? [];
 
   const closeAddModal = useCallback(() => {
     setAddModalOpen(false);
@@ -1173,8 +1275,14 @@ export function CanvasToolMenu({
     [],
   );
 
-  const handleInsertOfficialGalleryImage = useCallback(
-    async (item: (typeof OFFICIAL_GALLERY_SAMPLE_ITEMS)[number], index: number) => {
+  const handleInsertGalleryImage = useCallback(
+    async (
+      item: GallerySampleItem,
+      options: {
+        index: number;
+        logSource: "official-gallery" | "my-creations";
+      },
+    ) => {
       if (!excalidrawApi) {
         return;
       }
@@ -1190,14 +1298,35 @@ export function CanvasToolMenu({
         });
         closeAddModal();
       } catch (error) {
-        console.warn("[canvas-tool-menu] failed to insert official gallery image", {
+        console.warn("[canvas-tool-menu] failed to insert gallery image", {
           error,
           itemId: item.id,
-          index,
+          index: options.index,
+          source: options.logSource,
         });
       }
     },
     [closeAddModal, excalidrawApi],
+  );
+
+  const handleInsertOfficialGalleryImage = useCallback(
+    async (item: (typeof OFFICIAL_GALLERY_SAMPLE_ITEMS)[number], index: number) => {
+      await handleInsertGalleryImage(item, {
+        index,
+        logSource: "official-gallery",
+      });
+    },
+    [handleInsertGalleryImage],
+  );
+
+  const handleInsertMyCreationImage = useCallback(
+    async (item: GallerySampleItem, index: number) => {
+      await handleInsertGalleryImage(item, {
+        index,
+        logSource: "my-creations",
+      });
+    },
+    [handleInsertGalleryImage],
   );
 
   const handleOpenEnterpriseUpgrade = useCallback(() => {
@@ -1349,6 +1478,157 @@ export function CanvasToolMenu({
     const currentStyle = selectedShapeElement
       ? normalizeShapeToolbarStyle(selectedShapeElement)
       : shapeToolbarStyle;
+    const strokeColorValue = normalizeColorInputValue(
+      currentStyle.strokeColor,
+      "#0f172a",
+    );
+    const fillColorValue = normalizeColorInputValue(
+      currentStyle.backgroundColor,
+      "#ffffff",
+    );
+    const selectionToolbarStyle = selectedShapeElement
+      ? (() => {
+          const viewportWidth =
+            typeof window === "undefined" ? 1440 : window.innerWidth;
+          const viewportHeight =
+            typeof window === "undefined" ? 900 : window.innerHeight;
+          const centerX =
+            (selectedShapeElement.x +
+              selectedShapeElement.width / 2 +
+              canvasScrollZoom.scrollX) *
+            canvasScrollZoom.zoom;
+          const anchorTop =
+            (selectedShapeElement.y + canvasScrollZoom.scrollY) *
+              canvasScrollZoom.zoom -
+            82;
+          const fallbackBelowTop =
+            (selectedShapeElement.y +
+              selectedShapeElement.height +
+              canvasScrollZoom.scrollY) *
+              canvasScrollZoom.zoom +
+            12;
+
+          return {
+            left: clamp(centerX, 40, Math.max(40, viewportWidth - 40)),
+            top: clamp(
+              anchorTop < 16 ? fallbackBelowTop : anchorTop,
+              16,
+              Math.max(16, viewportHeight - 112),
+            ),
+          };
+        })()
+      : null;
+
+    const toolbarCard = (
+      <div className="flex flex-wrap items-center gap-3 rounded-[10px] border border-slate-200 bg-white/96 px-4 py-3 shadow-[0_18px_48px_rgba(15,23,42,0.1)] backdrop-blur">
+        <label className="flex items-center gap-2">
+          <span className="text-[11px] font-medium text-slate-500">描边</span>
+          <input
+            aria-label="描边颜色"
+            type="color"
+            value={strokeColorValue}
+            onChange={(event) => handleShapeStrokeSelect(event.currentTarget.value)}
+            className="h-8 w-8 cursor-pointer rounded-[8px] border border-slate-200 bg-white p-1"
+          />
+        </label>
+
+        <div className="flex items-center gap-2">
+          <label className="flex items-center gap-2">
+            <span className="text-[11px] font-medium text-slate-500">填充</span>
+            <input
+              aria-label="填充颜色"
+              type="color"
+              value={fillColorValue}
+              onChange={(event) => handleShapeFillSelect(event.currentTarget.value)}
+              className="h-8 w-8 cursor-pointer rounded-[8px] border border-slate-200 bg-white p-1"
+            />
+          </label>
+          <button
+            type="button"
+            aria-label="清除填充"
+            className="inline-flex h-8 items-center justify-center rounded-[8px] border border-slate-200 bg-white px-3 text-[11px] font-medium text-slate-600 transition-colors hover:bg-slate-50"
+            onClick={() => handleShapeFillSelect("transparent")}
+          >
+            清除填充
+          </button>
+        </div>
+
+        <label className="flex min-w-[180px] items-center gap-3">
+          <span className="text-[11px] font-medium text-slate-500">线宽</span>
+          <input
+            aria-label="形状线宽"
+            type="range"
+            min={1}
+            max={16}
+            step={1}
+            value={currentStyle.strokeWidth}
+            onChange={(event) =>
+              handleShapeStrokeWidthChange(Number(event.currentTarget.value))
+            }
+            className="h-2 flex-1 accent-slate-900"
+          />
+          <span className="w-8 text-right text-[11px] font-medium text-slate-700">
+            {currentStyle.strokeWidth}
+          </span>
+        </label>
+
+        {selectedShapeElement ? (
+          <div className="ml-auto flex items-center gap-3">
+            <label className="flex items-center gap-2 text-[11px] font-medium text-slate-500">
+              <span>W</span>
+              <input
+                aria-label="形状宽度"
+                type="number"
+                min={1}
+                value={Math.round(selectedShapeElement.width)}
+                onChange={(event) =>
+                  handleSelectedShapeDimensionChange(
+                    "width",
+                    Number(event.currentTarget.value),
+                  )
+                }
+                className="h-8 w-20 rounded-[8px] border border-slate-200 bg-white px-2 text-sm text-slate-900 outline-none transition-colors focus:border-slate-400"
+              />
+            </label>
+            <label className="flex items-center gap-2 text-[11px] font-medium text-slate-500">
+              <span>H</span>
+              <input
+                aria-label="形状高度"
+                type="number"
+                min={1}
+                value={Math.round(selectedShapeElement.height)}
+                onChange={(event) =>
+                  handleSelectedShapeDimensionChange(
+                    "height",
+                    Number(event.currentTarget.value),
+                  )
+                }
+                className="h-8 w-20 rounded-[8px] border border-slate-200 bg-white px-2 text-sm text-slate-900 outline-none transition-colors focus:border-slate-400"
+              />
+            </label>
+          </div>
+        ) : null}
+      </div>
+    );
+
+    if (
+      toolbarMode === "selection" &&
+      selectionToolbarStyle &&
+      typeof document !== "undefined"
+    ) {
+      return createPortal(
+        <div
+          className="pointer-events-auto fixed z-[72] w-[min(760px,calc(100vw-4rem))] -translate-x-1/2"
+          data-anchor="shape-selection"
+          data-mode={toolbarMode}
+          data-testid="architecture-canvas-shape-toolbar"
+          style={selectionToolbarStyle}
+        >
+          {toolbarCard}
+        </div>,
+        document.body,
+      );
+    }
 
     return (
       <div
@@ -1356,115 +1636,7 @@ export function CanvasToolMenu({
         data-mode={toolbarMode}
         data-testid="architecture-canvas-shape-toolbar"
       >
-        <div className="flex flex-wrap items-center gap-3 rounded-[10px] border border-slate-200 bg-white/96 px-4 py-3 shadow-[0_18px_48px_rgba(15,23,42,0.1)] backdrop-blur">
-          <div className="flex items-center gap-2">
-            <span className="text-[11px] font-medium text-slate-500">描边</span>
-            <div className="flex items-center gap-2">
-              {SHAPE_STROKE_OPTIONS.map((option) => {
-                const selected = currentStyle.strokeColor === option.value;
-                return (
-                  <button
-                    key={`stroke-${option.id}`}
-                    type="button"
-                    aria-label={option.label}
-                    className={`inline-flex h-7 w-7 items-center justify-center rounded-full border transition-all ${swatchClass(selected)}`}
-                    onClick={() => handleShapeStrokeSelect(option.value)}
-                  >
-                    <span
-                      className="h-3.5 w-3.5 rounded-full border border-slate-300"
-                      style={{
-                        backgroundColor:
-                          option.value === "transparent" ? "#ffffff" : option.value,
-                      }}
-                    />
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <span className="text-[11px] font-medium text-slate-500">填充</span>
-            <div className="flex items-center gap-2">
-              {SHAPE_FILL_OPTIONS.map((option) => {
-                const selected = currentStyle.backgroundColor === option.value;
-                return (
-                  <button
-                    key={`fill-${option.id}`}
-                    type="button"
-                    aria-label={option.label}
-                    className={`inline-flex h-7 w-7 items-center justify-center rounded-full border transition-all ${swatchClass(selected)}`}
-                    onClick={() => handleShapeFillSelect(option.value)}
-                  >
-                    <span
-                      className="h-3.5 w-3.5 rounded-full border border-slate-300"
-                      style={{
-                        backgroundColor:
-                          option.value === "transparent" ? "#ffffff" : option.value,
-                      }}
-                    />
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <label className="flex min-w-[180px] items-center gap-3">
-            <span className="text-[11px] font-medium text-slate-500">线宽</span>
-            <input
-              aria-label="形状线宽"
-              type="range"
-              min={1}
-              max={16}
-              step={1}
-              value={currentStyle.strokeWidth}
-              onChange={(event) =>
-                handleShapeStrokeWidthChange(Number(event.currentTarget.value))
-              }
-              className="h-2 flex-1 accent-slate-900"
-            />
-            <span className="w-8 text-right text-[11px] font-medium text-slate-700">
-              {currentStyle.strokeWidth}
-            </span>
-          </label>
-
-          {selectedShapeElement ? (
-            <div className="ml-auto flex items-center gap-3">
-              <label className="flex items-center gap-2 text-[11px] font-medium text-slate-500">
-                <span>W</span>
-                <input
-                  aria-label="形状宽度"
-                  type="number"
-                  min={1}
-                  value={Math.round(selectedShapeElement.width)}
-                  onChange={(event) =>
-                    handleSelectedShapeDimensionChange(
-                      "width",
-                      Number(event.currentTarget.value),
-                    )
-                  }
-                  className="h-8 w-20 rounded-[8px] border border-slate-200 bg-white px-2 text-sm text-slate-900 outline-none transition-colors focus:border-slate-400"
-                />
-              </label>
-              <label className="flex items-center gap-2 text-[11px] font-medium text-slate-500">
-                <span>H</span>
-                <input
-                  aria-label="形状高度"
-                  type="number"
-                  min={1}
-                  value={Math.round(selectedShapeElement.height)}
-                  onChange={(event) =>
-                    handleSelectedShapeDimensionChange(
-                      "height",
-                      Number(event.currentTarget.value),
-                    )
-                  }
-                  className="h-8 w-20 rounded-[8px] border border-slate-200 bg-white px-2 text-sm text-slate-900 outline-none transition-colors focus:border-slate-400"
-                />
-              </label>
-            </div>
-          ) : null}
-        </div>
+        {toolbarCard}
       </div>
     );
   };
@@ -1487,7 +1659,8 @@ export function CanvasToolMenu({
           role="dialog"
           aria-modal="true"
           aria-label="添加素材"
-          className="relative w-full max-w-[1080px] rounded-[10px] border border-slate-200 bg-white shadow-[0_28px_80px_rgba(15,23,42,0.14)]"
+          data-layout="fixed-responsive"
+          className="relative flex h-[min(78vh,760px)] w-[min(1100px,calc(100vw-48px))] max-h-[calc(100vh-48px)] max-w-[1100px] flex-col overflow-hidden rounded-[10px] border border-slate-200 bg-white shadow-[0_28px_80px_rgba(15,23,42,0.14)]"
           onMouseDown={(event) => event.stopPropagation()}
         >
           <div className="flex items-center gap-5 border-b border-slate-200 px-6 py-4">
@@ -1529,13 +1702,17 @@ export function CanvasToolMenu({
             </div>
           </div>
 
-          <div className="px-6 py-5">
+          <div
+            data-testid="architecture-add-dialog-body"
+            data-scroll-region="true"
+            className="min-h-0 flex-1 overflow-y-auto px-6 py-5"
+          >
             {activeAddTab === "local-upload" ? (
               <div
                 id="add-material-panel-local-upload"
                 role="tabpanel"
                 aria-labelledby="add-material-tab-local-upload"
-                className="flex min-h-[440px] items-center justify-center"
+                className="flex h-full min-h-[440px] items-center justify-center"
               >
                 <button
                   type="button"
@@ -1670,14 +1847,44 @@ export function CanvasToolMenu({
                     );
                   })}
                 </div>
-                <div
-                  className="flex min-h-[360px] flex-col items-center justify-center rounded-[10px] border border-dashed border-slate-300 bg-slate-50 px-8 text-center"
-                >
-                  <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-white text-2xl text-slate-300">
-                    □
+                {activeMyCreationItems.length === 0 ? (
+                  <div
+                    className="flex min-h-[360px] flex-col items-center justify-center rounded-[10px] border border-dashed border-slate-300 bg-slate-50 px-8 text-center"
+                  >
+                    <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-white text-2xl text-slate-300">
+                      □
+                    </div>
+                    <div className="text-sm font-medium text-slate-700">数据为空</div>
                   </div>
-                  <div className="text-sm font-medium text-slate-700">数据为空</div>
-                </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-5">
+                    {activeMyCreationItems.map((item, index) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        aria-label={`插入我的创作图片 ${item.label}`}
+                        className="group overflow-hidden rounded-[10px] border border-slate-200 bg-white text-left transition-colors hover:border-slate-300"
+                        onClick={() => handleInsertMyCreationImage(item, index)}
+                      >
+                        <div className="aspect-[4/3] overflow-hidden bg-slate-100">
+                          <img
+                            src={item.url}
+                            alt={item.label}
+                            className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-[1.02]"
+                          />
+                        </div>
+                        <div className="border-t border-slate-100 px-3 py-2.5">
+                          <p className="truncate text-sm font-medium text-slate-800">
+                            {item.label}
+                          </p>
+                          <p className="mt-1 text-xs text-slate-500">
+                            点击后重新插回当前画布
+                          </p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             ) : null}
 

@@ -644,6 +644,42 @@ function CanvasPageContent() {
     [],
   );
 
+  const handleClearCanvasSelection = useCallback(() => {
+    const api = excalidrawApiRef.current;
+    if (api?.getAppState && api?.updateScene) {
+      api.updateScene({
+        appState: {
+          ...api.getAppState(),
+          selectedElementIds: {},
+        },
+        captureUpdate: "NONE",
+      });
+    }
+
+    setContextMenuState(null);
+    setSelectionActionOrigin("suppressed");
+    setSelectedCanvasElements([]);
+  }, []);
+
+  useEffect(() => {
+    if (selectedCanvasElements.length === 0 && !contextMenuState) {
+      return;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") {
+        return;
+      }
+
+      handleClearCanvasSelection();
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [contextMenuState, handleClearCanvasSelection, selectedCanvasElements.length]);
+
   const selectedImageActionBarPosition = useMemo(() => {
     const actionBarElements =
       selectionActionOrigin === "left" &&

@@ -734,6 +734,80 @@ describe("ChatSidebar", () => {
     expect(screen.queryByAltText("画布参考图 1")).not.toBeInTheDocument();
   });
 
+  it("keeps the typed draft and swaps the focused canvas reference when the user changes the selected base image", async () => {
+    const { rerender } = render(
+      <ChatSidebar
+        accessToken="token_abc"
+        architectureContext={architectureContext as any}
+        canvasId="canvas-1"
+        immersive
+        open
+        onToggle={() => {}}
+        selectedCanvasElements={[
+          {
+            id: "image-1",
+            type: "image",
+            x: 0,
+            y: 0,
+            width: 640,
+            height: 480,
+            fileId: "file-1",
+            storageUrl: "https://example.com/reference-1.png",
+          },
+        ]}
+        ws={mockWs}
+      />,
+    );
+
+    const input = await screen.findByLabelText("输入消息");
+    await userEvent.click(input);
+    await userEvent.type(input, "保留当前视角，替换为新的主体参考");
+
+    expect(screen.getByLabelText("输入消息")).toHaveValue(
+      "保留当前视角，替换为新的主体参考",
+    );
+    expect(screen.getByAltText("画布参考图 1")).toHaveAttribute(
+      "src",
+      "https://example.com/reference-1.png",
+    );
+
+    rerender(
+      <ChatSidebar
+        accessToken="token_abc"
+        architectureContext={architectureContext as any}
+        canvasId="canvas-1"
+        immersive
+        open
+        onToggle={() => {}}
+        selectedCanvasElements={[
+          {
+            id: "image-2",
+            type: "image",
+            x: 40,
+            y: 20,
+            width: 640,
+            height: 480,
+            fileId: "file-2",
+            storageUrl: "https://example.com/reference-2.png",
+          },
+        ]}
+        ws={mockWs}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("输入消息")).toHaveValue(
+        "保留当前视角，替换为新的主体参考",
+      );
+      expect(screen.getByAltText("画布参考图 1")).toHaveAttribute(
+        "src",
+        "https://example.com/reference-2.png",
+      );
+    });
+
+    expect(screen.queryByAltText("参考图 1")).not.toBeInTheDocument();
+  });
+
   it("reorders the selected multi-image references before sending so AI receives the adjusted input order", async () => {
     render(
       <ChatSidebar

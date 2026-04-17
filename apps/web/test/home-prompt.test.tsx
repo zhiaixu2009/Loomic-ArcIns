@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -51,7 +51,7 @@ describe("HomePrompt", () => {
     imageModelPreferenceState.models = [];
   });
 
-  it("shows the architecture control strip like the real canvas home entry", () => {
+  it("shows the home prompt control strip with split 自动 / 1K buttons and an in-shell upload trigger", () => {
     render(<HomePrompt onSubmit={vi.fn()} />);
 
     expect(screen.getByTitle("上传参考图")).toBeInTheDocument();
@@ -59,9 +59,18 @@ describe("HomePrompt", () => {
       "Banana Pro",
     );
     expect(
-      screen.getByRole("button", { name: "自动 1K" }),
+      screen.getByRole("button", { name: "自动" }),
     ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "1K" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "模版" })).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "自动 1K" }),
+    ).not.toBeInTheDocument();
+
+    const inputRow = screen.getByTestId("home-prompt-input-row");
+    expect(
+      within(inputRow).getByRole("button", { name: "上传参考图" }),
+    ).toBeInTheDocument();
   });
 
   it("injects a home template prompt into the textarea", async () => {

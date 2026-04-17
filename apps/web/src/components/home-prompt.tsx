@@ -20,9 +20,9 @@ import type {
 import type { HomeExampleSelection } from "@/lib/home-example-seeds";
 import { AgentModelSelector } from "./agent-model-selector";
 import { ImageAttachmentBar } from "./image-attachment-bar";
-import { ImageModelPreferencePopover } from "./image-model-preference";
 import { useAgentModel } from "../hooks/use-agent-model";
 import { useImageModelPreference } from "../hooks/use-image-model-preference";
+import { useImageOutputPreference } from "../hooks/use-image-output-preference";
 import { useVideoModelPreference } from "../hooks/use-video-model-preference";
 import { buildTemplateRecommendedImagePreference } from "../lib/image-model-utils";
 
@@ -84,6 +84,18 @@ const submitIcon = {
   ],
 };
 
+const IMAGE_ASPECT_RATIO_OPTIONS = [
+  "auto",
+  "16:9",
+  "4:3",
+  "1:1",
+  "3:4",
+  "9:16",
+  "21:9",
+] as const;
+
+const IMAGE_RESOLUTION_OPTIONS = ["1K", "2K", "4K"] as const;
+
 const HOME_PROMPT_TEMPLATES: HomePromptTemplate[] = [
   {
     id: "site-analysis",
@@ -123,12 +135,21 @@ export const HomePrompt = forwardRef<HomePromptHandle, HomePromptProps>(
     const [value, setValue] = useState("");
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
-    const modelBtnRef = useRef<HTMLButtonElement>(null);
     const templateBtnRef = useRef<HTMLButtonElement>(null);
     const templateMenuRef = useRef<HTMLDivElement>(null);
-    const [modelPopoverOpen, setModelPopoverOpen] = useState(false);
+    const aspectRatioBtnRef = useRef<HTMLButtonElement>(null);
+    const aspectRatioMenuRef = useRef<HTMLDivElement>(null);
+    const resolutionBtnRef = useRef<HTMLButtonElement>(null);
+    const resolutionMenuRef = useRef<HTMLDivElement>(null);
     const [templateMenuOpen, setTemplateMenuOpen] = useState(false);
+    const [aspectRatioMenuOpen, setAspectRatioMenuOpen] = useState(false);
+    const [resolutionMenuOpen, setResolutionMenuOpen] = useState(false);
     const { preference, setPreference } = useImageModelPreference();
+    const {
+      preference: imageOutputPreference,
+      setAspectRatio,
+      setResolution,
+    } = useImageOutputPreference();
     const { preference: videoPreference } = useVideoModelPreference();
     const { model: agentModel } = useAgentModel();
 
@@ -146,7 +167,7 @@ export const HomePrompt = forwardRef<HomePromptHandle, HomePromptProps>(
     }));
 
     useEffect(() => {
-      if (!templateMenuOpen) {
+      if (!templateMenuOpen && !aspectRatioMenuOpen && !resolutionMenuOpen) {
         return;
       }
 
@@ -154,16 +175,24 @@ export const HomePrompt = forwardRef<HomePromptHandle, HomePromptProps>(
         const target = event.target as Node;
         if (
           templateMenuRef.current?.contains(target) ||
-          templateBtnRef.current?.contains(target)
+          templateBtnRef.current?.contains(target) ||
+          aspectRatioMenuRef.current?.contains(target) ||
+          aspectRatioBtnRef.current?.contains(target) ||
+          resolutionMenuRef.current?.contains(target) ||
+          resolutionBtnRef.current?.contains(target)
         ) {
           return;
         }
         setTemplateMenuOpen(false);
+        setAspectRatioMenuOpen(false);
+        setResolutionMenuOpen(false);
       };
 
       const handleKeyDown = (event: KeyboardEvent) => {
         if (event.key === "Escape") {
           setTemplateMenuOpen(false);
+          setAspectRatioMenuOpen(false);
+          setResolutionMenuOpen(false);
         }
       };
 
@@ -173,14 +202,15 @@ export const HomePrompt = forwardRef<HomePromptHandle, HomePromptProps>(
         document.removeEventListener("mousedown", handlePointerDown);
         document.removeEventListener("keydown", handleKeyDown);
       };
-    }, [templateMenuOpen]);
+    }, [aspectRatioMenuOpen, resolutionMenuOpen, templateMenuOpen]);
 
     const hasContent =
       value.trim().length > 0 || Boolean(attachments && attachments.length > 0);
-    const architecturePreferenceLabel =
-      preference.mode === "manual" || videoPreference.mode === "manual"
-        ? "手动 1K"
-        : "自动 1K";
+    const architectureAspectRatioLabel =
+      imageOutputPreference.aspectRatio === "auto"
+        ? "自动"
+        : imageOutputPreference.aspectRatio;
+    const architectureResolutionLabel = imageOutputPreference.resolution;
 
     const handleSubmit = useCallback(() => {
       const trimmed = value.trim();
@@ -301,6 +331,22 @@ export const HomePrompt = forwardRef<HomePromptHandle, HomePromptProps>(
       });
     }, [setPreference]);
 
+    const handleSelectAspectRatio = useCallback(
+      (nextAspectRatio: (typeof IMAGE_ASPECT_RATIO_OPTIONS)[number]) => {
+        setAspectRatio(nextAspectRatio);
+        setAspectRatioMenuOpen(false);
+      },
+      [setAspectRatio],
+    );
+
+    const handleSelectResolution = useCallback(
+      (nextResolution: (typeof IMAGE_RESOLUTION_OPTIONS)[number]) => {
+        setResolution(nextResolution);
+        setResolutionMenuOpen(false);
+      },
+      [setResolution],
+    );
+
     return (
       <div className="overflow-hidden rounded-[10px] border border-slate-200 bg-white shadow-[0_18px_48px_rgba(15,23,42,0.08)]">
         {attachments && onRemoveAttachment ? (
@@ -352,23 +398,11 @@ export const HomePrompt = forwardRef<HomePromptHandle, HomePromptProps>(
           </div>
         ) : null}
 
-        <div className="px-4 pt-4">
-          <textarea
-            ref={textareaRef}
-            value={value}
-            onChange={(event) => setValue(event.target.value)}
-            onKeyDown={handleKeyDown}
-            onPaste={handlePaste}
-            onInput={handleInput}
-            placeholder="添加图片输入文案开始创作之旅..."
-            disabled={disabled}
-            rows={2}
-            className="min-h-[72px] w-full resize-none bg-transparent text-[15px] leading-7 text-slate-900 placeholder:text-slate-400 focus:outline-none disabled:opacity-50"
-          />
-        </div>
-
-        <div className="relative flex items-center justify-between gap-3 px-4 pb-4">
-          <div className="flex items-center gap-2">
+        <div className="px-4 pb-4 pt-4">
+          <div
+            data-testid="home-prompt-input-row"
+            className="flex min-h-[86px] items-end gap-3 rounded-[10px] border border-slate-200 bg-white px-3 py-3"
+          >
             {onAddFiles ? (
               <>
                 <input
@@ -390,10 +424,10 @@ export const HomePrompt = forwardRef<HomePromptHandle, HomePromptProps>(
                   onClick={() => fileInputRef.current?.click()}
                   title={toolbarButtons[0].title}
                   aria-label={toolbarButtons[0].title}
-                  className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 text-slate-600 transition-colors hover:bg-slate-100"
+                  className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] border border-slate-200 bg-white text-slate-600 transition-colors hover:bg-slate-50"
                 >
                   <svg
-                    className="h-[14px] w-[14px]"
+                    className="h-[16px] w-[16px]"
                     viewBox={toolbarButtons[0].viewBox}
                     fill="currentColor"
                     role="img"
@@ -409,10 +443,10 @@ export const HomePrompt = forwardRef<HomePromptHandle, HomePromptProps>(
                 disabled
                 title={toolbarButtons[0].title}
                 aria-label={toolbarButtons[0].title}
-                className="flex h-8 w-8 cursor-not-allowed items-center justify-center rounded-full border border-slate-200 text-slate-600 opacity-40"
+                className="inline-flex h-9 w-9 shrink-0 cursor-not-allowed items-center justify-center rounded-[10px] border border-slate-200 bg-white text-slate-600 opacity-40"
               >
                 <svg
-                  className="h-[14px] w-[14px]"
+                  className="h-[16px] w-[16px]"
                   viewBox={toolbarButtons[0].viewBox}
                   fill="currentColor"
                   role="img"
@@ -423,106 +457,199 @@ export const HomePrompt = forwardRef<HomePromptHandle, HomePromptProps>(
               </button>
             )}
 
-            <AgentModelSelector
-              compact
-              fallbackLabel="Banana Pro"
-              source="image"
+            <textarea
+              ref={textareaRef}
+              value={value}
+              onChange={(event) => setValue(event.target.value)}
+              onKeyDown={handleKeyDown}
+              onPaste={handlePaste}
+              onInput={handleInput}
+              placeholder="添加图片输入文案开始创作之旅..."
+              disabled={disabled}
+              rows={2}
+              className="min-h-[72px] flex-1 resize-none bg-transparent text-[15px] leading-7 text-slate-900 placeholder:text-slate-400 focus:outline-none disabled:opacity-50"
             />
 
-            <div className="relative">
+            <button
+              type="button"
+              onClick={handleSubmit}
+              disabled={disabled || isUploading || !hasContent}
+              aria-label="开始创作"
+              className="inline-flex h-9 min-w-9 shrink-0 items-center justify-center rounded-full bg-slate-900 text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-20"
+            >
+              <svg
+                className="h-[14px] w-[14px]"
+                viewBox={submitIcon.viewBox}
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={1.6}
+                strokeLinecap="round"
+              >
+                {submitIcon.path.map((segment) => (
+                  <path key={segment} d={segment} />
+                ))}
+              </svg>
+            </button>
+          </div>
+
+          <div className="relative mt-3 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <AgentModelSelector
+                compact
+                fallbackLabel="Banana Pro"
+                source="image"
+              />
+
+              <div className="relative">
+                <button
+                  ref={aspectRatioBtnRef}
+                  type="button"
+                  title={architectureAspectRatioLabel}
+                  aria-label={architectureAspectRatioLabel}
+                  onClick={() => {
+                    setAspectRatioMenuOpen((previous) => !previous);
+                    setResolutionMenuOpen(false);
+                    setTemplateMenuOpen(false);
+                  }}
+                  className={`flex h-8 items-center gap-1.5 rounded-full border px-2.5 text-[11px] font-medium transition-colors ${
+                    aspectRatioMenuOpen
+                      ? "border-slate-300 bg-slate-100 text-slate-900"
+                      : "border-slate-200 bg-white text-slate-900 hover:bg-slate-50"
+                  }`}
+                >
+                  <span>{architectureAspectRatioLabel}</span>
+                </button>
+                {aspectRatioMenuOpen ? (
+                  <div
+                    ref={aspectRatioMenuRef}
+                    className="absolute bottom-full left-0 z-20 mb-2 w-[220px] rounded-[10px] border border-slate-200 bg-white p-2 shadow-[0_18px_48px_rgba(15,23,42,0.1)]"
+                  >
+                    <div className="mb-2 px-2 text-[11px] font-medium text-slate-500">
+                      画幅比例
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {IMAGE_ASPECT_RATIO_OPTIONS.map((option) => {
+                        const label = option === "auto" ? "自动" : option;
+                        const selected = imageOutputPreference.aspectRatio === option;
+                        return (
+                          <button
+                            key={option}
+                            type="button"
+                            onClick={() => handleSelectAspectRatio(option)}
+                            className={`inline-flex items-center rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+                              selected
+                                ? "border-slate-300 bg-slate-100 text-slate-900"
+                                : "border-slate-200 bg-white text-slate-900 hover:bg-slate-50"
+                            }`}
+                          >
+                            {label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="relative">
+                <button
+                  ref={resolutionBtnRef}
+                  type="button"
+                  title={architectureResolutionLabel}
+                  aria-label={architectureResolutionLabel}
+                  onClick={() => {
+                    setResolutionMenuOpen((previous) => !previous);
+                    setAspectRatioMenuOpen(false);
+                    setTemplateMenuOpen(false);
+                  }}
+                  className={`flex h-8 items-center gap-1.5 rounded-full border px-2.5 text-[11px] font-medium transition-colors ${
+                    resolutionMenuOpen
+                      ? "border-slate-300 bg-slate-100 text-slate-900"
+                      : "border-slate-200 bg-white text-slate-900 hover:bg-slate-50"
+                  }`}
+                >
+                  <span>{architectureResolutionLabel}</span>
+                </button>
+                {resolutionMenuOpen ? (
+                  <div
+                    ref={resolutionMenuRef}
+                    className="absolute bottom-full left-0 z-20 mb-2 w-[220px] rounded-[10px] border border-slate-200 bg-white p-2 shadow-[0_18px_48px_rgba(15,23,42,0.1)]"
+                  >
+                    <div className="mb-2 px-2 text-[11px] font-medium text-slate-500">
+                      输出分辨率
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {IMAGE_RESOLUTION_OPTIONS.map((option) => {
+                        const selected = imageOutputPreference.resolution === option;
+                        return (
+                          <button
+                            key={option}
+                            type="button"
+                            onClick={() => handleSelectResolution(option)}
+                            className={`inline-flex items-center rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+                              selected
+                                ? "border-slate-300 bg-slate-100 text-slate-900"
+                                : "border-slate-200 bg-white text-slate-900 hover:bg-slate-50"
+                            }`}
+                          >
+                            {option}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+
               <button
-                ref={modelBtnRef}
+                ref={templateBtnRef}
                 type="button"
-                onClick={() => setModelPopoverOpen((previous) => !previous)}
-                title={architecturePreferenceLabel}
-                aria-label={architecturePreferenceLabel}
+                aria-label="模版"
+                onClick={() => {
+                  setTemplateMenuOpen((previous) => !previous);
+                  setAspectRatioMenuOpen(false);
+                  setResolutionMenuOpen(false);
+                }}
                 className={`flex h-8 items-center gap-1.5 rounded-full border px-2.5 text-[11px] font-medium transition-colors ${
-                  preference.mode === "manual" || videoPreference.mode === "manual"
+                  templateMenuOpen
                     ? "border-slate-300 bg-slate-100 text-slate-900"
                     : "border-slate-200 bg-white text-slate-900 hover:bg-slate-50"
                 }`}
               >
                 <svg
                   className="h-[14px] w-[14px]"
-                  viewBox={toolbarButtons[1].viewBox}
+                  viewBox={toolbarButtons[2].viewBox}
                   fill="currentColor"
                 >
-                  <path d={toolbarButtons[1].path} />
+                  <path d={toolbarButtons[2].path} />
                 </svg>
-                <span>{architecturePreferenceLabel}</span>
+                <span>模版</span>
               </button>
-              <ImageModelPreferencePopover
-                open={modelPopoverOpen}
-                onClose={() => setModelPopoverOpen(false)}
-                anchorRef={modelBtnRef}
-              />
             </div>
 
-            <button
-              ref={templateBtnRef}
-              type="button"
-              aria-label="模版"
-              onClick={() => setTemplateMenuOpen((previous) => !previous)}
-              className={`flex h-8 items-center gap-1.5 rounded-full border px-2.5 text-[11px] font-medium transition-colors ${
-                templateMenuOpen
-                  ? "border-slate-300 bg-slate-100 text-slate-900"
-                  : "border-slate-200 bg-white text-slate-900 hover:bg-slate-50"
-              }`}
-            >
-              <svg
-                className="h-[14px] w-[14px]"
-                viewBox={toolbarButtons[2].viewBox}
-                fill="currentColor"
+            {templateMenuOpen ? (
+              <div
+                ref={templateMenuRef}
+                className="absolute bottom-full left-[208px] z-20 mb-2 w-[260px] rounded-[10px] border border-slate-200 bg-white p-2 shadow-[0_18px_48px_rgba(15,23,42,0.1)]"
               >
-                <path d={toolbarButtons[2].path} />
-              </svg>
-              <span>模版</span>
-            </button>
+                <div className="mb-2 px-2 text-[11px] font-medium text-slate-500">
+                  快捷模版
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {HOME_PROMPT_TEMPLATES.map((template) => (
+                    <button
+                      key={template.id}
+                      type="button"
+                      onClick={() => handleApplyTemplate(template)}
+                      className="inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-900 transition-colors hover:bg-slate-50"
+                    >
+                      {template.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
           </div>
-
-          <button
-            type="button"
-            onClick={handleSubmit}
-            disabled={disabled || isUploading || !hasContent}
-            aria-label="开始创作"
-            className="flex h-8 min-w-8 items-center justify-center rounded-full bg-slate-900 text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-20"
-          >
-            <svg
-              className="h-[14px] w-[14px]"
-              viewBox={submitIcon.viewBox}
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={1.6}
-              strokeLinecap="round"
-            >
-              {submitIcon.path.map((segment) => (
-                <path key={segment} d={segment} />
-              ))}
-            </svg>
-          </button>
-
-          {templateMenuOpen ? (
-            <div
-              ref={templateMenuRef}
-              className="absolute bottom-14 left-[180px] z-20 w-[260px] rounded-[10px] border border-slate-200 bg-white p-2 shadow-[0_18px_48px_rgba(15,23,42,0.1)]"
-            >
-              <div className="mb-2 px-2 text-[11px] font-medium text-slate-500">
-                快捷模版
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {HOME_PROMPT_TEMPLATES.map((template) => (
-                  <button
-                    key={template.id}
-                    type="button"
-                    onClick={() => handleApplyTemplate(template)}
-                    className="inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-900 transition-colors hover:bg-slate-50"
-                  >
-                    {template.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          ) : null}
         </div>
       </div>
     );

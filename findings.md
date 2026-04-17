@@ -2226,3 +2226,25 @@
   - `C:/Users/admin/.codex/mcp/playwright/output/template-audit-09.png`
   - `C:/Users/admin/.codex/mcp/playwright/output/template-audit-10.png`
   - `C:/Users/admin/.codex/mcp/playwright/output/template-audit-11.png`
+
+## 2026-04-18 Composer / Toolbar Stabilization Closure
+
+- Session restart confirmed the immediate memory pressure was not coming from active WSL containers:
+  - `wsl.exe -l -v` showed the Ubuntu distro stopped
+  - `docker ps` returned no running containers
+  - the remaining memory pressure was dominated by duplicated Codex Desktop MCP helper processes
+- Safe cleanup pattern validated for this machine:
+  - close stale subagents first
+  - collapse duplicate `@playwright/mcp`, `chrome-devtools-mcp`, and `mcp_server_fetch` helper processes
+  - keep WSL runtime off until a fresh test/build command is needed
+- Product-side findings frozen by the new local slice:
+  - `HomePrompt` needs the same split-pill + in-shell upload layout as the immersive canvas composer; otherwise homepage and canvas drift apart again
+  - immersive composer stability depends on separating the pending reference strip from the text input shell; if chips stay inside the main column, the shell height becomes content-driven and diverges from建筑学长
+  - image floating toolbars cannot follow dragged selections reliably if `CanvasEditor` only keys off selected ids; geometry must be part of the emitted selection snapshot
+  - shape editing parity requires two distinct toolbar behaviors:
+    - `tool mode`: top fixed strip while a shape tool is armed
+    - `selection mode`: anchored floating strip with real color pickers while a concrete shape is selected
+  - add-material dialog parity depends on a fixed shell with an internal scroll region, not on content-driven modal height
+- Fresh planning read of PRD/task plan after this slice confirms:
+  - the just-finished fixed-composer / anchored-toolbar slice is closed
+  - the next best local front-end closures are `25.1-4 输入焦点冲突`, `25.1-7 历史定位失败提示`, and `18.4-2 我的创作非空态 + 回插画布`

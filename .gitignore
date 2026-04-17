@@ -50,7 +50,14 @@ logs/
 supabase/supabase/
 
 tmp/
+.tmp/
 temp/.claude/worktrees/
+.playwright-cli/
+.pnpm-store/
+.ralph/
+output/
+**/__pycache__/
+*.pyc
 
 # internal dev docs & operational secrets (keep locally, exclude from repo)
 .claude/skills/production-debugger/

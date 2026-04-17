@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
-import { act, cleanup, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -111,7 +111,13 @@ describe("CanvasToolMenu", () => {
 
     await user.click(screen.getByRole("button", { name: "添加" }));
 
-    expect(screen.getByRole("dialog", { name: "添加素材" })).toBeTruthy();
+    const dialog = screen.getByRole("dialog", { name: "添加素材" });
+    expect(dialog).toBeTruthy();
+    expect(dialog).toHaveAttribute("data-layout", "fixed-responsive");
+    expect(screen.getByTestId("architecture-add-dialog-body")).toHaveAttribute(
+      "data-scroll-region",
+      "true",
+    );
     expect(screen.getByRole("tab", { name: "本地上传" })).toBeTruthy();
     expect(screen.getByRole("tab", { name: "官方图库" })).toBeTruthy();
     expect(screen.getByRole("tab", { name: "企业图库" })).toBeTruthy();
@@ -189,7 +195,7 @@ describe("CanvasToolMenu", () => {
     expect(screen.getByRole("button", { name: "去开通" })).toBeInTheDocument();
   });
 
-  it("renders the my-creations source strip and empty state", async () => {
+  it("renders the my-creations source strip with local sample assets and reinserts a selected asset onto the canvas", async () => {
     const user = userEvent.setup();
     const excalidrawApi = createMockExcalidrawApi();
 
@@ -212,7 +218,29 @@ describe("CanvasToolMenu", () => {
     expect(screen.getByRole("button", { name: "AI总图彩平填色" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "手绘创作" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "局部重绘" })).toBeInTheDocument();
-    expect(screen.getByText("数据为空")).toBeInTheDocument();
+    expect(screen.queryByText("数据为空")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "插入我的创作图片 AI创作绘图 1" }),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Banana智能体" }));
+    expect(
+      screen.getByRole("button", { name: "插入我的创作图片 Banana智能体 1" }),
+    ).toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole("button", { name: "插入我的创作图片 Banana智能体 1" }),
+    );
+
+    expect(insertImageOnCanvasMock).toHaveBeenCalledWith(
+      excalidrawApi,
+      expect.objectContaining({
+        type: "image",
+        mimeType: "image/png",
+        title: "Banana智能体 1",
+      }),
+    );
+    expect(screen.queryByRole("dialog", { name: "添加素材" })).toBeNull();
   });
 
   it("renders the compact shape flyout and maps the fifth button to 连续多段线 without sharing 直线 active state", async () => {
@@ -271,7 +299,7 @@ describe("CanvasToolMenu", () => {
     expect(polylineButton.className).toContain("bg-white/90");
   });
 
-  it("switches the top shape toolbar into selection mode for rectangles and edits fill via Excalidraw", async () => {
+  it("switches the shape toolbar into selection mode with real color pickers and follows the selected shape", async () => {
     const user = userEvent.setup();
     const excalidrawApi = createMockExcalidrawApi();
 
@@ -323,12 +351,59 @@ describe("CanvasToolMenu", () => {
       "data-mode",
       "selection",
     );
+    expect(screen.getByTestId("architecture-canvas-shape-toolbar")).toHaveAttribute(
+      "data-anchor",
+      "shape-selection",
+    );
+    expect(screen.getByLabelText("描边颜色")).toHaveAttribute("type", "color");
+    expect(screen.getByLabelText("填充颜色")).toHaveAttribute("type", "color");
+    expect(screen.getByRole("button", { name: "清除填充" })).toBeInTheDocument();
     expect(screen.getByRole("spinbutton", { name: "形状宽度" })).toHaveValue(180);
     expect(screen.getByRole("spinbutton", { name: "形状高度" })).toHaveValue(120);
 
-    await user.click(screen.getByRole("button", { name: "设置填充为深色" }));
+    const anchoredToolbar = screen.getByTestId("architecture-canvas-shape-toolbar");
+    const firstLeft = anchoredToolbar.style.left;
+    const firstTop = anchoredToolbar.style.top;
+
+    fireEvent.change(screen.getByLabelText("填充颜色"), {
+      target: { value: "#111827" },
+    });
 
     expect(excalidrawApi.updateScene).toHaveBeenCalled();
+
+    act(() => {
+      onChange?.(
+        [
+          {
+            id: "shape-1",
+            type: "rectangle",
+            x: 120,
+            y: 80,
+            width: 180,
+            height: 120,
+            isDeleted: false,
+            strokeColor: "#0f172a",
+            backgroundColor: "#111827",
+            strokeWidth: 2,
+          },
+        ],
+        {
+          activeTool: { type: "selection" },
+          scrollX: 0,
+          scrollY: 0,
+          zoom: { value: 1 },
+          selectedElementIds: {
+            "shape-1": true,
+          },
+          currentItemStrokeColor: "#0f172a",
+          currentItemBackgroundColor: "#111827",
+          currentItemStrokeWidth: 2,
+        },
+      );
+    });
+
+    expect(anchoredToolbar.style.left).not.toBe(firstLeft);
+    expect(anchoredToolbar.style.top).not.toBe(firstTop);
   });
 
   it("closes the add modal when pressing Escape", async () => {

@@ -975,3 +975,34 @@
 | 2026-04-17 23:06-23:07 | WSL | `cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/server && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run src/agent/runtime.test.ts src/agent/stream-adapter.test.ts src/http/canvases.test.ts src/http/exports.test.ts src/http/uploads.test.ts src/ws/agent-plan-blocks.test.ts src/ws/connection-manager.test.ts --reporter=dot --pool forks` | Server-side bounded regression after the upload-timeout stabilization | `7` files passed, `21` tests passed | session command output; `D:/97-CodingProject/Loomic-ArcIns/apps/server/src/http/uploads.test.ts`; `D:/97-CodingProject/Loomic-ArcIns/progress.md` entry `2026-04-17 23:10 Asia/Shanghai` | PASS |
 | 2026-04-17 23:08-23:10 | WSL | `cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/chat-input.test.tsx test/home-prompt.test.tsx test/agent-model-selector.test.tsx test/chat-sidebar.test.tsx test/canvas-page-shell.test.tsx test/canvas-page-selection-action-bar.test.tsx --reporter=dot --pool forks` | Final bounded web regression before commit | `6` files passed, `54` tests passed | session command output; `D:/97-CodingProject/Loomic-ArcIns/progress.md` entry `2026-04-17 23:10 Asia/Shanghai` | PASS |
 
+## 49. Phase 7 Composer / Toolbar Stabilization Closure
+
+| Time | Environment | Command / Action | Result | Evidence | Status |
+|------|-------------|------------------|--------|----------|--------|
+| 2026-04-18 00:48-00:55 | WSL | `cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/home-prompt.test.tsx test/chat-input.test.tsx test/canvas-tool-menu.test.tsx test/canvas-editor-context-menu.test.tsx --reporter=dot --pool forks` before and after implementation | Red-to-green focused proof for the current home/composer/toolbar stabilization slice | Red: expected fail because `HomePrompt` test setup was incomplete, immersive composer still hid the upload affordance when no upload handler existed, `CanvasToolMenu` lacked the fixed responsive add-dialog and anchored shape toolbar contracts, and `CanvasEditor` still skipped the geometry re-emit path before hydration-safe save unlock. Green: `4` files passed, `28` tests passed | session command output; `D:/97-CodingProject/Loomic-ArcIns/apps/web/src/components/home-prompt.tsx`; `D:/97-CodingProject/Loomic-ArcIns/apps/web/src/components/chat-input.tsx`; `D:/97-CodingProject/Loomic-ArcIns/apps/web/src/components/canvas-tool-menu.tsx`; `D:/97-CodingProject/Loomic-ArcIns/apps/web/src/components/canvas-editor.tsx`; `D:/97-CodingProject/Loomic-ArcIns/progress.md` entries `2026-04-18 00:48 Asia/Shanghai` and `2026-04-18 00:55 Asia/Shanghai` | PASS |
+| 2026-04-18 00:56 | WSL | `cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/home-prompt.test.tsx test/chat-input.test.tsx test/canvas-tool-menu.test.tsx test/canvas-editor-context-menu.test.tsx test/canvas-page-selection-action-bar.test.tsx test/chat-sidebar.test.tsx test/canvas-page-shell.test.tsx test/architecture-neutral-palette.test.ts --reporter=dot --pool forks` | Bounded regression after fixing homepage prompt shell, immersive composer shell, anchored shape toolbar, and geometry-driven selection refresh | `8` files passed, `77` tests passed | session command output; `D:/97-CodingProject/Loomic-ArcIns/progress.md` entry `2026-04-18 00:56 Asia/Shanghai` | PASS |
+
+### Phase 7 Composer / Toolbar Checklist
+
+| Item | Evidence Required | Current State |
+|------|-------------------|---------------|
+| Home prompt keeps the upload trigger inside the input shell and preserves split `自动 / 1K` pills | focused `home-prompt` regression | PASS |
+| Immersive composer keeps a fixed shell with pending chips moved into a dedicated meta rail | focused `chat-input` regression | PASS |
+| Shape selection toolbar uses real color pickers and follows the selected shape geometry | focused `canvas-tool-menu` regression | PASS |
+| Image selection changes re-emit on same-id geometry updates so floating bars can follow movement | focused `canvas-editor-context-menu` regression | PASS |
+| Adjacent sidebar / canvas shell / image action-bar flows remain green after the stabilization | bounded 8-file regression | PASS |
+
+## 50. Pre-Push Repository Sync Verification
+
+| Time | Environment | Command / Action | Result | Evidence | Status |
+|------|-------------|------------------|--------|----------|--------|
+| 2026-04-18 02:51-02:53 | WSL | `cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/home-page-shell.test.tsx test/home-prompt.test.tsx test/chat-input.test.tsx test/chat-sidebar.test.tsx test/canvas-tool-menu.test.tsx test/canvas-page-selection-action-bar.test.tsx test/canvas-editor-context-menu.test.tsx --reporter=dot --pool forks` | Fresh targeted verification for the current homepage / canvas / composer / right-panel repository-sync snapshot | `7` files passed, `69` tests passed | session command output; `D:/97-CodingProject/Loomic-ArcIns/progress.md` entry `2026-04-18 02:51 Asia/Shanghai` | PASS |
+| 2026-04-18 02:53-02:55 | WSL | `cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/next/dist/bin/next typegen && node ../../node_modules/typescript/bin/tsc -p tsconfig.json --noEmit` | Fresh typecheck gate before commit/push | FAIL; current workspace still has unresolved TS debt across `src/app/canvas/page.tsx`, `src/components/canvas/canvas-selection-action-bar.tsx`, `src/components/chat-sidebar.tsx`, and existing unrelated files/tests | session command output; `D:/97-CodingProject/Loomic-ArcIns/progress.md` entry `2026-04-18 02:51 Asia/Shanghai` | FAIL |
+
+### Pre-Push Sync Checklist
+
+| Item | Evidence Required | Current State |
+|------|-------------------|---------------|
+| Current homepage / canvas / composer regression set remains green before sync | fresh bounded web regression | PASS |
+| Repository sync does not overstate typecheck health | fresh typecheck gate recorded as failing | PASS |
+

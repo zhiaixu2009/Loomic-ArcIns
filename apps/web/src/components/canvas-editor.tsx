@@ -175,6 +175,7 @@ export function CanvasEditor({
   const rightClickInterceptedRef = useRef(false);
   const [excalidrawApi, setExcalidrawApi] = useState<any>(null);
   const prevSelectedIdsRef = useRef<string>("");
+  const prevSelectedSnapshotRef = useRef<string>("");
   const onSelectionChangeRef = useRef(onSelectionChange);
   onSelectionChangeRef.current = onSelectionChange;
   const onViewportChangeRef = useRef(onViewportChange);
@@ -403,6 +404,51 @@ export function CanvasEditor({
     (elements: readonly any[], appState: any) => {
       syncViewport(appState);
 
+      // Keep floating toolbar state live even before save hydration unlocks.
+      const selectedIds = appState.selectedElementIds
+        ? Object.keys(appState.selectedElementIds as Record<string, boolean>).filter(
+            (id) => (appState.selectedElementIds as Record<string, boolean>)[id],
+          ).sort().join(",")
+        : "";
+      const selected =
+        selectedIds.length > 0
+          ? extractSelectedCanvasElements({
+              elements,
+              files:
+                (excalidrawApiRef.current ?? excalidrawApi)?.getFiles?.() ?? {},
+              initialFiles: initialFilesRef.current,
+              selectedElementIds: appState.selectedElementIds ?? {},
+            })
+          : [];
+      const selectedSnapshot = selected
+        .map((element) =>
+          [
+            element.id,
+            element.type,
+            element.x,
+            element.y,
+            element.width,
+            element.height,
+            element.locked ? 1 : 0,
+          ].join(":"),
+        )
+        .join("|");
+
+      if (
+        selectedIds !== prevSelectedIdsRef.current ||
+        selectedSnapshot !== prevSelectedSnapshotRef.current
+      ) {
+        prevSelectedIdsRef.current = selectedIds;
+        prevSelectedSnapshotRef.current = selectedSnapshot;
+        if (onSelectionChangeRef.current) {
+          if (!selectedIds) {
+            onSelectionChangeRef.current([]);
+          } else {
+            onSelectionChangeRef.current(selected);
+          }
+        }
+      }
+
       // Skip auto-save until Excalidraw has fully hydrated with initial data.
       // During initialization, onChange may fire with empty/partial elements
       // which would wipe the persisted canvas via FULL REPLACE.
@@ -443,30 +489,6 @@ export function CanvasEditor({
         }
       }, THUMBNAIL_DEBOUNCE_MS);
 
-      // --- 3. Selection change detection ---
-      // Cheap string comparison avoids unnecessary downstream re-renders.
-      const selectedIds = appState.selectedElementIds
-        ? Object.keys(appState.selectedElementIds as Record<string, boolean>).filter(
-            (id) => (appState.selectedElementIds as Record<string, boolean>)[id],
-          ).sort().join(",")
-        : "";
-
-      if (selectedIds !== prevSelectedIdsRef.current) {
-        prevSelectedIdsRef.current = selectedIds;
-        if (onSelectionChangeRef.current) {
-          if (!selectedIds) {
-            onSelectionChangeRef.current([]);
-          } else {
-            const selected = extractSelectedCanvasElements({
-              elements,
-              files: excalidrawApi?.getFiles() ?? {},
-              initialFiles: initialFilesRef.current,
-              selectedElementIds: appState.selectedElementIds ?? {},
-            });
-            onSelectionChangeRef.current(selected);
-          }
-        }
-      }
     },
     [projectId, excalidrawApi, queueCanvasSave, syncViewport],
   );
@@ -685,11 +707,19 @@ export function CanvasEditor({
 
   useEffect(() => {
     const container = containerRef.current;
-    if (!container || !onContextMenuRequest) {
+    if (!container || (!onContextMenuRequest && !onSelectionIntent)) {
       return;
     }
 
     const handlePointerDown = (event: globalThis.PointerEvent) => {
+      if (event.button === 0) {
+        rightClickInterceptedRef.current = false;
+        if (!isContextMenuTargetBlocked(event.target)) {
+          onSelectionIntent?.("left");
+        }
+        return;
+      }
+
       if (event.button !== 2) {
         rightClickInterceptedRef.current = false;
         return;
@@ -711,7 +741,7 @@ export function CanvasEditor({
         clientX: event.clientX,
         clientY: event.clientY,
       });
-      onContextMenuRequest({
+      onContextMenuRequest?.({
         x: Math.max(event.clientX - bounds.left, 0),
         y: Math.max(event.clientY - bounds.top, 0),
         clientX: event.clientX,
@@ -752,23 +782,18 @@ export function CanvasEditor({
         capture: true,
       });
     };
-  }, [onContextMenuRequest]);
+  }, [onContextMenuRequest, onSelectionIntent]);
 
   return (
     <ErrorBoundary
       onError={(err) => console.error("[canvas-editor] render crashed:", err)}
     >
-      <div
-        ref={containerRef}
-        className="h-full w-full relative"
-        onPointerDown={(event) => {
-          if (event.button === 0 && !isContextMenuTargetBlocked(event.target)) {
-            onSelectionIntent?.("left");
-          }
-          emitPointerCursor(event, "down");
-        }}
-        onPointerLeave={() => onPointerChangeRef.current?.(null)}
-        onPointerMove={(event) => emitPointerCursor(event)}
+        <div
+          ref={containerRef}
+          className="h-full w-full relative"
+          onPointerDown={(event) => emitPointerCursor(event, "down")}
+          onPointerLeave={() => onPointerChangeRef.current?.(null)}
+          onPointerMove={(event) => emitPointerCursor(event)}
         onPointerUp={(event) => emitPointerCursor(event, "up")}
       >
         <Excalidraw

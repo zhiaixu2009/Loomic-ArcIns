@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
   apiState,
+  excalidrawOnChangeRef,
   mockExcalidrawApi,
   saveCanvasMock,
   uploadThumbnailMock,
@@ -21,6 +22,11 @@ const {
 
   return {
     apiState: state,
+    excalidrawOnChangeRef: {
+      current: null as
+        | ((elements: readonly Record<string, unknown>[], appState: Record<string, unknown>) => void)
+        | null,
+    },
     mockExcalidrawApi: {
       addFiles: vi.fn(),
       getAppState: vi.fn(() => state.appState),
@@ -89,10 +95,27 @@ vi.mock("@excalidraw/excalidraw", async () => {
   const React = await import("react");
 
   return {
-    Excalidraw: ({ excalidrawAPI }: { excalidrawAPI?: (api: unknown) => void }) => {
+    Excalidraw: ({
+      excalidrawAPI,
+      onChange,
+    }: {
+      excalidrawAPI?: (api: unknown) => void;
+      onChange?: (
+        elements: readonly Record<string, unknown>[],
+        appState: Record<string, unknown>,
+      ) => void;
+    }) => {
       React.useEffect(() => {
         excalidrawAPI?.(mockExcalidrawApi);
       }, [excalidrawAPI]);
+
+      React.useEffect(() => {
+        excalidrawOnChangeRef.current = onChange ?? null;
+
+        return () => {
+          excalidrawOnChangeRef.current = null;
+        };
+      }, [onChange]);
 
       return React.createElement("div", {
         "data-testid": "mock-excalidraw-surface",
@@ -141,6 +164,7 @@ describe("CanvasEditor context menu", () => {
     mockExcalidrawApi.getFiles.mockClear();
     mockExcalidrawApi.getSceneElements.mockClear();
     mockExcalidrawApi.onChange.mockClear();
+    excalidrawOnChangeRef.current = null;
     mockExcalidrawApi.updateScene = vi.fn((scene: { appState?: Record<string, unknown>; elements?: Record<string, unknown>[] }) => {
       if (scene.elements) {
         apiState.sceneElements = [...scene.elements];
@@ -324,5 +348,79 @@ describe("CanvasEditor context menu", () => {
         timeout: 2500,
       },
     );
+  });
+
+  it("re-emits selected element geometry updates even when the selected ids do not change", async () => {
+    const onSelectionChange = vi.fn();
+
+    render(
+      <CanvasEditor
+        accessToken="token"
+        canvasId="canvas-1"
+        initialContent={{
+          elements: [],
+          appState: {},
+          files: {},
+        }}
+        onSelectionChange={onSelectionChange}
+        projectId="project-1"
+      />,
+    );
+
+    await screen.findByTestId("mock-excalidraw-surface");
+    await waitFor(() => expect(excalidrawOnChangeRef.current).toBeTypeOf("function"));
+
+    excalidrawOnChangeRef.current?.(
+      [
+        {
+          id: "image-1",
+          type: "image",
+          x: 120,
+          y: 80,
+          width: 640,
+          height: 480,
+          isDeleted: false,
+          fileId: "file-1",
+        },
+      ],
+      {
+        gridModeEnabled: false,
+        selectedElementIds: { "image-1": true },
+        viewBackgroundColor: "#ffffff",
+      },
+    );
+
+    await waitFor(() => expect(onSelectionChange).toHaveBeenCalledTimes(1));
+
+    excalidrawOnChangeRef.current?.(
+      [
+        {
+          id: "image-1",
+          type: "image",
+          x: 220,
+          y: 140,
+          width: 640,
+          height: 480,
+          isDeleted: false,
+          fileId: "file-1",
+        },
+      ],
+      {
+        gridModeEnabled: false,
+        selectedElementIds: { "image-1": true },
+        viewBackgroundColor: "#ffffff",
+      },
+    );
+
+    await waitFor(() => expect(onSelectionChange).toHaveBeenCalledTimes(2));
+    expect(onSelectionChange).toHaveBeenLastCalledWith([
+      expect.objectContaining({
+        id: "image-1",
+        x: 220,
+        y: 140,
+        width: 640,
+        height: 480,
+      }),
+    ]);
   });
 });

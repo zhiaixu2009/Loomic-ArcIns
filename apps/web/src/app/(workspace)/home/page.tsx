@@ -7,7 +7,7 @@ import type {
 } from "@loomic/shared";
 import type { ReadyAttachment } from "@/hooks/use-image-attachments";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { DeleteProjectDialog } from "@/components/delete-project-dialog";
 import { HomeExampleBrowser } from "@/components/home-example-browser";
@@ -30,6 +30,17 @@ import { formatDate } from "@/lib/utils";
 
 const RECENT_PROJECTS_LIMIT = 4;
 
+const HOME_NAV_ITEMS = [
+  "首页",
+  "AI工具",
+  "AI绘图",
+  "AI画布Agent",
+  "Banana智能体",
+  "课程",
+  "资源",
+  "图库",
+] as const;
+
 export default function HomePage() {
   const { session, signOut } = useAuth();
   const router = useRouter();
@@ -38,12 +49,13 @@ export default function HomePage() {
   const handleDeleted = useCallback((id: string) => {
     setProjects((prev) => prev.filter((project) => project.id !== id));
   }, []);
-  const { pendingId, deleting, requestDelete, confirmDelete, cancelDelete } =
+  const { pendingId, deleting, confirmDelete, cancelDelete } =
     useDeleteProject({ onDeleted: handleDeleted });
 
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [projectsLoading, setProjectsLoading] = useState(true);
   const [newProjectDialogOpen, setNewProjectDialogOpen] = useState(false);
+  const [referenceCaseDialogOpen, setReferenceCaseDialogOpen] = useState(false);
   const [homeExampleCategories, setHomeExampleCategories] = useState(
     homeExampleSeedCategories,
   );
@@ -151,12 +163,33 @@ export default function HomePage() {
 
   const handleExampleSelect = useCallback((selection: HomeExampleSelection) => {
     setSelectedExample(selection);
+    setReferenceCaseDialogOpen(false);
     promptRef.current?.fill(selection.prompt);
   }, []);
 
   const handleExampleClear = useCallback(() => {
     setSelectedExample(null);
   }, []);
+
+  const handleOpenReferenceCases = useCallback(() => {
+    setReferenceCaseDialogOpen(true);
+  }, []);
+
+  const handleCloseReferenceCases = useCallback(() => {
+    setReferenceCaseDialogOpen(false);
+  }, []);
+
+  const featuredReferenceCase = useMemo(
+    () =>
+      homeExampleCategories.flatMap((category) =>
+        category.examples.slice(0, 1).map((example) => ({
+          categoryLabel: category.label,
+          title: example.title,
+          previewImages: example.previewImages.slice(0, 3),
+        })),
+      )[0] ?? null,
+    [homeExampleCategories],
+  );
 
   const handleCreateProject = useCallback(() => {
     console.info("[home] opening new project dialog from home card");
@@ -193,14 +226,41 @@ export default function HomePage() {
       className="min-h-full bg-white text-slate-900"
     >
       <div className="mx-auto flex min-h-full w-full max-w-[1120px] flex-col gap-8 px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
+        <nav
+          aria-label="建筑学长站点导航"
+          className="flex flex-wrap items-center justify-between gap-4 rounded-[10px] border border-slate-200 bg-white px-4 py-3 shadow-[0_12px_30px_rgba(15,23,42,0.04)]"
+        >
+          <div className="flex flex-wrap items-center gap-2 text-sm text-slate-600">
+            {HOME_NAV_ITEMS.map((item) => (
+              <button
+                key={item}
+                type="button"
+                className={`rounded-[8px] px-3 py-1.5 transition-colors ${
+                  item === "AI画布Agent"
+                    ? "bg-slate-900 text-white"
+                    : "hover:bg-slate-100"
+                }`}
+              >
+                {item}
+              </button>
+            ))}
+          </div>
+          <button
+            type="button"
+            className="inline-flex items-center rounded-[10px] border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100"
+          >
+            开通会员
+          </button>
+        </nav>
+
         <section className="pt-3">
           <div className="mx-auto max-w-[900px] text-center">
-            <p className="text-sm font-medium tracking-[0.08em] text-slate-500">
+            <h1 className="text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">
               AI创作无限画布Agent
-            </p>
-            <h1 className="mt-3 text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">
-              让设计灵感来的更快一些！
             </h1>
+            <p className="mt-3 text-base text-slate-500">
+              让设计灵感来的更快一些！
+            </p>
           </div>
 
           <div className="mx-auto mt-6 max-w-[920px]">
@@ -274,18 +334,6 @@ export default function HomePage() {
                     )
                   }
                 >
-                  <button
-                    type="button"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      requestDelete(project.id);
-                    }}
-                    aria-label={`删除 ${project.name}`}
-                    className="absolute right-4 top-4 z-10 flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white/95 text-slate-500 opacity-0 transition-all hover:bg-white group-hover:opacity-100"
-                  >
-                    ×
-                  </button>
-
                   <div className="flex h-[112px] items-end bg-[linear-gradient(135deg,#ffffff,#f3f4f6)] px-5 py-4 text-sm text-slate-500">
                     {project.thumbnailUrl ? (
                       <img
@@ -326,17 +374,94 @@ export default function HomePage() {
           <div className="mb-4">
             <h2 className="text-xl font-semibold text-slate-900">参考案例</h2>
             <p className="mt-1 text-sm text-slate-500">
-              直接从案例卡片进入无限画布，再继续延展你的方案方向。
+              通过单一入口打开案例库，再把参考流程带回当前创作上下文。
             </p>
           </div>
 
-          <HomeExampleBrowser
-            categories={homeExampleCategories}
-            selectedExample={selectedExample}
-            onExampleSelect={handleExampleSelect}
-          />
+          <button
+            type="button"
+            aria-label="打开参考案例"
+            onClick={handleOpenReferenceCases}
+            className="group flex w-full items-center justify-between gap-5 overflow-hidden rounded-[10px] border border-slate-200 bg-slate-50 px-5 py-5 text-left transition-colors hover:bg-slate-100"
+          >
+            <div className="min-w-0 flex-1">
+              <div className="inline-flex items-center rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-600">
+                {featuredReferenceCase?.categoryLabel ?? "参考案例"}
+              </div>
+              <p className="mt-3 text-lg font-semibold text-slate-900">
+                打开参考案例
+              </p>
+              <p className="mt-2 text-sm leading-6 text-slate-500">
+                {featuredReferenceCase
+                  ? "查看建筑学长式案例入口，再挑选一个示例继续填充到首页输入框。"
+                  : "打开案例库，选择一个示例继续延展你的方案方向。"}
+              </p>
+            </div>
+
+            <div className="relative hidden h-[112px] w-[240px] shrink-0 md:block">
+              {(featuredReferenceCase?.previewImages ?? []).map((image, index) => {
+                const positionClasses = [
+                  "left-[0%] top-[16%] w-[88px] -rotate-[10deg]",
+                  "left-[68px] top-0 w-[96px] rotate-[4deg]",
+                  "right-[0%] top-[12%] w-[88px] rotate-[12deg]",
+                ];
+
+                return (
+                  <img
+                    key={image}
+                    src={image}
+                    alt=""
+                    aria-hidden="true"
+                    className={`absolute aspect-[7/8] rounded-[8px] border border-slate-200 object-cover shadow-[0_12px_24px_rgba(15,23,42,0.08)] transition-transform duration-300 group-hover:-translate-y-1 ${positionClasses[index] ?? positionClasses[0]}`}
+                  />
+                );
+              })}
+              <div className="absolute bottom-0 right-0 inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 transition-colors group-hover:bg-slate-100">
+                →
+              </div>
+            </div>
+          </button>
         </section>
       </div>
+
+      {referenceCaseDialogOpen ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/26 px-4 py-6"
+          onClick={handleCloseReferenceCases}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="参考案例"
+            className="flex h-[min(82vh,780px)] w-[min(1080px,calc(100vw-32px))] max-w-[1080px] flex-col overflow-hidden rounded-[10px] border border-slate-200 bg-white shadow-[0_32px_90px_rgba(15,23,42,0.16)]"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+              <div>
+                <h3 className="text-lg font-semibold text-slate-900">参考案例</h3>
+                <p className="mt-1 text-sm text-slate-500">
+                  选择一个案例，将提示词与参考结构回填到首页输入框。
+                </p>
+              </div>
+              <button
+                type="button"
+                aria-label="关闭参考案例"
+                onClick={handleCloseReferenceCases}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-[10px] border border-slate-200 bg-white text-slate-600 transition-colors hover:bg-slate-100"
+              >
+                ×
+              </button>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
+              <HomeExampleBrowser
+                categories={homeExampleCategories}
+                selectedExample={selectedExample}
+                onExampleSelect={handleExampleSelect}
+              />
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <DeleteProjectDialog
         open={pendingId !== null}

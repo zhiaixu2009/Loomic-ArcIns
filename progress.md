@@ -3163,3 +3163,88 @@
   - PASS (`3` shared files, `41` tests)
   - PASS (`7` server files, `21` tests)
   - PASS (`6` web files, `54` tests)
+
+## 2026-04-18 00:22 Asia/Shanghai
+
+- Session recovery and resource cleanup completed before resuming implementation.
+- Commands:
+  - `wsl.exe -l -v`
+  - `wsl.exe -e bash -lc "docker ps --format 'table {{.Names}}\\t{{.Status}}\\t{{.Ports}}' || true"`
+  - `Get-CimInstance Win32_Process | Where-Object { $_.Name -in @('node.exe','python.exe') } | Select-Object Name,ProcessId,CommandLine | Format-List`
+  - targeted PowerShell cleanup of duplicate Codex Desktop MCP helper processes
+  - `close_agent` for the two stale exploratory subagents from the previous session
+- Result:
+  - WSL distro confirmed stopped, no Docker containers running
+  - duplicate MCP helper processes removed
+  - memory pressure reduced before restarting test execution
+
+## 2026-04-18 00:48 Asia/Shanghai
+
+- Opened the next bounded local parity closure around homepage prompt, immersive composer shell, anchored shape toolbar, and image-selection follow behavior.
+- Red verification command:
+  - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/home-prompt.test.tsx test/chat-input.test.tsx test/canvas-tool-menu.test.tsx test/canvas-editor-context-menu.test.tsx --reporter=dot --pool forks"`
+- Red result:
+  - FAIL in the intended places:
+    - `HomePrompt` test missing `within` import
+    - immersive composer did not keep a visible `添加图片` button when no upload handler was passed
+    - `CanvasToolMenu` still lacked the fixed responsive add-dialog shell and anchored shape-selection toolbar contract
+    - `CanvasEditor` still skipped the tested selection re-emit path before hydration-safe save unlock
+
+## 2026-04-18 00:55 Asia/Shanghai
+
+- Green implementation for the bounded shell / toolbar slice completed.
+- Updated source:
+  - `apps/web/src/components/home-prompt.tsx`
+  - `apps/web/src/components/chat-input.tsx`
+  - `apps/web/src/components/canvas-editor.tsx`
+  - `apps/web/src/components/canvas-tool-menu.tsx`
+  - `apps/web/test/home-prompt.test.tsx`
+- Frozen implementation details:
+  - homepage prompt now keeps the upload trigger inside the input shell and preserves split `自动 / 1K` pills
+  - immersive composer now keeps a fixed-height shell with an independent meta rail and an always-visible upload affordance shell
+  - `CanvasEditor` now emits selection updates for same-id geometry changes before the hydration-safe save guard
+  - shape selection toolbar now uses real `type="color"` inputs, `清除填充`, and anchored follow positioning
+  - add-material dialog now uses a fixed responsive shell with `architecture-add-dialog-body` as the internal scroll region
+- Focused green verification:
+  - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/home-prompt.test.tsx test/chat-input.test.tsx test/canvas-tool-menu.test.tsx test/canvas-editor-context-menu.test.tsx --reporter=dot --pool forks"`
+  - result:
+    - PASS (`4` files, `28` tests)
+
+## 2026-04-18 00:56 Asia/Shanghai
+
+- Ran bounded regression around the surrounding shell / sidebar / selection flows after the closure.
+- Command:
+  - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/home-prompt.test.tsx test/chat-input.test.tsx test/canvas-tool-menu.test.tsx test/canvas-editor-context-menu.test.tsx test/canvas-page-selection-action-bar.test.tsx test/chat-sidebar.test.tsx test/canvas-page-shell.test.tsx test/architecture-neutral-palette.test.ts --reporter=dot --pool forks"`
+- Result:
+  - PASS (`8` files, `77` tests)
+- Documentation and planning follow-up completed in the same batch:
+  - updated `docs/prd/2026-04-16-jianzhuxuezhang-ai-canvas-agent-prd.md`
+  - updated `task_plan.md`
+  - updated `findings.md`
+  - updated `progress.md`
+  - updated `docs/verification/2026-04-12-architecture-agent-studio-validation.md`
+- Next focus frozen for the next bounded slice:
+  - `25.1-4 输入焦点冲突`
+  - `25.1-7 历史定位失败提示`
+  - `18.4-2 我的创作非空态 + 回插画布`
+
+## 2026-04-18 02:51 Asia/Shanghai
+
+- Prepared the current local version for repository sync instead of opening a new feature slice.
+- Hygiene updates before staging:
+  - added local-cache ignore coverage for `.tmp/`, `.playwright-cli/`, `.pnpm-store/`, `.ralph/`, `output/`, and Python cache artifacts so only source/doc changes and the installed project skill remain in the commit set
+  - kept the project-installed `ui-ux-pro-max` skill under `.codex/skills/ui-ux-pro-max/` as repository content because it was explicitly requested for future front-end work
+- Fresh verification commands executed before commit:
+  - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/home-page-shell.test.tsx test/home-prompt.test.tsx test/chat-input.test.tsx test/chat-sidebar.test.tsx test/canvas-tool-menu.test.tsx test/canvas-page-selection-action-bar.test.tsx test/canvas-editor-context-menu.test.tsx --reporter=dot --pool forks"`
+  - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/next/dist/bin/next typegen && node ../../node_modules/typescript/bin/tsc -p tsconfig.json --noEmit"`
+- Fresh results:
+  - PASS (`7` web files, `69` tests)
+  - FAIL (`apps/web` typecheck)
+- Current blocked typecheck clusters recorded before commit:
+  - `apps/web/src/app/canvas/page.tsx` exact-optional / union narrowing errors around imported canvas payload handling
+  - `apps/web/src/components/canvas/canvas-selection-action-bar.tsx` selected image nullability errors
+  - `apps/web/src/components/chat-sidebar.tsx` string optionality errors
+  - existing broader workspace debt still remains in `pricing-card.tsx`, `agent-section.tsx`, `architecture-studio-rail.tsx`, `tool-block-view.tsx`, `architecture-canvas.ts`, `canvas-context-actions.ts`, and multiple legacy tests
+- Commit intent frozen:
+  - sync the current audited web/doc state to `origin/main`
+  - do not claim typecheck is green

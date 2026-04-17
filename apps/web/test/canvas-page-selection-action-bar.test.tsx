@@ -239,6 +239,31 @@ vi.mock("../src/components/canvas-editor", () => ({
         </button>
         <button
           type="button"
+          data-testid="mock-move-selected-canvas-image"
+          onClick={() => {
+            props.onSelectionIntent?.("left");
+            props.onViewportChange?.({
+              scrollX: 0,
+              scrollY: 0,
+              zoom: 1,
+            });
+            props.onSelectionChange?.([
+              {
+                id: "image-1",
+                type: "image",
+                x: 320,
+                y: 240,
+                width: 240,
+                height: 160,
+                storageUrl: "https://example.com/reference.png",
+              },
+            ]);
+          }}
+        >
+          move selected canvas image
+        </button>
+        <button
+          type="button"
           data-testid="mock-clear-selection"
           onClick={() => {
             props.onSelectionChange?.([]);
@@ -484,5 +509,47 @@ describe("CanvasPage selection action bar", () => {
     expect(
       screen.queryByRole("button", { name: "文字" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("dismisses the selected-image floating action bar when the user presses Escape", async () => {
+    const user = userEvent.setup();
+
+    render(<CanvasPage />);
+
+    await waitFor(() => {
+      expect(fetchCanvasMock).toHaveBeenCalledWith("token-canvas", "canvas-1");
+    });
+
+    await user.click(screen.getByTestId("mock-select-canvas-image"));
+    expect(
+      screen.getByRole("button", { name: "编辑" }),
+    ).toBeInTheDocument();
+
+    await user.keyboard("{Escape}");
+
+    expect(
+      screen.queryByRole("button", { name: "编辑" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("updates the floating action bar position when the selected image moves", async () => {
+    const user = userEvent.setup();
+
+    render(<CanvasPage />);
+
+    await waitFor(() => {
+      expect(fetchCanvasMock).toHaveBeenCalledWith("token-canvas", "canvas-1");
+    });
+
+    await user.click(screen.getByTestId("mock-select-canvas-image"));
+
+    const actionBar = screen.getByTestId("canvas-selection-action-bar");
+    const initialLeft = actionBar.style.left;
+    const initialTop = actionBar.style.top;
+
+    await user.click(screen.getByTestId("mock-move-selected-canvas-image"));
+
+    expect(actionBar.style.left).not.toBe(initialLeft);
+    expect(actionBar.style.top).not.toBe(initialTop);
   });
 });

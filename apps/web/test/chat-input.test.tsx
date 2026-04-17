@@ -453,6 +453,54 @@ describe("ChatInput", () => {
     );
   });
 
+  it("keeps the immersive composer shell fixed and places pending chips in a dedicated meta rail", () => {
+    render(
+      <ChatInput
+        immersiveArchitecture
+        onSend={vi.fn()}
+        selectedCanvasElements={[
+          {
+            id: "image-1",
+            type: "image",
+            x: 0,
+            y: 0,
+            width: 640,
+            height: 480,
+            fileId: "file-1",
+            dataUrl: "data:image/png;base64,ZmFrZQ==",
+          },
+          {
+            id: "image-2",
+            type: "image",
+            x: 40,
+            y: 20,
+            width: 640,
+            height: 480,
+            fileId: "file-2",
+            dataUrl: "data:image/png;base64,ZmFrZTI=",
+          },
+        ]}
+      />,
+    );
+
+    const shell = screen.getByTestId("chat-input-immersive-shell");
+    expect(shell).toHaveAttribute("data-layout", "fixed");
+
+    const metaRail = screen.getByTestId("chat-input-immersive-meta-rail");
+    expect(
+      within(metaRail).getAllByTestId("chat-input-selected-canvas-chip"),
+    ).toHaveLength(2);
+
+    const inputRow = screen.getByTestId("chat-input-immersive-input-row");
+    expect(within(inputRow).getByRole("button", { name: "添加图片" })).toBeInTheDocument();
+    expect(within(inputRow).getByLabelText("输入消息")).toBeInTheDocument();
+
+    const controlRow = screen.getByTestId("chat-input-immersive-control-row");
+    expect(
+      within(controlRow).queryByRole("button", { name: "添加图片" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("opens an aspect-ratio menu from the immersive 自动 button and keeps the selected ratio label", async () => {
     render(<ChatInput immersiveArchitecture onSend={vi.fn()} />);
 

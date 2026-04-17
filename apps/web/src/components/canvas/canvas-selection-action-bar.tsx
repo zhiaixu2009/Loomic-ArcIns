@@ -123,6 +123,7 @@ export function CanvasSelectionActionBar({
   return (
     <>
       <div
+        data-testid="canvas-selection-action-bar"
         className="pointer-events-none absolute z-[26] -translate-x-1/2 -translate-y-full px-2"
         style={{
           left: position.left,

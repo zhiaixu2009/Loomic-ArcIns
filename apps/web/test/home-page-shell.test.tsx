@@ -142,20 +142,43 @@ describe("HomePage shell", () => {
     cleanup();
   });
 
-  it("renders the white architecture home shell with prompt, video tutorial, recent projects, and case entry only", async () => {
+  it("renders the white architecture home shell with site navigation, product-title h1, recent projects, and a single reference-case entry", async () => {
     render(<HomePage />);
 
     const shell = await screen.findByTestId("home-page-shell");
     expect(shell).toHaveAttribute("data-theme", "light-architecture");
-    expect(screen.queryByRole("navigation")).not.toBeInTheDocument();
-    expect(screen.getByText("AI创作无限画布Agent")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { level: 1 })).toBeInTheDocument();
+    expect(screen.getByRole("navigation")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", {
+        level: 1,
+        name: "AI创作无限画布Agent",
+      }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("让设计灵感来的更快一些！")).toBeInTheDocument();
     expect(screen.getAllByRole("heading", { level: 2 })[0]).toBeInTheDocument();
     expect(screen.getByRole("link")).toBeInTheDocument();
     expect(screen.getByTestId("home-prompt")).toBeInTheDocument();
-    expect(screen.getByTestId("home-example-browser")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "打开参考案例" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId("home-example-browser")).not.toBeInTheDocument();
     expect(screen.queryByTestId("home-discovery-gallery")).not.toBeInTheDocument();
     expect(screen.queryByText("查看全部")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "删除 Harbor Complex" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("opens the reference-case browser from the single entry card instead of rendering the grid inline", async () => {
+    render(<HomePage />);
+
+    expect(screen.queryByTestId("home-example-browser")).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "打开参考案例" }));
+
+    const dialog = await screen.findByRole("dialog", { name: "参考案例" });
+    expect(dialog).toBeInTheDocument();
+    expect(within(dialog).getByTestId("home-example-browser")).toBeInTheDocument();
   });
 
   it("keeps the new project card as the first recent-project entry while projects are still loading", () => {

@@ -809,6 +809,7 @@ export function ChatSidebar({
     attachments: imageAttachments,
     addFiles,
     addCanvasRef,
+    replaceCanvasRefs,
     retryUpload,
     removeAttachment,
     clearUploads,
@@ -859,6 +860,7 @@ export function ChatSidebar({
     );
   const selectedCanvasElementsRef = useRef(orderedSelectedCanvasElements);
   selectedCanvasElementsRef.current = orderedSelectedCanvasElements;
+  const focusConfirmedCanvasRefAssetIdsRef = useRef<string[]>([]);
 
   const attachCanvasRefsToConversation = useCallback(
     (referenceAttachments: ReadyAttachment[]) => {
@@ -941,6 +943,7 @@ export function ChatSidebar({
     setDismissedSelectedCanvasImageIds([]);
     setImmersiveRecords([]);
     setShowImmersiveReferenceCard(false);
+    focusConfirmedCanvasRefAssetIdsRef.current = [];
   }, [canvasId]);
 
   // 鈹€鈹€ Sidebar resize 鈹€鈹€
@@ -1403,6 +1406,9 @@ export function ChatSidebar({
       return;
     }
 
+    // Explicit "发送至对话" is a separate semantic path from focus-confirmed refs.
+    focusConfirmedCanvasRefAssetIdsRef.current = [];
+
     const attachedCount = attachCanvasRefsToConversation(selectedImageRefs);
 
     if (architectureImmersiveMode) {
@@ -1443,6 +1449,9 @@ export function ChatSidebar({
     }
 
     const attachedCount = attachCanvasRefsToConversation(selectedImageRefs);
+    focusConfirmedCanvasRefAssetIdsRef.current = selectedImageRefs.map(
+      (attachment) => attachment.assetId,
+    );
 
     if (attachedCount > 0) {
       console.log("[chat-sidebar] confirmed pending canvas refs on composer focus", {
@@ -1451,6 +1460,49 @@ export function ChatSidebar({
       });
     }
   }, [architectureImmersiveMode, attachCanvasRefsToConversation, canvasId]);
+
+  useEffect(() => {
+    const previousFocusedAssetIds = focusConfirmedCanvasRefAssetIdsRef.current;
+    if (
+      composerDraft.trim().length === 0 ||
+      previousFocusedAssetIds.length === 0 ||
+      orderedSelectedCanvasImages.length === 0
+    ) {
+      return;
+    }
+
+    const nextSelectedImageRefs = buildSelectedCanvasImageAttachments(
+      orderedSelectedCanvasImages,
+    );
+    const nextFocusedAssetIds = nextSelectedImageRefs.map(
+      (attachment) => attachment.assetId,
+    );
+
+    const selectionUnchanged =
+      previousFocusedAssetIds.length === nextFocusedAssetIds.length &&
+      previousFocusedAssetIds.every(
+        (assetId, index) => assetId === nextFocusedAssetIds[index],
+      );
+
+    if (selectionUnchanged) {
+      return;
+    }
+
+    console.log("[chat-sidebar] replacing focus-confirmed canvas refs after base image change", {
+      canvasId,
+      previousFocusedAssetIds,
+      nextFocusedAssetIds,
+      draftLength: composerDraft.length,
+    });
+
+    replaceCanvasRefs(previousFocusedAssetIds, nextSelectedImageRefs);
+    focusConfirmedCanvasRefAssetIdsRef.current = nextFocusedAssetIds;
+  }, [
+    canvasId,
+    composerDraft,
+    orderedSelectedCanvasImages,
+    replaceCanvasRefs,
+  ]);
 
   const handleMoveSelectedCanvasImage = useCallback(
     (elementId: string, direction: "left" | "right") => {
@@ -1509,6 +1561,26 @@ export function ChatSidebar({
       );
     },
     [canvasId],
+  );
+
+  const handleRemoveAttachment = useCallback(
+    (attachmentId: string) => {
+      const removedAttachment = imageAttachments.find(
+        (attachment) => attachment.id === attachmentId,
+      );
+      removeAttachment(attachmentId);
+
+      if (
+        removedAttachment?.source === "canvas-ref" &&
+        removedAttachment.assetId
+      ) {
+        focusConfirmedCanvasRefAssetIdsRef.current =
+          focusConfirmedCanvasRefAssetIdsRef.current.filter(
+            (assetId) => assetId !== removedAttachment.assetId,
+          );
+      }
+    },
+    [imageAttachments, removeAttachment],
   );
 
   useEffect(() => {
@@ -2270,7 +2342,7 @@ export function ChatSidebar({
               onAttachSelectedCanvasImages={handleAttachSelectedCanvasImages}
               onMoveSelectedCanvasImage={handleMoveSelectedCanvasImage}
               onRemoveSelectedCanvasImage={handleRemoveSelectedCanvasImage}
-              onRemoveAttachment={removeAttachment}
+              onRemoveAttachment={handleRemoveAttachment}
               onRetryAttachment={retryUpload}
               isUploading={isUploading}
               onAtQuery={setAtQuery}
@@ -2359,7 +2431,7 @@ export function ChatSidebar({
         onAttachSelectedCanvasImages={handleAttachSelectedCanvasImages}
         onMoveSelectedCanvasImage={handleMoveSelectedCanvasImage}
         onRemoveSelectedCanvasImage={handleRemoveSelectedCanvasImage}
-        onRemoveAttachment={removeAttachment}
+        onRemoveAttachment={handleRemoveAttachment}
         onRetryAttachment={retryUpload}
         isUploading={isUploading}
         onAtQuery={setAtQuery}

@@ -1186,3 +1186,38 @@ Phase 7 complete for the current non-deferred PRD scope (all frozen PRD checkbox
 - Next execution focus should move to the next real open parity item:
   - `25.2.5 查看大图` deeper `高清增强 / 无损放大` branch audit, or
   - the remaining `23.4 全量模板 -> 推荐模型全矩阵` sample expansion if that yields a higher-confidence user-facing closure
+
+## Latest Update: 2026-04-18 00:56 Asia/Shanghai
+
+- Resource stabilization for this session is now complete before continuing feature work:
+  - WSL runtime was confirmed empty after reboot
+  - duplicate Codex Desktop MCP helper processes were collapsed back to a single active fetch worker
+  - stale background subagents were closed
+- The current bounded parity slice is now closed in local source:
+  - `/home` `HomePrompt` now uses an in-shell upload trigger plus split `自动 / 1K` pills
+  - immersive `ChatInput` now keeps a fixed-height composer shell with a dedicated meta rail
+  - `CanvasToolMenu` now exposes a fixed responsive add-material shell plus anchored shape selection toolbar with real color pickers
+  - `CanvasEditor` now re-emits selection updates when the selected element geometry changes even if the selected id set does not
+- Fresh verification completed for this closure:
+  - focused:
+    - `test/home-prompt.test.tsx`
+    - `test/chat-input.test.tsx`
+    - `test/canvas-tool-menu.test.tsx`
+    - `test/canvas-editor-context-menu.test.tsx`
+    - result: `28` tests passed
+  - bounded regression:
+    - `test/home-prompt.test.tsx`
+    - `test/chat-input.test.tsx`
+    - `test/canvas-tool-menu.test.tsx`
+    - `test/canvas-editor-context-menu.test.tsx`
+    - `test/canvas-page-selection-action-bar.test.tsx`
+    - `test/chat-sidebar.test.tsx`
+    - `test/canvas-page-shell.test.tsx`
+    - `test/architecture-neutral-palette.test.ts`
+    - result: `77` tests passed
+- Planning consequence:
+  - the just-finished fixed-composer / anchored-toolbar slice should not be reopened; it is now frozen by tests and PRD writeback
+  - the next recommended non-backend front-end closures are:
+    - `25.1-4 输入焦点冲突`
+    - `25.1-7 历史定位失败提示`
+    - `18.4-2 我的创作非空态 + 回插画布`

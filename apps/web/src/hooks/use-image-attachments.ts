@@ -23,6 +23,19 @@ export type CanvasImageRef = {
   name?: string;
 };
 
+function createCanvasRefAttachment(ref: CanvasImageRef): ImageAttachmentState {
+  return {
+    id: crypto.randomUUID(),
+    preview: ref.url,
+    uploading: false,
+    assetId: ref.assetId,
+    url: ref.url,
+    mimeType: ref.mimeType,
+    source: "canvas-ref",
+    ...(ref.name ? { name: ref.name } : {}),
+  };
+}
+
 /** A fully-uploaded attachment ready to be sent, including its origin source. */
 export type ReadyAttachment = {
   assetId: string;
@@ -123,7 +136,6 @@ export function useImageAttachments(accessToken: string, projectId?: string) {
   );
 
   const addCanvasRef = useCallback((ref: CanvasImageRef) => {
-    const id = crypto.randomUUID();
     setAttachments((prev) => {
       const alreadyExists = prev.some(
         (attachment) =>
@@ -138,19 +150,55 @@ export function useImageAttachments(accessToken: string, projectId?: string) {
 
       return [
         ...prev,
-        {
-          id,
-          preview: ref.url,
-          uploading: false,
-          assetId: ref.assetId,
-          url: ref.url,
-          mimeType: ref.mimeType,
-          source: "canvas-ref",
-          ...(ref.name ? { name: ref.name } : {}),
-        },
+        createCanvasRefAttachment(ref),
       ];
     });
   }, []);
+
+  const replaceCanvasRefs = useCallback(
+    (previousAssetIds: string[], nextRefs: CanvasImageRef[]) => {
+      const previousAssetIdSet = new Set(
+        previousAssetIds.filter((assetId) => assetId.length > 0),
+      );
+
+      setAttachments((prev) => {
+        const retainedAttachments = prev.filter(
+          (attachment) =>
+            !(
+              attachment.source === "canvas-ref" &&
+              attachment.assetId &&
+              previousAssetIdSet.has(attachment.assetId)
+            ),
+        );
+
+        const existingCanvasRefKeys = new Set(
+          retainedAttachments
+            .filter((attachment) => attachment.source === "canvas-ref")
+            .map((attachment) => `${attachment.assetId}::${attachment.url}`),
+        );
+
+        const nextAttachments = [...retainedAttachments];
+
+        nextRefs.forEach((ref) => {
+          const key = `${ref.assetId}::${ref.url}`;
+          if (existingCanvasRefKeys.has(key)) {
+            return;
+          }
+
+          existingCanvasRefKeys.add(key);
+          nextAttachments.push(createCanvasRefAttachment(ref));
+        });
+
+        const removedCount = prev.length - retainedAttachments.length;
+        if (removedCount === 0 && nextAttachments.length === prev.length) {
+          return prev;
+        }
+
+        return nextAttachments;
+      });
+    },
+    [],
+  );
 
   const retryUpload = useCallback(
     (id: string) => {
@@ -241,6 +289,7 @@ export function useImageAttachments(accessToken: string, projectId?: string) {
     attachments,
     addFiles,
     addCanvasRef,
+    replaceCanvasRefs,
     retryUpload,
     removeAttachment,
     clearAll,
