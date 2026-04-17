@@ -2,13 +2,98 @@
 
 import { useCallback } from "react";
 
-import type { StreamEvent, ToolBlock } from "@loomic/shared";
+import type {
+  AgentPlan,
+  AgentPlanBlock,
+  AgentPlanStep,
+  StreamEvent,
+  ToolBlock,
+} from "@loomic/shared";
 import type { Message } from "./use-chat-sessions";
 
 type MessageUpdater = (
   targetSessionId: string,
   updater: (prev: Message[]) => Message[],
 ) => void;
+
+function upsertAgentPlanBlock(
+  blocks: Message["contentBlocks"],
+  nextBlock: AgentPlanBlock,
+) {
+  const nextBlocks = [...blocks];
+  const existingIndex = nextBlocks.findIndex(
+    (block) => block.type === "agent-plan",
+  );
+
+  if (existingIndex === -1) {
+    nextBlocks.unshift(nextBlock);
+    return nextBlocks;
+  }
+
+  nextBlocks[existingIndex] = nextBlock;
+  return nextBlocks;
+}
+
+function updateAgentPlanBlock(
+  blocks: Message["contentBlocks"],
+  updater: (block: AgentPlanBlock) => AgentPlanBlock,
+) {
+  const existingIndex = blocks.findIndex((block) => block.type === "agent-plan");
+  if (existingIndex === -1) {
+    console.warn("[chat-stream] plan update ignored because no plan block exists yet");
+    return blocks;
+  }
+
+  const currentBlock = blocks[existingIndex];
+  if (!currentBlock || currentBlock.type !== "agent-plan") {
+    return blocks;
+  }
+
+  const nextBlock = updater(currentBlock);
+  if (nextBlock === currentBlock) {
+    return blocks;
+  }
+
+  const nextBlocks = [...blocks];
+  nextBlocks[existingIndex] = nextBlock;
+  return nextBlocks;
+}
+
+function upsertPlanStep(steps: AgentPlanStep[], step: AgentPlanStep) {
+  const existingIndex = steps.findIndex(
+    (existingStep) => existingStep.stepId === step.stepId,
+  );
+
+  if (existingIndex === -1) {
+    return [...steps, step];
+  }
+
+  return steps.map((existingStep) =>
+    existingStep.stepId === step.stepId ? step : existingStep,
+  );
+}
+
+function derivePlanStatus(
+  steps: AgentPlanStep[],
+  fallback: AgentPlan["status"],
+): AgentPlan["status"] {
+  if (steps.every((step) => step.status === "completed")) {
+    return "completed";
+  }
+  if (steps.some((step) => step.status === "failed")) {
+    return "failed";
+  }
+  if (steps.some((step) => step.status === "interrupted")) {
+    return "interrupted";
+  }
+  if (steps.some((step) => step.status === "running")) {
+    return "running";
+  }
+  if (steps.some((step) => step.status === "pending")) {
+    return "pending";
+  }
+  return fallback;
+}
 
 /**
  * Extracts the stream event handling logic into a reusable hook.
@@ -89,6 +174,48 @@ export function useChatStream(updateSessionMessages: MessageUpdater) {
           break;
         }
 
+        case "agent.plan.updated":
+          update((prev) =>
+            prev.map((m) => {
+              if (m.id !== assistantId) return m;
+              return {
+                ...m,
+                contentBlocks: upsertAgentPlanBlock(m.contentBlocks, {
+                  type: "agent-plan",
+                  plan: event.plan,
+                }),
+              };
+            }),
+          );
+          break;
+
+        case "agent.step.updated":
+          update((prev) =>
+            prev.map((m) => {
+              if (m.id !== assistantId) return m;
+              return {
+                ...m,
+                contentBlocks: updateAgentPlanBlock(m.contentBlocks, (block) => {
+                  if (block.plan.planId !== event.planId) {
+                    return block;
+                  }
+
+                  const nextSteps = upsertPlanStep(block.plan.steps, event.step);
+                  return {
+                    ...block,
+                    plan: {
+                      ...block.plan,
+                      steps: nextSteps,
+                      status: derivePlanStatus(nextSteps, block.plan.status),
+                      updatedAt: event.timestamp,
+                    },
+                  };
+                }),
+              };
+            }),
+          );
+          break;
+
         case "tool.started":
           update((prev) =>
             prev.map((m) => {
@@ -144,17 +271,126 @@ export function useChatStream(updateSessionMessages: MessageUpdater) {
           );
           break;
 
+        case "run.interrupted":
+          update((prev) =>
+            prev.map((m) => {
+              if (m.id !== assistantId) return m;
+              return {
+                ...m,
+                contentBlocks: updateAgentPlanBlock(m.contentBlocks, (block) => ({
+                  ...block,
+                  interrupt: event.interrupt,
+                  plan: {
+                    ...block.plan,
+                    status: "interrupted",
+                    availableActions: ["resume", "retry"],
+                    updatedAt: event.timestamp,
+                    steps: block.plan.steps.map((step) =>
+                      step.status === "running"
+                        ? {
+                            ...step,
+                            status: "interrupted",
+                            lastUpdatedAt: event.timestamp,
+                          }
+                        : step,
+                    ),
+                  },
+                })),
+              };
+            }),
+          );
+          break;
+
+        case "run.resumed":
+          update((prev) =>
+            prev.map((m) => {
+              if (m.id !== assistantId) return m;
+              return {
+                ...m,
+                contentBlocks: updateAgentPlanBlock(m.contentBlocks, (block) => ({
+                  type: "agent-plan",
+                  plan: {
+                    ...block.plan,
+                    runId: event.runId,
+                    sourceRunId: event.sourceRunId,
+                    status: "running",
+                    availableActions: ["interrupt"],
+                    updatedAt: event.timestamp,
+                    steps: block.plan.steps.map((step) =>
+                      step.status === "interrupted"
+                        ? {
+                            ...step,
+                            status: "running",
+                            lastUpdatedAt: event.timestamp,
+                          }
+                        : step,
+                    ),
+                  },
+                })),
+              };
+            }),
+          );
+          break;
+
+        case "run.retried":
+          update((prev) =>
+            prev.map((m) => {
+              if (m.id !== assistantId) return m;
+              return {
+                ...m,
+                contentBlocks: updateAgentPlanBlock(m.contentBlocks, (block) => ({
+                  ...block,
+                  interrupt: undefined,
+                  plan: {
+                    ...block.plan,
+                    runId: event.runId,
+                    sourceRunId: event.sourceRunId,
+                    status: "pending",
+                    availableActions: ["interrupt"],
+                    updatedAt: event.timestamp,
+                    steps: block.plan.steps.map((step) => ({
+                      ...step,
+                      status: step.status === "completed" ? "completed" : "pending",
+                      lastUpdatedAt: event.timestamp,
+                    })),
+                  },
+                })),
+              };
+            }),
+          );
+          break;
+
         case "run.failed":
           console.error("[chat-stream] run.failed:", event.error);
           update((prev) =>
             prev.map((m) => {
               if (m.id !== assistantId) return m;
               // Mark all running tool blocks as completed so spinners stop
-              const blocks = m.contentBlocks.map((block) =>
+              let blocks = m.contentBlocks.map((block) =>
                 block.type === "tool" && block.status === "running"
                   ? { ...block, status: "completed" as const, outputSummary: "\u5904\u7406\u5931\u8d25" }
                   : block,
               );
+              blocks = updateAgentPlanBlock(blocks, (block) => ({
+                ...block,
+                plan: {
+                  ...block.plan,
+                  status: "failed",
+                  availableActions: ["retry"],
+                  updatedAt: event.timestamp,
+                  steps: block.plan.steps.map((step) =>
+                    step.status === "running"
+                      ? {
+                          ...step,
+                          status: "failed",
+                          errorMessage:
+                            event.error.message ?? "\u6267\u884c\u5931\u8d25",
+                          lastUpdatedAt: event.timestamp,
+                        }
+                      : step,
+                  ),
+                },
+              }));
               const hasText = blocks.some((b) => b.type === "text");
               return {
                 ...m,
@@ -181,13 +417,60 @@ export function useChatStream(updateSessionMessages: MessageUpdater) {
                 (b) => b.type === "tool" && b.status === "running",
               );
               if (!hasRunning) return m;
-              return {
-                ...m,
-                contentBlocks: m.contentBlocks.map((block) =>
+              const blocks = updateAgentPlanBlock(
+                m.contentBlocks.map((block) =>
                   block.type === "tool" && block.status === "running"
                     ? { ...block, status: "completed" as const }
                     : block,
                 ),
+                (block) => ({
+                  ...block,
+                  plan: {
+                    ...block.plan,
+                    status:
+                      block.plan.status === "interrupted"
+                        ? "interrupted"
+                        : "failed",
+                    availableActions:
+                      block.plan.status === "interrupted" ? ["resume", "retry"] : ["retry"],
+                    updatedAt: event.timestamp,
+                  },
+                }),
+              );
+
+              return {
+                ...m,
+                contentBlocks: blocks,
+              };
+            }),
+          );
+          break;
+
+        case "run.completed":
+          update((prev) =>
+            prev.map((m) => {
+              if (m.id !== assistantId) return m;
+              return {
+                ...m,
+                contentBlocks: updateAgentPlanBlock(m.contentBlocks, (block) => ({
+                  ...block,
+                  interrupt: undefined,
+                  plan: {
+                    ...block.plan,
+                    status: "completed",
+                    availableActions: [],
+                    updatedAt: event.timestamp,
+                    steps: block.plan.steps.map((step) =>
+                      step.status === "running" || step.status === "pending"
+                        ? {
+                            ...step,
+                            status: "completed",
+                            lastUpdatedAt: event.timestamp,
+                          }
+                        : step,
+                    ),
+                  },
+                })),
               };
             }),
           );

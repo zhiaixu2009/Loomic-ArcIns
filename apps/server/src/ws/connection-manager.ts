@@ -1,6 +1,12 @@
 import { randomUUID } from "node:crypto";
 import type { WebSocket } from "ws";
-import type { StreamEvent } from "@loomic/shared";
+import type {
+  CanvasCollaborator,
+  CanvasCollaboratorProfile,
+  CanvasCursor,
+  CanvasSelection,
+  StreamEvent,
+} from "@loomic/shared";
 
 type PendingRPC = {
   resolve: (value: any) => void;
@@ -13,6 +19,26 @@ export type ConnectionEntry = {
   userId: string;
   connectionId: string;
   canvasId: string | null;
+  presenceActive: boolean;
+  collaboratorProfile: CanvasCollaboratorProfile | null;
+  collaboratorColor: string;
+  cursor: CanvasCursor | null;
+  selection: CanvasSelection;
+};
+
+const COLLABORATOR_COLORS = [
+  "#CA8A04",
+  "#2563EB",
+  "#DC2626",
+  "#16A34A",
+  "#7C3AED",
+  "#EA580C",
+  "#0891B2",
+  "#BE185D",
+] as const;
+
+const EMPTY_SELECTION: CanvasSelection = {
+  selectedElementIds: [],
 };
 
 export class ConnectionManager {
@@ -43,7 +69,17 @@ export class ConnectionManager {
       this.removeFromIndexes(connectionId, existing);
     }
 
-    const entry: ConnectionEntry = { ws, userId, connectionId, canvasId: null };
+    const entry: ConnectionEntry = {
+      ws,
+      userId,
+      connectionId,
+      canvasId: null,
+      presenceActive: false,
+      collaboratorProfile: null,
+      collaboratorColor: pickCollaboratorColor(userId, connectionId),
+      cursor: null,
+      selection: EMPTY_SELECTION,
+    };
     this.connections.set(connectionId, entry);
 
     let userSet = this.userIndex.get(userId);
@@ -72,6 +108,8 @@ export class ConnectionManager {
 
     // Remove from previous canvas index if switching canvases
     if (entry.canvasId && entry.canvasId !== canvasId) {
+      entry.cursor = null;
+      entry.selection = EMPTY_SELECTION;
       const prevSet = this.canvasIndex.get(entry.canvasId);
       if (prevSet) {
         prevSet.delete(connectionId);
@@ -89,6 +127,120 @@ export class ConnectionManager {
     canvasSet.add(connectionId);
   }
 
+  upsertPresence(
+    connectionId: string,
+    canvasId: string,
+    profile: CanvasCollaboratorProfile,
+  ): CanvasCollaborator | null {
+    const entry = this.connections.get(connectionId);
+    if (!entry) return null;
+
+    this.bindCanvas(connectionId, canvasId);
+    entry.presenceActive = true;
+    entry.collaboratorProfile = {
+      displayName: profile.displayName.trim(),
+      ...(profile.avatarUrl !== undefined ? { avatarUrl: profile.avatarUrl } : {}),
+    };
+
+    return this.toCollaborator(entry);
+  }
+
+  updateCursor(
+    connectionId: string,
+    canvasId: string,
+    cursor: CanvasCursor | null,
+  ): CanvasCollaborator | null {
+    const entry = this.connections.get(connectionId);
+    if (!entry) return null;
+
+    this.bindCanvas(connectionId, canvasId);
+    if (!entry.presenceActive) return null;
+    entry.cursor = cursor;
+    return this.toCollaborator(entry);
+  }
+
+  updateSelection(
+    connectionId: string,
+    canvasId: string,
+    selection: CanvasSelection,
+  ): CanvasCollaborator | null {
+    const entry = this.connections.get(connectionId);
+    if (!entry) return null;
+
+    this.bindCanvas(connectionId, canvasId);
+    if (!entry.presenceActive) return null;
+    entry.selection = selection;
+    return this.toCollaborator(entry);
+  }
+
+  getCanvasCollaborator(connectionId: string): CanvasCollaborator | null {
+    const entry = this.connections.get(connectionId);
+    if (!entry) return null;
+    return this.toCollaborator(entry);
+  }
+
+  getCanvasCollaboratorByUser(
+    canvasId: string,
+    userId: string,
+  ): CanvasCollaborator | null {
+    const ids = this.canvasIndex.get(canvasId);
+    if (!ids) return null;
+
+    for (const cid of ids) {
+      const entry = this.connections.get(cid);
+      if (!entry || entry.userId !== userId || !entry.presenceActive) {
+        continue;
+      }
+
+      const collaborator = this.toCollaborator(entry);
+      if (collaborator) {
+        return collaborator;
+      }
+    }
+
+    return null;
+  }
+
+  getCanvasCollaboratorByUserOrFallback(
+    canvasId: string,
+    userId: string,
+    profile: CanvasCollaboratorProfile,
+    fallbackConnectionId?: string,
+  ): CanvasCollaborator {
+    const collaborator = this.getCanvasCollaboratorByUser(canvasId, userId);
+    if (collaborator) {
+      return collaborator;
+    }
+
+    const connectionId = fallbackConnectionId ?? `user:${userId}`;
+    return {
+      avatarUrl: profile.avatarUrl ?? null,
+      color: pickCollaboratorColor(userId, connectionId),
+      connectionId,
+      displayName: profile.displayName.trim(),
+      userId,
+    };
+  }
+
+  getCanvasCollaborators(canvasId: string): CanvasCollaborator[] {
+    const ids = this.canvasIndex.get(canvasId);
+    if (!ids) return [];
+
+    return Array.from(ids)
+      .map((cid) => this.connections.get(cid))
+      .filter((entry): entry is ConnectionEntry =>
+        Boolean(
+          entry &&
+            entry.presenceActive &&
+            entry.canvasId === canvasId &&
+            entry.ws.readyState === 1,
+        ),
+      )
+      .map((entry) => this.toCollaborator(entry))
+      .filter((entry): entry is CanvasCollaborator => entry !== null)
+      .sort((left, right) => left.displayName.localeCompare(right.displayName));
+  }
+
   /** Mark a run as active for a canvas. */
   setActiveRun(canvasId: string, runId: string): void {
     this.activeRuns.set(canvasId, { runId, startedAt: Date.now() });
@@ -102,6 +254,16 @@ export class ConnectionManager {
   /** Get active run info for a canvas, if any. */
   getActiveRun(canvasId: string): { runId: string; startedAt: number } | null {
     return this.activeRuns.get(canvasId) ?? null;
+  }
+
+  /** Resolve the canvas currently associated with a given active run id. */
+  findCanvasIdByRunId(runId: string): string | null {
+    for (const [canvasId, activeRun] of this.activeRuns.entries()) {
+      if (activeRun.runId === runId) {
+        return canvasId;
+      }
+    }
+    return null;
   }
 
   // ---------------------------------------------------------------------------
@@ -314,4 +476,29 @@ export class ConnectionManager {
       }
     }
   }
+
+  private toCollaborator(entry: ConnectionEntry): CanvasCollaborator | null {
+    if (!entry.presenceActive || !entry.collaboratorProfile) {
+      return null;
+    }
+
+    return {
+      avatarUrl: entry.collaboratorProfile.avatarUrl ?? null,
+      color: entry.collaboratorColor,
+      connectionId: entry.connectionId,
+      displayName: entry.collaboratorProfile.displayName,
+      userId: entry.userId,
+    };
+  }
+}
+
+function pickCollaboratorColor(userId: string, connectionId: string): string {
+  const seed = `${userId}:${connectionId}`;
+  let hash = 0;
+
+  for (let index = 0; index < seed.length; index += 1) {
+    hash = (hash * 31 + seed.charCodeAt(index)) >>> 0;
+  }
+
+  return COLLABORATOR_COLORS[hash % COLLABORATOR_COLORS.length]!;
 }

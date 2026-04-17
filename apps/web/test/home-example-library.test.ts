@@ -64,7 +64,7 @@ describe("mapHomeExampleRows", () => {
     expect(mapHomeExampleRows(categories, examples)).toEqual([
       {
         key: "design",
-        label: "Design",
+        label: "设计创作",
         dataType: "Poster",
         examples: [
           {
@@ -83,10 +83,46 @@ describe("mapHomeExampleRows", () => {
       },
       {
         key: "video",
-        label: "Video",
+        label: "视频生成",
         dataType: "Video",
         examples: [],
       },
+    ]);
+  });
+
+  it("overlays database category labels with localized seed labels when keys match", () => {
+    const categories: HomeExampleCategoryRow[] = [
+      {
+        key: "design",
+        label: "Design",
+        data_type: "Poster",
+        accent: null,
+        sort_order: 1,
+        is_active: true,
+        created_at: "2026-03-29T00:00:00.000Z",
+        updated_at: "2026-03-29T00:00:00.000Z",
+      },
+      {
+        key: "video",
+        label: "Video",
+        data_type: "Video",
+        accent: null,
+        sort_order: 2,
+        is_active: true,
+        created_at: "2026-03-29T00:00:00.000Z",
+        updated_at: "2026-03-29T00:00:00.000Z",
+      },
+    ];
+
+    expect(mapHomeExampleRows(categories, [])).toEqual([
+      expect.objectContaining({
+        key: "design",
+        label: "设计创作",
+      }),
+      expect.objectContaining({
+        key: "video",
+        label: "视频生成",
+      }),
     ]);
   });
 });

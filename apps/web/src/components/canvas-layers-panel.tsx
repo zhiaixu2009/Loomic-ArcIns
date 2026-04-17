@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, memo } from "react";
+import { useCallback, useEffect, useRef, useState, memo, type MouseEvent } from "react";
+
+import {
+  reorderCanvasElementsByLayerOrder,
+  toggleLockCanvasElements,
+  toggleVisibilityCanvasElements,
+} from "../lib/canvas-context-actions";
+import { getCanvasElementLabel } from "../lib/canvas-localization";
 
 /* -- Types -- */
 // biome-ignore lint/suspicious/noExplicitAny: Excalidraw element has no public type
@@ -49,6 +56,14 @@ const EyeIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
+const EyeOffIcon = ({ className }: { className?: string }) => (
+  <svg viewBox="0 0 16 16" fill="none" className={className}>
+    <path d="M2 2l12 12" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+    <path d="M3 5.4C4.2 4.2 5.8 3.5 8 3.5c4 0 6.5 4 6.5 4a13.82 13.82 0 0 1-2 2.5" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+    <path d="M12.7 12.1C11.5 13 10 13.5 8 13.5c-4 0-6.5-4-6.5-4S2.3 8.2 3.4 7.1" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+  </svg>
+);
+
 const CloseIcon = ({ className }: { className?: string }) => (
   <svg viewBox="0 0 16 16" fill="none" className={className}>
     <path d="M4.5 4.5l7 7M11.5 4.5l-7 7" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
@@ -57,14 +72,15 @@ const CloseIcon = ({ className }: { className?: string }) => (
 
 /* -- Element helpers -- */
 function elLabel(el: ExcalidrawEl): string {
-  if (el.customData?.type === "image-generator") {
-    return el.customData?.title?.slice(0, 20) || "Image Generator";
-  }
-  if (el.type === "text") return (el.text as string)?.slice(0, 20) || "Text";
-  if (el.type === "image") {
-    return el.customData?.title?.slice(0, 20) || "Image";
-  }
-  return el.type.charAt(0).toUpperCase() + el.type.slice(1);
+  return getCanvasElementLabel(el);
+}
+
+function isLayerLocked(el: ExcalidrawEl) {
+  return Boolean(el.locked);
+}
+
+function isLayerHidden(el: ExcalidrawEl) {
+  return el.opacity === 0 || el.customData?.hidden === true;
 }
 
 function elThumbnailIcon(el: ExcalidrawEl): string {
@@ -118,49 +134,125 @@ const LayerRow = memo(function LayerRow({
   el,
   files,
   selected,
+  dragging,
+  dropTarget,
   onSelect,
+  onDragStart,
+  onDragOver,
+  onDrop,
+  onDragEnd,
+  onToggleLock,
+  onToggleVisibility,
 }: {
   el: ExcalidrawEl;
   files: Record<string, any>;
   selected: boolean;
+  dragging: boolean;
+  dropTarget: boolean;
   onSelect: (id: string) => void;
+  onDragStart: (id: string) => void;
+  onDragOver: (id: string, event: MouseEvent<HTMLDivElement>) => void;
+  onDrop: (id: string) => void;
+  onDragEnd: () => void;
+  onToggleLock: (id: string) => void;
+  onToggleVisibility: (id: string) => void;
 }) {
   const handleClick = useCallback(() => onSelect(el.id), [onSelect, el.id]);
+  const handleDragStart = useCallback(() => onDragStart(el.id), [el.id, onDragStart]);
+  const handleDragOver = useCallback(
+    (event: MouseEvent<HTMLDivElement>) => {
+      event.preventDefault();
+      onDragOver(el.id, event);
+    },
+    [el.id, onDragOver],
+  );
+  const handleDrop = useCallback(
+    (event: MouseEvent<HTMLDivElement>) => {
+      event.preventDefault();
+      onDrop(el.id);
+    },
+    [el.id, onDrop],
+  );
+  const handleToggleLock = useCallback(
+    (event: MouseEvent<HTMLButtonElement>) => {
+      event.stopPropagation();
+      onToggleLock(el.id);
+    },
+    [el.id, onToggleLock],
+  );
+  const handleToggleVisibility = useCallback(
+    (event: MouseEvent<HTMLButtonElement>) => {
+      event.stopPropagation();
+      onToggleVisibility(el.id);
+    },
+    [el.id, onToggleVisibility],
+  );
+  const locked = isLayerLocked(el);
+  const hidden = isLayerHidden(el);
+  const actionButtonBaseClass =
+    "flex h-6 w-6 items-center justify-center rounded text-muted-foreground transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1";
+  const idleActionVisibilityClass = selected
+    ? "visible"
+    : "invisible group-hover/layer:visible focus-visible:visible";
 
   return (
-    <div style={{ contentVisibility: "auto", containIntrinsicSize: "auto 44px" }}>
+    <div
+      data-testid={`canvas-layer-row-${el.id}`}
+      draggable
+      className={`group/layer flex h-11 items-center gap-1 rounded-lg px-2 transition-colors ${
+        dragging
+          ? "bg-muted/70 opacity-70"
+          : dropTarget
+            ? "bg-muted ring-1 ring-border"
+            : selected
+              ? "bg-muted"
+              : "hover:bg-muted"
+      }`}
+      style={{ contentVisibility: "auto", containIntrinsicSize: "auto 44px" }}
+      onDragStart={handleDragStart}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
+      onDragEnd={onDragEnd}
+    >
       <button
         type="button"
-        className={`group/layer flex h-11 w-full items-center gap-2.5 rounded-lg px-2 text-left transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 ${
-          selected
-            ? "bg-muted"
-            : "hover:bg-muted"
-        }`}
+        className="flex min-w-0 flex-1 items-center gap-2.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
+        aria-current={selected ? "true" : undefined}
         onClick={handleClick}
       >
         <LayerThumbnail el={el} files={files} />
-        <span className="flex-1 truncate text-[11px] text-foreground min-w-0">
+        <span className="min-w-0 flex-1 truncate text-[11px] text-foreground">
           {elLabel(el)}
         </span>
-        <div className="flex items-center gap-0.5">
-          <button
-            type="button"
-            className="invisible flex h-6 w-6 items-center justify-center rounded text-muted-foreground hover:text-foreground group-hover/layer:visible cursor-pointer outline-none focus-visible:visible focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
-            aria-label="Lock layer"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <LockIcon className="h-4 w-4" />
-          </button>
-          <button
-            type="button"
-            className="invisible flex h-6 w-6 items-center justify-center rounded text-muted-foreground hover:text-foreground group-hover/layer:visible cursor-pointer outline-none focus-visible:visible focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
-            aria-label="Toggle layer visibility"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <EyeIcon className="h-4 w-4" />
-          </button>
-        </div>
       </button>
+      <div className="flex items-center gap-0.5">
+        <button
+          type="button"
+          className={`${actionButtonBaseClass} ${idleActionVisibilityClass} ${
+            locked ? "bg-muted text-foreground" : "hover:text-foreground"
+          }`}
+          aria-label={locked ? "解锁图层" : "锁定图层"}
+          aria-pressed={locked}
+          onClick={handleToggleLock}
+        >
+          <LockIcon className="h-4 w-4" />
+        </button>
+        <button
+          type="button"
+          className={`${actionButtonBaseClass} ${idleActionVisibilityClass} ${
+            hidden ? "bg-muted text-foreground" : "hover:text-foreground"
+          }`}
+          aria-label={hidden ? "显示图层" : "隐藏图层"}
+          aria-pressed={hidden}
+          onClick={handleToggleVisibility}
+        >
+          {hidden ? (
+            <EyeOffIcon className="h-4 w-4" />
+          ) : (
+            <EyeIcon className="h-4 w-4" />
+          )}
+        </button>
+      </div>
     </div>
   );
 });
@@ -177,6 +269,8 @@ export function CanvasLayersPanel({
   const [elements, setElements] = useState<ExcalidrawEl[]>([]);
   const [files, setFiles] = useState<Record<string, any>>({});
   const [selectedIds, setSelectedIds] = useState<Record<string, boolean>>({});
+  const [draggedLayerId, setDraggedLayerId] = useState<string | null>(null);
+  const [dropTargetLayerId, setDropTargetLayerId] = useState<string | null>(null);
 
   /* -- Refresh elements on open + subscribe to changes -- */
   const refreshElements = useCallback(() => {
@@ -221,12 +315,110 @@ export function CanvasLayersPanel({
   /* -- Select element on canvas -- */
   const selectElement = useCallback(
     (id: string) => {
-      excalidrawApi?.updateScene({
-        appState: { selectedElementIds: { [id]: true } },
+      if (!excalidrawApi) {
+        return;
+      }
+
+      excalidrawApi.updateScene({
+        appState: {
+          ...excalidrawApi.getAppState(),
+          selectedElementIds: { [id]: true },
+        },
       });
+      setSelectedIds({ [id]: true });
+      refreshElements();
     },
-    [excalidrawApi],
+    [excalidrawApi, refreshElements],
   );
+
+  const runLayerAction = useCallback(
+    (id: string, action: (api: any) => unknown) => {
+      if (!excalidrawApi) {
+        return;
+      }
+
+      excalidrawApi.updateScene({
+        appState: {
+          ...excalidrawApi.getAppState(),
+          selectedElementIds: { [id]: true },
+        },
+      });
+      setSelectedIds({ [id]: true });
+      action(excalidrawApi);
+      refreshElements();
+    },
+    [excalidrawApi, refreshElements],
+  );
+
+  const toggleLayerLock = useCallback(
+    (id: string) => {
+      runLayerAction(id, (api) => toggleLockCanvasElements(api, [id]));
+    },
+    [runLayerAction],
+  );
+
+  const toggleLayerVisibility = useCallback(
+    (id: string) => {
+      runLayerAction(id, (api) => toggleVisibilityCanvasElements(api, [id]));
+    },
+    [runLayerAction],
+  );
+
+  const reorderLayers = useCallback(
+    (draggedId: string, targetId: string) => {
+      if (!excalidrawApi || draggedId === targetId) {
+        return;
+      }
+
+      const currentLayerOrder = elements.map((element) => String(element.id));
+      const draggedIndex = currentLayerOrder.indexOf(draggedId);
+      const targetIndex = currentLayerOrder.indexOf(targetId);
+      if (draggedIndex === -1 || targetIndex === -1) {
+        return;
+      }
+
+      const nextLayerOrder = currentLayerOrder.slice();
+      nextLayerOrder.splice(draggedIndex, 1);
+      const adjustedTargetIndex = nextLayerOrder.indexOf(targetId);
+      const insertionIndex =
+        draggedIndex < targetIndex ? adjustedTargetIndex + 1 : adjustedTargetIndex;
+      nextLayerOrder.splice(insertionIndex, 0, draggedId);
+
+      reorderCanvasElementsByLayerOrder(excalidrawApi, nextLayerOrder);
+      refreshElements();
+    },
+    [elements, excalidrawApi, refreshElements],
+  );
+
+  const handleDragStart = useCallback((id: string) => {
+    setDraggedLayerId(id);
+    setDropTargetLayerId(null);
+  }, []);
+
+  const handleDragOver = useCallback((id: string) => {
+    if (!draggedLayerId || draggedLayerId === id) {
+      return;
+    }
+
+    setDropTargetLayerId(id);
+  }, [draggedLayerId]);
+
+  const handleDrop = useCallback((id: string) => {
+    if (!draggedLayerId || draggedLayerId === id) {
+      setDraggedLayerId(null);
+      setDropTargetLayerId(null);
+      return;
+    }
+
+    reorderLayers(draggedLayerId, id);
+    setDraggedLayerId(null);
+    setDropTargetLayerId(null);
+  }, [draggedLayerId, reorderLayers]);
+
+  const handleDragEnd = useCallback(() => {
+    setDraggedLayerId(null);
+    setDropTargetLayerId(null);
+  }, []);
 
   if (!open) return null;
 
@@ -244,7 +436,7 @@ export function CanvasLayersPanel({
           type="button"
           className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
           onClick={onClose}
-          aria-label="Close layers panel"
+          aria-label="关闭图层面板"
         >
           <CloseIcon className="h-4 w-4" />
         </button>
@@ -266,7 +458,15 @@ export function CanvasLayersPanel({
               el={el}
               files={files}
               selected={!!selectedIds[el.id]}
+              dragging={draggedLayerId === el.id}
+              dropTarget={dropTargetLayerId === el.id}
               onSelect={selectElement}
+              onDragStart={handleDragStart}
+              onDragOver={handleDragOver}
+              onDrop={handleDrop}
+              onDragEnd={handleDragEnd}
+              onToggleLock={toggleLayerLock}
+              onToggleVisibility={toggleLayerVisibility}
             />
           ))
         )}

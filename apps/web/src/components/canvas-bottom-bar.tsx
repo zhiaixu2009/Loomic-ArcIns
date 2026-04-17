@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { HexColorPicker } from "react-colorful";
 
+import { getCanvasElementLabel } from "../lib/canvas-localization";
+
 /* ── Preset color swatches for background picker ── */
 const BG_PRESETS = ["transparent","#000000","#FFFFFF","#d3f256","#6C5CE7","#00B894","#FD79A8","#0984E3"] as const;
 
@@ -104,9 +106,7 @@ type ExcalidrawEl = any;
 const TYPE_ICONS: Record<string, string> = { text:"T", image:"🖼", rectangle:"▭", ellipse:"◯", diamond:"◇", line:"─", arrow:"→" };
 const elTypeIcon = (t: string) => TYPE_ICONS[t] ?? "◆";
 function elLabel(el: ExcalidrawEl): string {
-  if (el.type === "text") return (el.text as string)?.slice(0, 20) || "Text";
-  if (el.type === "image") return "Image";
-  return el.type.charAt(0).toUpperCase() + el.type.slice(1);
+  return getCanvasElementLabel(el);
 }
 
 function ElementRow({ el, onSelect }: { el: ExcalidrawEl; onSelect: (id: string) => void }) {
@@ -208,19 +208,19 @@ export function CanvasBottomBar({ excalidrawApi, layersOpen, onToggleLayers, fil
     >
       <div className="flex items-center gap-0.5 rounded-full bg-card/90 backdrop-blur-lg border border-border px-1 py-1 shadow-card">
         {/* ── Background color button ── */}
-        <button ref={bgBtnRef} type="button" className={btnClass} onClick={toggleBgPicker} aria-label="Background color">
+        <button ref={bgBtnRef} type="button" className={btnClass} onClick={toggleBgPicker} aria-label="\u8bbe\u7f6e\u80cc\u666f">
           {bgColor === "transparent"
             ? <CheckerIcon className="h-4 w-4 rounded-full" />
             : <span className="block h-4 w-4 rounded-full border border-border" style={{ backgroundColor: bgColor }} />}
         </button>
 
         {/* ── Layers button ── */}
-        <button type="button" className={`${btnClass} ${layersOpen ? "bg-muted text-foreground" : ""}`} onClick={handleToggleLayers} aria-label="Layers">
+        <button type="button" className={`${btnClass} ${layersOpen ? "bg-muted text-foreground" : ""}`} onClick={handleToggleLayers} aria-label="\u56fe\u5c42">
           <LayersIcon className="h-4 w-4" />
         </button>
 
         {/* ── Files button ── */}
-        <button type="button" className={`${btnClass} ${filesOpen ? "bg-muted text-foreground" : ""}`} onClick={handleToggleFiles} aria-label="Generated files">
+        <button type="button" className={`${btnClass} ${filesOpen ? "bg-muted text-foreground" : ""}`} onClick={handleToggleFiles} aria-label="\u751f\u6210\u6587\u4ef6">
           <FileIcon className="h-3.5 w-3.5" />
         </button>
 
@@ -228,11 +228,11 @@ export function CanvasBottomBar({ excalidrawApi, layersOpen, onToggleLayers, fil
         <span className="mx-1 h-3 w-px bg-border" />
 
         {/* ── Zoom controls ── */}
-        <button type="button" className={btnClass} onClick={handleZoomOut} aria-label="Zoom out"><MinusIcon className="h-3.5 w-3.5" /></button>
+        <button type="button" className={btnClass} onClick={handleZoomOut} aria-label="\u7f29\u5c0f"><MinusIcon className="h-3.5 w-3.5" /></button>
         <button ref={zoomBtnRef} type="button" className="min-w-[40px] text-center text-xs text-muted-foreground select-none cursor-pointer hover:text-foreground transition-colors" onClick={toggleZoomMenu}>
           {Math.round(zoom * 100)}%
         </button>
-        <button type="button" className={btnClass} onClick={handleZoomIn} aria-label="Zoom in"><PlusIcon className="h-3.5 w-3.5" /></button>
+        <button type="button" className={btnClass} onClick={handleZoomIn} aria-label="\u653e\u5927"><PlusIcon className="h-3.5 w-3.5" /></button>
       </div>
 
       {/* ── Zoom preset popover ── */}
@@ -242,7 +242,7 @@ export function CanvasBottomBar({ excalidrawApi, layersOpen, onToggleLayers, fil
             <button key={v} type="button" className="px-3 py-1.5 text-xs text-left rounded-md hover:bg-muted transition-colors text-foreground" onClick={() => handleZoomTo(v)}>{Math.round(v * 100)}%</button>
           ))}
           <div className="h-px bg-border my-0.5" />
-          <button type="button" className="px-3 py-1.5 text-xs text-left rounded-md hover:bg-muted transition-colors text-foreground" onClick={handleFitAll}>Fit All</button>
+          <button type="button" className="px-3 py-1.5 text-xs text-left rounded-md hover:bg-muted transition-colors text-foreground" onClick={handleFitAll}>{"\u9002\u5e94\u89c6\u7a97"}</button>
         </div>
       </Popover>
 
@@ -253,7 +253,7 @@ export function CanvasBottomBar({ excalidrawApi, layersOpen, onToggleLayers, fil
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-foreground">画布背景色</span>
             <button type="button" className="flex h-5 w-5 items-center justify-center rounded text-muted-foreground hover:text-foreground transition-colors"
-              onClick={() => setBgPickerOpen(false)} aria-label="Close color picker">
+              onClick={() => setBgPickerOpen(false)} aria-label="\u5173\u95ed\u80cc\u666f\u9009\u62e9\u5668">
               <CloseIcon className="h-3.5 w-3.5" />
             </button>
           </div>
@@ -271,7 +271,7 @@ export function CanvasBottomBar({ excalidrawApi, layersOpen, onToggleLayers, fil
               <button key={hex} type="button"
                 className={`h-6 w-6 shrink-0 rounded-full border hover:scale-110 transition-transform ${bgColor === hex ? "border-foreground ring-1 ring-foreground ring-offset-1 ring-offset-card" : "border-border"}`}
                 style={hex === "transparent" ? CHECKER_STYLE : { backgroundColor: hex }}
-                onClick={() => applyBgColor(hex)} aria-label={`Set background to ${hex}`} />
+                onClick={() => applyBgColor(hex)} aria-label={`\u5207\u6362\u80cc\u666f\u8272 ${hex}`} />
             ))}
           </div>
           {/* Hex input row */}

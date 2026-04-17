@@ -62,7 +62,7 @@ export const homeDiscoverySeedCategories: HomeDiscoveryCategory[] = [
   createCategory("branding-design", "品牌设计", [
     createCase(
       "ji5ey5l",
-      "The ART & Cultural Arts Center",
+      "\u6587\u5316\u827a\u672f\u4e2d\u5fc3\u54c1\u724c\u63d0\u6848",
       "https://jmcrxgenontlkxktpihl.supabase.co/storage/v1/object/public/project-assets/home-seeds/discovery/branding-design/cover.webp",
       "Studio Arken",
       "https://jmcrxgenontlkxktpihl.supabase.co/storage/v1/object/public/project-assets/home-seeds/discovery/avatars/branding-design.svg",
@@ -74,7 +74,7 @@ export const homeDiscoverySeedCategories: HomeDiscoveryCategory[] = [
   createCategory("poster-and-ads", "海报与广告", [
     createCase(
       "n9d21de",
-      "Vintage Car Poster",
+      "\u590d\u53e4\u6c7d\u8f66\u6d77\u62a5\u4f01\u5212",
       "https://jmcrxgenontlkxktpihl.supabase.co/storage/v1/object/public/project-assets/home-seeds/discovery/poster-and-ads/cover.webp",
       "Retro Workshop",
       "https://jmcrxgenontlkxktpihl.supabase.co/storage/v1/object/public/project-assets/home-seeds/discovery/avatars/poster-and-ads.svg",
@@ -86,7 +86,7 @@ export const homeDiscoverySeedCategories: HomeDiscoveryCategory[] = [
   createCategory("illustration", "插画", [
     createCase(
       "bjde0nh",
-      "Cat Tarot Cards",
+      "\u732b\u7cfb\u5854\u7f57\u724c\u63d2\u753b\u96c6",
       "https://jmcrxgenontlkxktpihl.supabase.co/storage/v1/object/public/project-assets/home-seeds/discovery/illustration/cover.webp",
       "Mochi Art",
       "https://jmcrxgenontlkxktpihl.supabase.co/storage/v1/object/public/project-assets/home-seeds/discovery/avatars/illustration.svg",
@@ -98,7 +98,7 @@ export const homeDiscoverySeedCategories: HomeDiscoveryCategory[] = [
   createCategory("ui-design", "UI设计", [
     createCase(
       "tl8zzk0",
-      "Fallout-themed cake shop website.",
+      "\u5e9f\u571f\u98ce\u86cb\u7cd5\u5e97\u5b98\u7f51",
       "https://jmcrxgenontlkxktpihl.supabase.co/storage/v1/object/public/project-assets/home-seeds/discovery/ui-design/cover.webp",
       "Pixel Forge",
       "https://jmcrxgenontlkxktpihl.supabase.co/storage/v1/object/public/project-assets/home-seeds/discovery/avatars/ui-design.svg",
@@ -110,7 +110,7 @@ export const homeDiscoverySeedCategories: HomeDiscoveryCategory[] = [
   createCategory("character-design", "角色设计", [
     createCase(
       "fbn3mss",
-      "My Creepy Clown Avatar in Abandoned Circus Park",
+      "\u5e9f\u5f03\u9a6c\u620f\u56e2\u5c0f\u4e11\u89d2\u8272",
       "https://jmcrxgenontlkxktpihl.supabase.co/storage/v1/object/public/project-assets/home-seeds/discovery/character-design/cover.webp",
       "Dark Carnival",
       "https://jmcrxgenontlkxktpihl.supabase.co/storage/v1/object/public/project-assets/home-seeds/discovery/avatars/character-design.svg",
@@ -122,7 +122,7 @@ export const homeDiscoverySeedCategories: HomeDiscoveryCategory[] = [
   createCategory("storyboard-video", "影片与分镜", [
     createCase(
       "ikqo02k",
-      "Mixtapes Emotions !",
+      "\u60c5\u7eea\u78c1\u5e26\u77ed\u7247\u5206\u955c",
       "https://jmcrxgenontlkxktpihl.supabase.co/storage/v1/object/public/project-assets/home-seeds/discovery/storyboard-video/cover.webp",
       "Frame Studio",
       "https://jmcrxgenontlkxktpihl.supabase.co/storage/v1/object/public/project-assets/home-seeds/discovery/avatars/storyboard-video.svg",
@@ -134,7 +134,7 @@ export const homeDiscoverySeedCategories: HomeDiscoveryCategory[] = [
   createCategory("product-design", "产品设计", [
     createCase(
       "a4ncmvb",
-      "Product Visualization - Robot Hand ",
+      "\u673a\u68b0\u624b\u4ea7\u54c1\u89c6\u89c9\u63d0\u6848",
       "https://jmcrxgenontlkxktpihl.supabase.co/storage/v1/object/public/project-assets/home-seeds/discovery/product-design/cover.webp",
       "Future Lab",
       "https://jmcrxgenontlkxktpihl.supabase.co/storage/v1/object/public/project-assets/home-seeds/discovery/avatars/product-design.svg",
@@ -146,7 +146,7 @@ export const homeDiscoverySeedCategories: HomeDiscoveryCategory[] = [
   createCategory("architecture-design", "建筑设计", [
     createCase(
       "ng716s0",
-      "Building a new website and learning how to AI",
+      "\u5efa\u7b51\u5de5\u4f5c\u5ba4 AI \u5b98\u7f51\u6982\u5ff5",
       "https://jmcrxgenontlkxktpihl.supabase.co/storage/v1/object/public/project-assets/home-seeds/discovery/architecture-design/cover.webp",
       "Arc Design",
       "https://jmcrxgenontlkxktpihl.supabase.co/storage/v1/object/public/project-assets/home-seeds/discovery/avatars/architecture-design.svg",

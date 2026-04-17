@@ -3,6 +3,8 @@
 import type { ChatSessionSummary } from "@loomic/shared";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { normalizeChatSessionTitle } from "@/lib/canvas-localization";
+
 type SessionSelectorProps = {
   sessions: ChatSessionSummary[];
   activeSessionId: string | null;
@@ -50,7 +52,13 @@ function TrashIcon({ className }: { className?: string }) {
 
 function SearchIcon({ className }: { className?: string }) {
   return (
-    <svg className={className} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.5}>
+    <svg
+      className={className}
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.5}
+    >
       <circle cx="7" cy="7" r="4.5" />
       <path d="m10.5 10.5 3 3" strokeLinecap="round" />
     </svg>
@@ -64,26 +72,29 @@ export function SessionSelector({
   onNewChat,
   onDelete,
 }: SessionSelectorProps) {
-  const activeSession = sessions.find((s) => s.id === activeSessionId);
+  const activeSession = sessions.find((session) => session.id === activeSessionId);
   const [open, setOpen] = useState(false);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const panelRef = useRef<HTMLDivElement>(null);
 
   const filtered = search.trim()
-    ? sessions.filter((s) => s.title.toLowerCase().includes(search.toLowerCase()))
+    ? sessions.filter((session) =>
+        normalizeChatSessionTitle(session.title).toLowerCase().includes(search.toLowerCase()),
+      )
     : sessions;
 
-  // Close panel on outside click
   useEffect(() => {
     if (!open) return;
-    function handleClick(e: MouseEvent) {
-      if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
+
+    function handleClick(event: MouseEvent) {
+      if (panelRef.current && !panelRef.current.contains(event.target as Node)) {
         setOpen(false);
         setConfirmingId(null);
         setSearch("");
       }
     }
+
     document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
   }, [open]);
@@ -108,7 +119,6 @@ export function SessionSelector({
 
   return (
     <div className="flex items-center gap-1.5">
-      {/* History toggle */}
       <div className="relative" ref={panelRef}>
         <button
           type="button"
@@ -117,14 +127,18 @@ export function SessionSelector({
             setConfirmingId(null);
             setSearch("");
           }}
-          className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
+          className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors cursor-pointer outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
         >
           <HistoryIcon className="h-3.5 w-3.5" />
           <span className="max-w-[140px] truncate">
-            {activeSession?.title ?? "History"}
+            {activeSession
+              ? normalizeChatSessionTitle(activeSession.title)
+              : "\u5bf9\u8bdd\u5386\u53f2"}
           </span>
           <svg
-            className={`h-3 w-3 opacity-50 transition-transform ${open ? "rotate-180" : ""}`}
+            className={`h-3 w-3 opacity-50 transition-transform ${
+              open ? "rotate-180" : ""
+            }`}
             viewBox="0 0 16 16"
             fill="currentColor"
           >
@@ -132,89 +146,98 @@ export function SessionSelector({
           </svg>
         </button>
 
-        {open && (
-          <div className="absolute left-0 top-full mt-1.5 z-50 w-[260px] rounded-lg border border-border bg-popover shadow-lg overflow-hidden">
-            {/* Header */}
-            <div className="px-3 pt-3 pb-2">
-              <p className="text-xs font-medium text-foreground mb-2">历史对话</p>
-              {/* Search */}
+        {open ? (
+          <div className="absolute left-0 top-full z-50 mt-1.5 w-[260px] overflow-hidden rounded-lg border border-border bg-popover shadow-lg">
+            <div className="px-3 pb-2 pt-3">
+              <p className="mb-2 text-xs font-medium text-foreground">
+                {"\u5386\u53f2\u5bf9\u8bdd"}
+              </p>
               <div className="relative">
-                <SearchIcon className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/70" />
+                <SearchIcon className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/70" />
                 <input
                   type="text"
                   value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="请输入搜索关键词"
-                  className="w-full rounded-md border border-input bg-muted py-1.5 pl-7 pr-2 text-xs text-foreground placeholder:text-muted-foreground/70 outline-none focus:border-input-border focus:bg-background transition-colors"
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="\u8bf7\u8f93\u5165\u641c\u7d22\u5173\u952e\u8bcd"
+                  className="w-full rounded-md border border-input bg-muted py-1.5 pl-7 pr-2 text-xs text-foreground outline-none transition-colors placeholder:text-muted-foreground/70 focus:border-input-border focus:bg-background"
                 />
               </div>
             </div>
 
-            {/* Session list */}
             <div className="max-h-[240px] overflow-y-auto px-1 pb-1">
-              {filtered.length === 0 && (
+              {filtered.length === 0 ? (
                 <p className="px-3 py-4 text-center text-xs text-muted-foreground/70">
-                  {search ? "无匹配结果" : "暂无对话"}
+                  {search
+                    ? "\u65e0\u5339\u914d\u7ed3\u679c"
+                    : "\u6682\u65e0\u5bf9\u8bdd"}
                 </p>
-              )}
-              {filtered.map((s) => (
+              ) : null}
+
+              {filtered.map((session) => (
                 <div
-                  key={s.id}
+                  key={session.id}
                   role="button"
                   tabIndex={0}
-                  className={`group flex items-center justify-between gap-1 rounded-md px-2 py-1.5 text-xs cursor-pointer transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 ${
-                    s.id === activeSessionId
-                      ? "bg-muted text-foreground font-medium"
+                  className={`group flex items-center justify-between gap-1 rounded-md px-2 py-1.5 text-xs cursor-pointer outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 ${
+                    session.id === activeSessionId
+                      ? "bg-muted font-medium text-foreground"
                       : "text-muted-foreground hover:bg-muted"
                   }`}
                   onClick={() => {
-                    if (confirmingId !== s.id) handleSelect(s.id);
+                    if (confirmingId !== session.id) {
+                      handleSelect(session.id);
+                    }
                   }}
-                  onKeyDown={(e) => {
-                    if ((e.key === "Enter" || e.key === " ") && confirmingId !== s.id) {
-                      e.preventDefault();
-                      handleSelect(s.id);
+                  onKeyDown={(event) => {
+                    if (
+                      (event.key === "Enter" || event.key === " ") &&
+                      confirmingId !== session.id
+                    ) {
+                      event.preventDefault();
+                      handleSelect(session.id);
                     }
                   }}
                 >
-                  {confirmingId === s.id ? (
-                    /* Inline confirm */
+                  {confirmingId === session.id ? (
                     <>
-                      <span className="truncate flex-1">{s.title}</span>
-                      <div className="flex items-center gap-1 shrink-0">
+                      <span className="flex-1 truncate">
+                        {normalizeChatSessionTitle(session.title)}
+                      </span>
+                      <div className="flex shrink-0 items-center gap-1">
                         <button
                           type="button"
-                          className="px-2 py-0.5 rounded text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
-                          onClick={(e) => {
-                            e.stopPropagation();
+                          className="rounded px-2 py-0.5 text-xs text-muted-foreground transition-colors outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
+                          onClick={(event) => {
+                            event.stopPropagation();
                             setConfirmingId(null);
                           }}
                         >
-                          取消
+                          {"\u53d6\u6d88"}
                         </button>
                         <button
                           type="button"
-                          className="px-2 py-0.5 rounded text-xs text-destructive-foreground bg-destructive hover:bg-destructive/90 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDelete(s.id);
+                          className="rounded bg-destructive px-2 py-0.5 text-xs text-destructive-foreground transition-colors outline-none hover:bg-destructive/90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            handleDelete(session.id);
                           }}
                         >
-                          删除
+                          {"\u5220\u9664"}
                         </button>
                       </div>
                     </>
                   ) : (
-                    /* Normal state */
                     <>
-                      <span className="truncate flex-1">{s.title}</span>
+                      <span className="flex-1 truncate">
+                        {normalizeChatSessionTitle(session.title)}
+                      </span>
                       <button
                         type="button"
-                        aria-label={`Delete ${s.title}`}
-                        className="hidden group-hover:flex h-5 w-5 shrink-0 items-center justify-center rounded text-muted-foreground hover:text-destructive transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setConfirmingId(s.id);
+                        aria-label={`\u5220\u9664 ${normalizeChatSessionTitle(session.title)}`}
+                        className="hidden h-5 w-5 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors outline-none group-hover:flex hover:text-destructive focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setConfirmingId(session.id);
                         }}
                       >
                         <TrashIcon className="h-3 w-3" />
@@ -225,15 +248,14 @@ export function SessionSelector({
               ))}
             </div>
           </div>
-        )}
+        ) : null}
       </div>
 
-      {/* New chat button */}
       <button
         type="button"
         onClick={onNewChat}
-        className="inline-flex items-center justify-center rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
-        title="New Chat"
+        className="inline-flex items-center justify-center rounded-md p-1 text-muted-foreground transition-colors outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
+        title="\u65b0\u5efa\u5bf9\u8bdd"
       >
         <NewChatIcon className="h-5 w-5" />
       </button>

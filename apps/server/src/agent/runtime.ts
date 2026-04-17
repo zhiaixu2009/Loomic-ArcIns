@@ -6,8 +6,10 @@ import { setTimeout as delay } from "node:timers/promises";
 import type { BaseLanguageModel } from "@langchain/core/language_models/base";
 import { HumanMessage } from "@langchain/core/messages";
 import type {
+  ArchitectureContext,
   ImageAttachment,
   ImageGenerationPreference,
+  ImageOutputPreference,
   MessageMention,
   RunCancelResponse,
   RunCreateRequest,
@@ -43,6 +45,7 @@ import { sanitizeErrorForClient } from "../utils/error-sanitizer.js";
 import { loadWorkspaceSkills, type WorkspaceSkillEntry } from "./workspace-skills.js";
 import { buildCanvasSummaryForContext } from "./tools/inspect-canvas.js";
 import { insertImageElement, insertVideoElement } from "../features/canvas/canvas-element-writer.js";
+import { createAgentPlanStore } from "./tools/agent-plan.js";
 
 /**
  * Build the text portion of a user message, appending <input_images> XML
@@ -55,6 +58,8 @@ export function buildUserMessage(
   mentions: MessageMention[] = [],
   videoGenerationPreference?: VideoGenerationPreference,
   canvasSummary?: string | null,
+  architectureContext?: ArchitectureContext,
+  imageOutputPreference?: ImageOutputPreference,
 ): { text: string } {
   const xmlBlocks: string[] = [];
 
@@ -62,6 +67,9 @@ export function buildUserMessage(
   if (canvasSummary) {
     xmlBlocks.push(`<canvas_state>\n${canvasSummary}\n</canvas_state>`);
   }
+
+  const architectureContextXml = buildArchitectureContextXml(architectureContext);
+  if (architectureContextXml) xmlBlocks.push(architectureContextXml);
 
   const inputImagesXml = buildInputImagesXml(attachments);
   if (inputImagesXml) xmlBlocks.push(inputImagesXml);
@@ -76,11 +84,91 @@ export function buildUserMessage(
   );
   if (videoGenerationPreferenceXml) xmlBlocks.push(videoGenerationPreferenceXml);
 
+  const imageOutputPreferenceXml = buildImageOutputPreferenceXml(
+    imageOutputPreference,
+  );
+  if (imageOutputPreferenceXml) xmlBlocks.push(imageOutputPreferenceXml);
+
   const mentionXmlBlocks = buildMentionXmlBlocks(mentions);
   xmlBlocks.push(...mentionXmlBlocks);
 
   if (!xmlBlocks.length) return { text: prompt };
   return { text: `${prompt}\n\n${xmlBlocks.join("\n\n")}` };
+}
+
+function buildArchitectureContextXml(
+  architectureContext?: ArchitectureContext,
+): string | null {
+  if (!architectureContext) return null;
+
+  const boardXml = architectureContext.boards
+    .map((board, i) => {
+      const elementIdsXml = board.elementIds
+        .map(
+          (elementId, elementIndex) =>
+            `<element index="${elementIndex + 1}" id="${escapeXmlAttribute(elementId)}" />`,
+        )
+        .join("\n      ");
+
+      const objectTypesXml = board.objectTypes
+        .map(
+          (objectType, objectTypeIndex) =>
+            `<object_type index="${objectTypeIndex + 1}" value="${escapeXmlAttribute(objectType)}" />`,
+        )
+        .join("\n      ");
+
+      return `<board index="${i + 1}" board_id="${escapeXmlAttribute(board.boardId)}" kind="${escapeXmlAttribute(board.kind)}" title="${escapeXmlAttribute(board.title)}" status="${escapeXmlAttribute(board.status)}" anchor_x="${board.anchor.x}" anchor_y="${board.anchor.y}" anchor_width="${board.anchor.width}" anchor_height="${board.anchor.height}">
+      <element_ids count="${board.elementIds.length}">
+        ${elementIdsXml}
+      </element_ids>
+      <object_types count="${board.objectTypes.length}">
+        ${objectTypesXml}
+      </object_types>
+    </board>`;
+    })
+    .join("\n    ");
+
+  const selectedElementIdsXml = architectureContext.selectedElementIds
+    .map(
+      (elementId, i) =>
+        `<element index="${i + 1}" id="${escapeXmlAttribute(elementId)}" />`,
+    )
+    .join("\n    ");
+
+  const objectTypesInSelectionXml = architectureContext.objectTypesInSelection
+    .map(
+      (objectType, i) =>
+        `<object_type index="${i + 1}" value="${escapeXmlAttribute(objectType)}" />`,
+    )
+    .join("\n    ");
+
+  const strategyOptionsXml = architectureContext.strategyOptions
+    .map(
+      (option, i) =>
+        `<strategy_option index="${i + 1}" option_id="${escapeXmlAttribute(option.optionId)}" disposition="${escapeXmlAttribute(option.disposition)}" title="${escapeXmlAttribute(option.title)}" summary="${escapeXmlAttribute(option.summary)}" />`,
+    )
+    .join("\n    ");
+
+  const activeBoardXml = architectureContext.activeBoardId
+    ? `<active_board id="${escapeXmlAttribute(architectureContext.activeBoardId)}" />`
+    : "<active_board />";
+
+  // TODO(m4-architecture): if board-level confidence is added, include it here for decision traceability.
+  return `<architecture_context studio="architecture">
+  <boards count="${architectureContext.boards.length}">
+    ${boardXml}
+  </boards>
+  ${activeBoardXml}
+  <selected_element_ids count="${architectureContext.selectedElementIds.length}">
+    ${selectedElementIdsXml}
+  </selected_element_ids>
+  <object_types_in_selection count="${architectureContext.objectTypesInSelection.length}">
+    ${objectTypesInSelectionXml}
+  </object_types_in_selection>
+  <strategy_options count="${architectureContext.strategyOptions.length}">
+    ${strategyOptionsXml}
+  </strategy_options>
+</architecture_context>`;
 }
 
 function buildInputImagesXml(attachments: ImageAttachment[]): string | null {
@@ -136,6 +224,32 @@ function buildVideoGenerationPreferenceXml(
     .join("\n  ");
 
   return `<human_video_generation_preference mode="manual" count="${videoGenerationPreference.models.length}">\n  ${modelXml}\n</human_video_generation_preference>`;
+}
+
+function buildImageOutputPreferenceXml(
+  imageOutputPreference?: ImageOutputPreference,
+): string | null {
+  if (!imageOutputPreference) {
+    return null;
+  }
+
+  const attributes: string[] = [];
+  if (imageOutputPreference.aspectRatio !== "auto") {
+    attributes.push(
+      `aspect_ratio="${escapeXmlAttribute(imageOutputPreference.aspectRatio)}"`,
+    );
+  }
+  if (imageOutputPreference.resolution !== "1K") {
+    attributes.push(
+      `resolution="${escapeXmlAttribute(imageOutputPreference.resolution)}"`,
+    );
+  }
+
+  if (attributes.length === 0) {
+    return null;
+  }
+
+  return `<human_image_output_preference ${attributes.join(" ")} />`;
 }
 
 function buildMentionXmlBlocks(mentions: MessageMention[]): string[] {
@@ -1034,6 +1148,7 @@ export function createAgentRunService(options: CreateAgentRuntimeOptions) {
         const hasAttachments = run.attachments && run.attachments.length > 0;
         let userMessage: HumanMessage;
         let attachmentDataMap: Record<string, string> = {};
+        const agentPlanStore = createAgentPlanStore();
 
         if (hasAttachments) {
           // Download images and build parallel data structures:
@@ -1085,6 +1200,8 @@ export function createAgentRunService(options: CreateAgentRuntimeOptions) {
             run.mentions,
             run.videoGenerationPreference,
             canvasSummary,
+            run.architectureContext,
+            run.imageOutputPreference,
           );
 
           // Build assetId → data URI map for tool-level resolution
@@ -1104,6 +1221,8 @@ export function createAgentRunService(options: CreateAgentRuntimeOptions) {
             run.mentions,
             run.videoGenerationPreference,
             canvasSummary,
+            run.architectureContext,
+            run.imageOutputPreference,
           );
           userMessage = new HumanMessage(enrichedPrompt);
         }
@@ -1114,19 +1233,17 @@ export function createAgentRunService(options: CreateAgentRuntimeOptions) {
             messages: [userMessage],
           },
           {
-            ...(run.threadId || run.canvasId || run.accessToken || run.userId || Object.keys(attachmentDataMap).length > 0
-              ? {
-                  configurable: {
-                    ...(run.threadId ? { thread_id: run.threadId } : {}),
-                    ...(run.canvasId ? { canvas_id: run.canvasId } : {}),
-                    ...(run.accessToken ? { access_token: run.accessToken } : {}),
-                    ...(run.userId ? { user_id: run.userId } : {}),
-                    ...(Object.keys(attachmentDataMap).length > 0
-                      ? { user_attachment_map: attachmentDataMap }
-                      : {}),
-                  },
-                }
-              : {}),
+            configurable: {
+              agent_plan_store: agentPlanStore,
+              agent_run_id: runId,
+              ...(run.threadId ? { thread_id: run.threadId } : {}),
+              ...(run.canvasId ? { canvas_id: run.canvasId } : {}),
+              ...(run.accessToken ? { access_token: run.accessToken } : {}),
+              ...(run.userId ? { user_id: run.userId } : {}),
+              ...(Object.keys(attachmentDataMap).length > 0
+                ? { user_attachment_map: attachmentDataMap }
+                : {}),
+            },
             signal: run.controller.signal,
             version: "v2",
           },

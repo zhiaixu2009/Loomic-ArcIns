@@ -1,7 +1,15 @@
 # ── Stage 1: Install dependencies ──────────────────────────────────
 FROM node:22-slim AS deps
 
-RUN corepack enable && corepack prepare pnpm@10.26.2 --activate
+ARG NPM_REGISTRY=https://registry.npmmirror.com/
+
+ENV NPM_CONFIG_REGISTRY=${NPM_REGISTRY}
+ENV npm_config_registry=${NPM_REGISTRY}
+
+RUN npm config set registry "${NPM_REGISTRY}" \
+  && corepack enable \
+  && corepack prepare pnpm@10.26.2 --activate \
+  && pnpm config set registry "${NPM_REGISTRY}"
 
 WORKDIR /app
 
@@ -19,7 +27,15 @@ RUN pnpm install --frozen-lockfile --ignore-scripts
 # ── Stage 2: Build shared packages & prepare runtime ──────────────
 FROM node:22-slim AS builder
 
-RUN corepack enable && corepack prepare pnpm@10.26.2 --activate
+ARG NPM_REGISTRY=https://registry.npmmirror.com/
+
+ENV NPM_CONFIG_REGISTRY=${NPM_REGISTRY}
+ENV npm_config_registry=${NPM_REGISTRY}
+
+RUN npm config set registry "${NPM_REGISTRY}" \
+  && corepack enable \
+  && corepack prepare pnpm@10.26.2 --activate \
+  && pnpm config set registry "${NPM_REGISTRY}"
 
 WORKDIR /app
 
@@ -39,7 +55,13 @@ RUN pnpm --filter @loomic/shared build
 # ── Stage 3: Production image ─────────────────────────────────────
 FROM node:22-slim AS production
 
+ARG DEBIAN_MIRROR=http://mirrors.tuna.tsinghua.edu.cn/debian
+ARG DEBIAN_SECURITY_MIRROR=http://mirrors.tuna.tsinghua.edu.cn/debian-security
+ARG PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple/
+
 WORKDIR /app
+
+ENV PIP_INDEX_URL=${PIP_INDEX_URL}
 
 # Copy everything from builder
 COPY --from=builder /app ./
@@ -54,9 +76,11 @@ ENV NODE_ENV=production
 EXPOSE 3001
 
 # Python runtime for sandbox code execution (canvas-design skill)
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends python3 python3-pip && \
-    pip3 install --no-cache-dir --break-system-packages pillow reportlab && \
+RUN sed -i "s|http://deb.debian.org/debian|${DEBIAN_MIRROR}|g" /etc/apt/sources.list.d/debian.sources && \
+    sed -i "s|http://deb.debian.org/debian-security|${DEBIAN_SECURITY_MIRROR}|g" /etc/apt/sources.list.d/debian.sources && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends ca-certificates python3 python3-pip && \
+    pip3 install --no-cache-dir --break-system-packages --index-url "${PIP_INDEX_URL}" pillow reportlab && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Copy skills (fonts + SKILL.md) to /opt/loomic/skills/

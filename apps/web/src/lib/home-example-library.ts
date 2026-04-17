@@ -9,6 +9,10 @@ type HomeExampleCategoryRow =
 type HomeExampleExampleRow =
   Database["public"]["Tables"]["home_example_examples"]["Row"];
 
+const seedCategoryByKey = new Map(
+  homeExampleSeedCategories.map((category) => [category.key, category]),
+);
+
 export function mapHomeExampleRows(
   categories: HomeExampleCategoryRow[],
   examples: HomeExampleExampleRow[],
@@ -23,22 +27,26 @@ export function mapHomeExampleRows(
 
   return [...categories]
     .sort((left, right) => left.sort_order - right.sort_order)
-    .map((category) => ({
-      key: category.key,
-      label: category.label,
-      dataType: category.data_type,
-      ...(category.accent === "special"
+    .map((category) => {
+      const seedCategory = seedCategoryByKey.get(category.key);
+
+      return {
+        key: category.key,
+        label: seedCategory?.label ?? category.label,
+        dataType: seedCategory?.dataType ?? category.data_type,
+        ...((category.accent === "special" || seedCategory?.accent === "special")
         ? { accent: "special" as const }
-        : {}),
-      examples: [...(examplesByCategory.get(category.key) ?? [])]
-        .sort((left, right) => left.sort_order - right.sort_order)
-        .map((example) => ({
-          title: example.title,
-          prompt: example.prompt,
-          previewImages: example.image_urls,
-          inputMentions: (Array.isArray(example.input_mentions) ? example.input_mentions : []) as InputMention[],
-        })),
-    }));
+          : {}),
+        examples: [...(examplesByCategory.get(category.key) ?? [])]
+          .sort((left, right) => left.sort_order - right.sort_order)
+          .map((example) => ({
+            title: example.title,
+            prompt: example.prompt,
+            previewImages: example.image_urls,
+            inputMentions: (Array.isArray(example.input_mentions) ? example.input_mentions : []) as InputMention[],
+          })),
+      };
+    });
 }
 
 export async function loadHomeExampleCategories(): Promise<HomeExampleCategory[]> {

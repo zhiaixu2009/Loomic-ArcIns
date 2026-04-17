@@ -3,7 +3,15 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useAgentModel } from "@/hooks/use-agent-model";
+import { useImageModelPreference } from "@/hooks/use-image-model-preference";
 import { fetchModels } from "@/lib/server-api";
+import {
+  AGENT_AUTO_WORKSPACE_LABEL,
+  AGENT_MODEL_MENU_LABEL,
+  AGENT_TRIGGER_LABEL,
+} from "@/lib/canvas-localization";
+import { getImageModelChipLabel } from "@/lib/image-model-utils";
+import { ImageModelPreferencePopover } from "./image-model-preference";
 
 type ModelOption = { id: string; name: string; provider: string };
 
@@ -32,19 +40,33 @@ function ProviderLogo({ provider }: { provider: string }) {
   return null;
 }
 
-export function AgentModelSelector({ compact }: { compact?: boolean } = {}) {
+export function AgentModelSelector({
+  compact,
+  fallbackLabel,
+  source = "agent",
+}: {
+  compact?: boolean;
+  fallbackLabel?: string;
+  source?: "agent" | "image";
+} = {}) {
   const { model, setModel } = useAgentModel();
+  const { preference } = useImageModelPreference();
   const [open, setOpen] = useState(false);
   const [models, setModels] = useState<ModelOption[]>([]);
   const btnRef = useRef<HTMLButtonElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
+  const imagePopoverAnchorRef = btnRef as React.RefObject<HTMLElement | null>;
+  const imageSource = source === "image";
 
   // Fetch available models
   useEffect(() => {
+    if (imageSource) {
+      return;
+    }
     fetchModels()
       .then((data) => setModels(data.models))
       .catch(() => {});
-  }, []);
+  }, [imageSource]);
 
   // Close on outside click
   useEffect(() => {
@@ -73,9 +95,13 @@ export function AgentModelSelector({ compact }: { compact?: boolean } = {}) {
     return () => document.removeEventListener("keydown", handler);
   }, [open]);
 
-  const isActive = model !== null;
+  const isActive = imageSource ? preference.mode === "manual" : model !== null;
   const selectedModel = models.find((m) => m.id === model);
-  const displayLabel = selectedModel ? selectedModel.name : "Agent";
+  const displayLabel = imageSource
+    ? getImageModelChipLabel(preference, fallbackLabel ?? "Banana Pro")
+    : selectedModel
+      ? selectedModel.name
+      : fallbackLabel ?? AGENT_TRIGGER_LABEL;
 
   // Auto-positioning popover (above or below based on available space)
   const [popoverStyle, setPopoverStyle] = useState<React.CSSProperties>({});
@@ -105,6 +131,20 @@ export function AgentModelSelector({ compact }: { compact?: boolean } = {}) {
 
   // Deduplicate provider list from actual models
   const providers = [...new Set(models.map((m) => m.provider))];
+  const imageSourceButtonClass = `flex items-center justify-center gap-1 box-border rounded-full border cursor-pointer font-inter transition-[border-color,background-color] duration-100 ease-in-out ${
+    compact ? "h-8 px-2.5" : "h-8 px-3"
+  } ${
+    open
+      ? "border-slate-300 bg-slate-100 text-slate-900"
+      : "border-slate-200 bg-white text-slate-900 hover:bg-slate-50"
+  }`;
+  const agentSourceButtonClass = `flex items-center justify-center gap-1 box-border rounded-full border-[0.5px] cursor-pointer font-inter transition-[border-color,background-color] duration-100 ease-in-out ${
+    compact ? "h-8 px-2.5" : "h-8 px-3"
+  } ${
+    isActive
+      ? "border-accent bg-accent/10 text-foreground hover:bg-accent/20 active:bg-accent/30"
+      : "border-border text-foreground hover:bg-muted"
+  } bg-transparent`;
 
   return (
     <>
@@ -112,13 +152,8 @@ export function AgentModelSelector({ compact }: { compact?: boolean } = {}) {
         ref={btnRef}
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className={`flex items-center justify-center gap-1 box-border rounded-full border-[0.5px] cursor-pointer font-inter transition-[border-color,background-color] duration-100 ease-in-out ${
-          compact ? "h-8 px-2.5" : "h-8 px-3"
-        } ${
-          isActive
-            ? "border-accent bg-accent/10 text-foreground hover:bg-accent/20 active:bg-accent/30"
-            : "border-border text-foreground hover:bg-muted"
-        } bg-transparent`}
+        data-testid={imageSource ? "image-model-selector" : "agent-model-selector"}
+        className={imageSource ? imageSourceButtonClass : agentSourceButtonClass}
       >
         <svg
           xmlns="http://www.w3.org/2000/svg"
@@ -132,7 +167,15 @@ export function AgentModelSelector({ compact }: { compact?: boolean } = {}) {
         </svg>
         <span className={compact ? "text-[11px]" : "text-xs"}>{displayLabel}</span>
       </button>
-      {open &&
+      {imageSource ? (
+        <ImageModelPreferencePopover
+          open={open}
+          onClose={() => setOpen(false)}
+          anchorRef={imagePopoverAnchorRef}
+        />
+      ) : null}
+      {!imageSource &&
+        open &&
         typeof document !== "undefined" &&
         createPortal(
           <div
@@ -141,7 +184,7 @@ export function AgentModelSelector({ compact }: { compact?: boolean } = {}) {
             className="w-56 rounded-xl border border-border bg-popover p-2 shadow-lg"
           >
             <div className="mb-2 px-2 text-xs font-medium text-muted-foreground">
-              Agent Model
+              {AGENT_MODEL_MENU_LABEL}
             </div>
             {/* Auto option */}
             <button
@@ -157,7 +200,7 @@ export function AgentModelSelector({ compact }: { compact?: boolean } = {}) {
               }`}
             >
               <span className="flex-1 text-left">
-                Auto (workspace default)
+                {AGENT_AUTO_WORKSPACE_LABEL}
               </span>
               {!isActive && (
                 <svg

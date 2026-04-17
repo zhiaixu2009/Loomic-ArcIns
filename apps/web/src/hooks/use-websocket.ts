@@ -3,6 +3,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type {
+  AgentPlan,
+  CanvasCollaboratorProfile,
+  CanvasCursor,
+  CanvasMutationSource,
+  CanvasSelection,
   StreamEvent,
   WsCommandAck,
   WsRpcRequest,
@@ -22,9 +27,34 @@ export type WebSocketHandle = {
     onAck?: (ack: WsCommandAck) => void,
   ) => void;
   cancelRun: (runId: string) => void;
+  interruptRun: (runId: string) => void;
+  resumeRun: (
+    payload: RunCreateRequest & {
+      sourceRunId: string;
+      plan: AgentPlan;
+    },
+    onAck?: (ack: WsCommandAck) => void,
+  ) => void;
+  retryRun: (
+    payload: RunCreateRequest & {
+      sourceRunId: string;
+    },
+    onAck?: (ack: WsCommandAck) => void,
+  ) => void;
   onEvent: (cb: EventCallback) => () => void;
   registerRPC: (method: string, handler: RPCHandler) => () => void;
   resumeCanvas: (canvasId: string, onAck?: (ack: WsCommandAck) => void) => void;
+  setPresence: (
+    canvasId: string,
+    profile?: CanvasCollaboratorProfile,
+  ) => boolean;
+  updateCursor: (canvasId: string, cursor: CanvasCursor | null) => boolean;
+  updateSelection: (canvasId: string, selection: CanvasSelection) => boolean;
+  publishCanvasMutation: (
+    canvasId: string,
+    source: CanvasMutationSource,
+    elementCount: number,
+  ) => boolean;
 };
 
 export function useWebSocket(
@@ -258,6 +288,56 @@ export function useWebSocket(
     [sendCommand],
   );
 
+  const interruptRun = useCallback(
+    (runId: string) => {
+      sendCommand("agent.interrupt", { runId });
+    },
+    [sendCommand],
+  );
+
+  const resumeRun = useCallback(
+    (
+      payload: RunCreateRequest & {
+        sourceRunId: string;
+        plan: AgentPlan;
+      },
+      onAck?: (ack: WsCommandAck) => void,
+    ) => {
+      if (onAck) {
+        ackListeners.current.set("agent.resume", onAck);
+      }
+      const sent = sendCommand(
+        "agent.resume",
+        payload as unknown as Record<string, unknown>,
+      );
+      if (!sent) {
+        ackListeners.current.delete("agent.resume");
+      }
+    },
+    [sendCommand],
+  );
+
+  const retryRun = useCallback(
+    (
+      payload: RunCreateRequest & {
+        sourceRunId: string;
+      },
+      onAck?: (ack: WsCommandAck) => void,
+    ) => {
+      if (onAck) {
+        ackListeners.current.set("agent.retry", onAck);
+      }
+      const sent = sendCommand(
+        "agent.retry",
+        payload as unknown as Record<string, unknown>,
+      );
+      if (!sent) {
+        ackListeners.current.delete("agent.retry");
+      }
+    },
+    [sendCommand],
+  );
+
   const resumeCanvas = useCallback(
     (canvasId: string, onAck?: (ack: WsCommandAck) => void) => {
       if (onAck) {
@@ -288,5 +368,54 @@ export function useWebSocket(
     [],
   );
 
-  return { connected, startRun, cancelRun, onEvent, registerRPC, resumeCanvas };
+  const setPresence = useCallback(
+    (canvasId: string, profile?: CanvasCollaboratorProfile) =>
+      sendCommand("collab.presence", {
+        canvasId,
+        ...(profile ? { profile } : {}),
+      }),
+    [sendCommand],
+  );
+
+  const updateCursor = useCallback(
+    (canvasId: string, cursor: CanvasCursor | null) =>
+      sendCommand("collab.cursor", { canvasId, cursor }),
+    [sendCommand],
+  );
+
+  const updateSelection = useCallback(
+    (canvasId: string, selection: CanvasSelection) =>
+      sendCommand("collab.selection", { canvasId, selection }),
+    [sendCommand],
+  );
+
+  const publishCanvasMutation = useCallback(
+    (
+      canvasId: string,
+      source: CanvasMutationSource,
+      elementCount: number,
+    ) =>
+      sendCommand("collab.canvas_mutation", {
+        canvasId,
+        source,
+        elementCount,
+      }),
+    [sendCommand],
+  );
+
+  return {
+    connected,
+    startRun,
+    cancelRun,
+    interruptRun,
+    resumeRun,
+    retryRun,
+    onEvent,
+    registerRPC,
+    resumeCanvas,
+    setPresence,
+    updateCursor,
+    updateSelection,
+    publishCanvasMutation,
+  };
 }

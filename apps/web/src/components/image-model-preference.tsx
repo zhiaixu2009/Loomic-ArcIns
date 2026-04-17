@@ -9,6 +9,14 @@ import type { VideoModelInfo } from "../lib/server-api";
 import { fetchImageModels, fetchVideoModels } from "../lib/server-api";
 import { useImageModelPreference } from "../hooks/use-image-model-preference";
 import { useVideoModelPreference } from "../hooks/use-video-model-preference";
+import {
+  AUTO_MODEL_MODE_LABEL,
+  IMAGE_MODEL_TAB_LABEL,
+  MANUAL_MODEL_MODE_LABEL,
+  VIDEO_MODEL_TAB_LABEL,
+  getModelPreferenceModeDescription,
+  getModelPreferencePanelLabel,
+} from "../lib/canvas-localization";
 
 export function ImageModelPreferencePopover({
   open,
@@ -111,7 +119,7 @@ export function ImageModelPreferencePopover({
                     : "text-muted-foreground hover:text-foreground"
                 }`}
               >
-                {tab === "image" ? "Image" : "Video"}
+                {tab === "image" ? IMAGE_MODEL_TAB_LABEL : VIDEO_MODEL_TAB_LABEL}
               </button>
             ))}
           </div>
@@ -121,7 +129,7 @@ export function ImageModelPreferencePopover({
         <div className="flex flex-col gap-2 px-3">
           <div className="flex items-center justify-between">
             <span className="text-sm font-semibold text-foreground">
-              {activeTab === "image" ? "Image Model" : "Video Model"}
+              {getModelPreferencePanelLabel(activeTab)}
             </span>
             <button
               type="button"
@@ -139,13 +147,13 @@ export function ImageModelPreferencePopover({
                   currentPreference.mode === "auto" ? "bg-accent" : "bg-muted-foreground"
                 }`}
               />
-              {currentPreference.mode === "auto" ? "Auto" : "Manual"}
+              {currentPreference.mode === "auto"
+                ? AUTO_MODEL_MODE_LABEL
+                : MANUAL_MODEL_MODE_LABEL}
             </button>
           </div>
           <span className="text-[11px] text-muted-foreground">
-            {currentPreference.mode === "auto"
-              ? `Agent automatically selects the best model for each ${activeTab} task`
-              : `Agent chooses from your selected models for each ${activeTab} task`}
+            {getModelPreferenceModeDescription(activeTab, currentPreference.mode)}
           </span>
         </div>
 

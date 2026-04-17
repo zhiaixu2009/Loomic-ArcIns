@@ -12,7 +12,7 @@ describe("HomeExampleBrowser", () => {
     cleanup();
   });
 
-  it("expands design examples after clicking the Design chip", async () => {
+  it("shows case cards directly without the old category chip row", async () => {
     render(
       <HomeExampleBrowser
         categories={homeExampleSeedCategories}
@@ -21,20 +21,30 @@ describe("HomeExampleBrowser", () => {
     );
 
     expect(
-      screen.queryByText("Design a Bauhaus-inspired poster."),
+      await screen.findByText("设计包豪斯风海报"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "设计创作" }),
     ).not.toBeInTheDocument();
-
-    await userEvent.click(screen.getByRole("button", { name: "Design" }));
-
-    expect(
-      await screen.findByText("Design a Bauhaus-inspired poster."),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText("Brainstorm beautiful interiors."),
-    ).toBeInTheDocument();
   });
 
-  it("auto-selects the first example when a category chip is clicked", async () => {
+  it("localizes the visible case titles to Chinese on the home screen", async () => {
+    render(
+      <HomeExampleBrowser
+        categories={homeExampleSeedCategories}
+        onExampleSelect={vi.fn()}
+      />,
+    );
+
+    expect(
+      await screen.findByText("设计像素级网页界面"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Design pixel-perfect web interface."),
+    ).not.toBeInTheDocument();
+  });
+
+  it("calls onExampleSelect when a visible case card is clicked", async () => {
     const onExampleSelect = vi.fn();
 
     render(
@@ -44,21 +54,27 @@ describe("HomeExampleBrowser", () => {
       />,
     );
 
-    await userEvent.click(screen.getByRole("button", { name: "Design" }));
+    await userEvent.click(
+      await screen.findByRole("button", {
+        name: "设计包豪斯风海报",
+      }),
+    );
 
     expect(onExampleSelect).toHaveBeenCalledWith(
       expect.objectContaining({
-        categoryKey: "design",
-        categoryLabel: "Design",
+        categoryKey: expect.any(String),
+        categoryLabel: expect.any(String),
         title: "Design a Bauhaus-inspired poster.",
         prompt:
           "Make a poster for a music festival in the Bauhaus style. Use a limited color palette of pink, red, and cream. Abstract geometric shapes representing sound waves. Minimalist vertical text.",
-        previewImages: expect.arrayContaining([expect.stringContaining("supabase.co")]),
+        previewImages: expect.arrayContaining([
+          expect.stringContaining("supabase.co"),
+        ]),
       }),
     );
   });
 
-  it("calls onExampleSelect with the picked example payload", async () => {
+  it("keeps returning the picked example payload for later prompt filling", async () => {
     const onExampleSelect = vi.fn();
 
     render(
@@ -68,21 +84,20 @@ describe("HomeExampleBrowser", () => {
       />,
     );
 
-    await userEvent.click(screen.getByRole("button", { name: "Design" }));
     await userEvent.click(
       await screen.findByRole("button", {
-        name: /Design a ceramic dinnerware set\./i,
+        name: "设计陶瓷餐具套组",
       }),
     );
 
     expect(onExampleSelect).toHaveBeenLastCalledWith(
       expect.objectContaining({
-        categoryKey: "design",
-        categoryLabel: "Design",
         title: "Design a ceramic dinnerware set.",
         prompt:
           "Generate a set of 5 images, each a ceramic tableware piece: 1 small bowl, 1 large bowl, 1 small plate, 1 large plate, 1 mug. They belong to the same set, harmoniously blends Scandinavian minimalism and Japanese wabi-sabi aesthetics - soft neutral tones, organic textures, imperfect hand-thrown forms, subtle glaze variations, natural lighting. Each piece is photographed against a seamless white background; even studio production photography lighting.",
-        previewImages: expect.arrayContaining([expect.stringContaining("supabase.co")]),
+        previewImages: expect.arrayContaining([
+          expect.stringContaining("supabase.co"),
+        ]),
         inputMentions: [],
       }),
     );

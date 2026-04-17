@@ -1,0 +1,54 @@
+FROM node:22-slim
+
+ARG NPM_REGISTRY=https://registry.npmmirror.com/
+
+ENV NPM_CONFIG_REGISTRY=${NPM_REGISTRY}
+ENV npm_config_registry=${NPM_REGISTRY}
+ENV PNPM_HOME=/pnpm
+ENV PNPM_STORE_DIR=/pnpm/store
+ENV PATH=${PNPM_HOME}:${PATH}
+ENV NEXT_TELEMETRY_DISABLED=1
+
+RUN npm config set registry "${NPM_REGISTRY}" \
+  && corepack enable \
+  && corepack prepare pnpm@10.26.2 --activate \
+  && pnpm config set registry "${NPM_REGISTRY}" \
+  && mkdir -p /pnpm/store
+
+WORKDIR /app
+
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json tsconfig.base.json ./
+COPY apps/web/package.json apps/web/
+COPY apps/server/package.json apps/server/
+COPY packages/shared/package.json packages/shared/
+COPY packages/config/package.json packages/config/
+COPY packages/ui/package.json packages/ui/
+
+RUN pnpm install --frozen-lockfile --ignore-scripts \
+  && mkdir -p apps/web/.next
+
+CMD ["sh", "-lc", "\
+  set -eu; \
+  CI=true pnpm install --frozen-lockfile --ignore-scripts --prefer-offline; \
+  pnpm --filter @loomic/shared build; \
+  pnpm --filter @loomic/config build; \
+  pnpm --filter @loomic/ui build; \
+  SHARED_PID=0; \
+  CONFIG_PID=0; \
+  UI_PID=0; \
+  WEB_PID=0; \
+  trap 'kill \"$SHARED_PID\" \"$CONFIG_PID\" \"$UI_PID\" \"$WEB_PID\" 2>/dev/null || true' INT TERM EXIT; \
+  pnpm --filter @loomic/shared dev & \
+  SHARED_PID=$!; \
+  pnpm --filter @loomic/config dev & \
+  CONFIG_PID=$!; \
+  pnpm --filter @loomic/ui dev & \
+  UI_PID=$!; \
+  pnpm --filter @loomic/web dev:docker & \
+  WEB_PID=$!; \
+  wait \"$WEB_PID\"; \
+  STATUS=$?; \
+  kill \"$SHARED_PID\" \"$CONFIG_PID\" \"$UI_PID\" 2>/dev/null || true; \
+  wait \"$SHARED_PID\" \"$CONFIG_PID\" \"$UI_PID\" 2>/dev/null || true; \
+  exit \"$STATUS\" \
+"]

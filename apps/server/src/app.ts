@@ -46,6 +46,10 @@ import {
   createUploadService,
   type UploadService,
 } from "./features/uploads/upload-service.js";
+import {
+  createExportService,
+  type ExportService,
+} from "./features/exports/export-service.js";
 import { type ServerEnv, loadServerEnv, resolveDefaultAgentModel } from "./config/env.js";
 import { createPgmqClient } from "./queue/pgmq-client.js";
 import {
@@ -84,6 +88,7 @@ import { registerProjectRoutes } from "./http/projects.js";
 import { registerRunRoutes } from "./http/runs.js";
 import { registerSettingsRoutes } from "./http/settings.js";
 import { registerUploadRoutes } from "./http/uploads.js";
+import { registerExportRoutes } from "./http/exports.js";
 import { registerSkillRoutes } from "./http/skills.js";
 import { registerMarketplaceRoutes } from "./http/skills-marketplace.js";
 import { registerViewerRoutes } from "./http/viewer.js";
@@ -114,6 +119,7 @@ export type BuildAppOptions = {
   tierGuard?: TierGuard;
   uploadService?: UploadService;
   mockEventDelayMs?: number;
+  exportService?: ExportService;
   projectService?: ProjectService;
   settingsService?: SettingsService;
   threadService?: ThreadService;
@@ -180,7 +186,14 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
         defaultModel: resolveDefaultAgentModel(env),
       });
   const uploadService =
-    options.uploadService ?? createUploadService({ createUserClient });
+    options.uploadService ?? createUploadService({ createUserClient, getAdminClient });
+  const exportService =
+    options.exportService ??
+    createExportService({
+      createUserClient,
+      uploadService,
+      viewerService,
+    });
   const pgmq = env.supabaseDbUrl
     ? createPgmqClient(env.supabaseDbUrl)
     : undefined;
@@ -285,6 +298,8 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   void registerCanvasRoutes(app, {
     auth,
     canvasService,
+    connectionManager,
+    viewerService,
   });
   void registerSettingsRoutes(app, {
     auth,
@@ -300,8 +315,13 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   });
   void registerUploadRoutes(app, {
     auth,
+    createUserClient,
     uploadService,
     viewerService,
+  });
+  void registerExportRoutes(app, {
+    auth,
+    exportService,
   });
   void registerGenerateRoutes(app, {
     auth,

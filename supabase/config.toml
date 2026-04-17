@@ -35,7 +35,7 @@ enabled = true
 file_size_limit = "50MiB"
 
 [storage.buckets.project-assets]
-public = false
+public = true
 file_size_limit = "50MiB"
 
 [storage.buckets.user-avatars]

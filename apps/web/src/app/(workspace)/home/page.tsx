@@ -1,85 +1,49 @@
 "use client";
 
-import type { ImageGenerationPreference, ProjectSummary, VideoGenerationPreference } from "@loomic/shared";
+import type {
+  ImageGenerationPreference,
+  ProjectSummary,
+  VideoGenerationPreference,
+} from "@loomic/shared";
 import type { ReadyAttachment } from "@/hooks/use-image-attachments";
-import { motion } from "framer-motion";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { Trash2 } from "lucide-react";
-import { HomeDiscoveryGallery } from "@/components/home-discovery-gallery";
 import { DeleteProjectDialog } from "@/components/delete-project-dialog";
 import { HomeExampleBrowser } from "@/components/home-example-browser";
 import { HomePrompt, type HomePromptHandle } from "@/components/home-prompt";
 import { LoadingScreen } from "@/components/loading-screen";
-import { LoomicLogo } from "@/components/icons/loomic-logo";
+import { NewProjectDialog } from "@/components/new-project-dialog";
 import { HomeProjectsSkeleton } from "@/components/skeletons/home-skeleton";
 import { useCreateProject } from "@/hooks/use-create-project";
 import { useDeleteProject } from "@/hooks/use-delete-project";
 import { useImageAttachments } from "@/hooks/use-image-attachments";
 import { useAuth } from "@/lib/auth-context";
-import { loadHomeDiscoveryCategories } from "@/lib/home-discovery-library";
-import {
-  homeDiscoverySeedCategories,
-  type HomeDiscoverySelection,
-} from "@/lib/home-discovery-seeds";
 import { loadHomeExampleCategories } from "@/lib/home-example-library";
 import {
   homeExampleSeedCategories,
   type HomeExampleSelection,
 } from "@/lib/home-example-seeds";
 import { ApiAuthError, fetchProjects } from "@/lib/server-api";
+import { buildCanvasUrl } from "@/lib/studio-routes";
 import { formatDate } from "@/lib/utils";
 
-/** Maximum number of recent projects shown on the home page. */
 const RECENT_PROJECTS_LIMIT = 4;
 
-// ---------------------------------------------------------------------------
-// Animation variants
-// ---------------------------------------------------------------------------
-const fadeUp = {
-  hidden: { opacity: 0, y: 20 },
-  visible: (i: number) => ({
-    opacity: 1,
-    y: 0,
-    transition: { delay: i * 0.1, duration: 0.5, ease: [0.25, 0.46, 0.45, 0.94] as const },
-  }),
-};
-
-const cardStagger = {
-  hidden: {},
-  visible: { transition: { staggerChildren: 0.06, delayChildren: 0.1 } },
-};
-
-const cardItem = {
-  hidden: { opacity: 0, y: 16, scale: 0.97 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    scale: 1,
-    transition: { duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] as const },
-  },
-};
-
-// ---------------------------------------------------------------------------
-// Home Page
-// ---------------------------------------------------------------------------
 export default function HomePage() {
   const { session, signOut } = useAuth();
   const router = useRouter();
 
   const { create: createNewProject, creating } = useCreateProject();
   const handleDeleted = useCallback((id: string) => {
-    setProjects((prev) => prev.filter((p) => p.id !== id));
+    setProjects((prev) => prev.filter((project) => project.id !== id));
   }, []);
   const { pendingId, deleting, requestDelete, confirmDelete, cancelDelete } =
     useDeleteProject({ onDeleted: handleDeleted });
+
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [projectsLoading, setProjectsLoading] = useState(true);
-  const [homeDiscoveryCategories, setHomeDiscoveryCategories] = useState(
-    homeDiscoverySeedCategories,
-  );
+  const [newProjectDialogOpen, setNewProjectDialogOpen] = useState(false);
   const [homeExampleCategories, setHomeExampleCategories] = useState(
     homeExampleSeedCategories,
   );
@@ -88,12 +52,9 @@ export default function HomePage() {
 
   const promptRef = useRef<HomePromptHandle>(null);
 
-  // Ref pattern: avoid token changes cascading through dep arrays
   const accessTokenRef = useRef(session?.access_token);
   accessTokenRef.current = session?.access_token;
 
-  // Image attachments for the home prompt.
-  // No projectId yet — uploads go to the general bucket; the project is created on submit.
   const {
     attachments: imageAttachments,
     addFiles,
@@ -102,6 +63,7 @@ export default function HomePage() {
     isUploading,
     readyAttachments,
   } = useImageAttachments(session?.access_token ?? "");
+
   const signOutRef = useRef(signOut);
   signOutRef.current = signOut;
   const routerRef = useRef(router);
@@ -110,31 +72,33 @@ export default function HomePage() {
 
   const getToken = useCallback(() => accessTokenRef.current, []);
 
-  // -----------------------------------------------------------------------
-  // Load recent projects
-  // -----------------------------------------------------------------------
   const loadProjects = useCallback(async () => {
     const token = getToken();
-    if (!token) return;
+    if (!token) {
+      return;
+    }
+
     setProjectsLoading(true);
     try {
       const data = await fetchProjects(token);
       setProjects(data.projects.slice(0, RECENT_PROJECTS_LIMIT));
-    } catch (err) {
-      if (err instanceof ApiAuthError) {
+    } catch (error) {
+      if (error instanceof ApiAuthError) {
         await signOutRef.current();
         routerRef.current.replace("/login");
         return;
       }
-      // Silently fail — the section just stays empty.
-      console.warn("[home] failed to load recent projects", err);
+
+      console.warn("[home] failed to load recent projects", error);
     } finally {
       setProjectsLoading(false);
     }
   }, [getToken]);
 
   useEffect(() => {
-    if (hasInitialized.current) return;
+    if (hasInitialized.current) {
+      return;
+    }
     hasInitialized.current = true;
     loadProjects();
   }, [loadProjects]);
@@ -146,20 +110,16 @@ export default function HomePage() {
 
     let cancelled = false;
 
-    void Promise.all([
-      loadHomeExampleCategories(),
-      loadHomeDiscoveryCategories(),
-    ])
-      .then(([exampleCategories, discoveryCategories]) => {
+    void loadHomeExampleCategories()
+      .then((exampleCategories) => {
         if (cancelled) {
           return;
         }
 
         setHomeExampleCategories(exampleCategories);
-        setHomeDiscoveryCategories(discoveryCategories);
       })
       .catch((error) => {
-        console.warn("[home] failed to load home page seed content", error);
+        console.warn("[home] failed to load example seed content", error);
       });
 
     return () => {
@@ -167,9 +127,6 @@ export default function HomePage() {
     };
   }, [session]);
 
-  // -----------------------------------------------------------------------
-  // Prompt submit → create project → navigate to canvas
-  // -----------------------------------------------------------------------
   const handlePromptSubmit = useCallback(
     (
       prompt: string,
@@ -182,17 +139,14 @@ export default function HomePage() {
       clearAttachments();
       createNewProject({
         prompt,
+        studioMode: "architecture",
         ...(attachments && attachments.length > 0 ? { attachments } : {}),
-        ...(imageGenerationPreference
-          ? { imageGenerationPreference }
-          : {}),
-        ...(videoGenerationPreference
-          ? { videoGenerationPreference }
-          : {}),
+        ...(imageGenerationPreference ? { imageGenerationPreference } : {}),
+        ...(videoGenerationPreference ? { videoGenerationPreference } : {}),
         ...(model ? { model } : {}),
       });
     },
-    [createNewProject, clearAttachments],
+    [clearAttachments, createNewProject],
   );
 
   const handleExampleSelect = useCallback((selection: HomeExampleSelection) => {
@@ -204,215 +158,197 @@ export default function HomePage() {
     setSelectedExample(null);
   }, []);
 
-  const handleDiscoverySelect = useCallback(
-    (selection: HomeDiscoverySelection) => {
-      createNewProject({ prompt: selection.prompt });
+  const handleCreateProject = useCallback(() => {
+    console.info("[home] opening new project dialog from home card");
+    setNewProjectDialogOpen(true);
+  }, []);
+
+  const handleNewProjectCancel = useCallback(() => {
+    console.info("[home] closing new project dialog without creating");
+    setNewProjectDialogOpen(false);
+  }, []);
+
+  const handleNewProjectConfirm = useCallback(
+    async ({ name }: { name?: string; projectFile?: File }) => {
+      console.info("[home] confirming new project dialog", {
+        hasCustomName: Boolean(name?.trim()),
+      });
+      setNewProjectDialogOpen(false);
+      await createNewProject({
+        ...(name?.trim() ? { name: name.trim() } : {}),
+        studioMode: "architecture",
+      });
     },
     [createNewProject],
   );
 
-  // -----------------------------------------------------------------------
-  // Render
-  // -----------------------------------------------------------------------
   if (creating) {
     return <LoadingScreen />;
   }
 
   return (
-    <div className="flex h-full flex-col items-center overflow-auto px-4 py-8 sm:px-6 md:py-12 lg:py-16">
-      {/* Hero */}
-      <motion.div
-        initial="hidden"
-        animate="visible"
-        className="flex w-full max-w-3xl flex-col items-center text-center"
-      >
-        {/* Logo + brand name */}
-        <motion.div
-          variants={fadeUp}
-          custom={0}
-          className="mb-3 flex items-center gap-2 md:mb-4"
-        >
-          <LoomicLogo className="size-7 text-foreground md:size-8" />
-          <span className="text-lg font-semibold text-foreground md:text-xl">
-            Loomic
-          </span>
-        </motion.div>
+    <div
+      data-testid="home-page-shell"
+      data-theme="light-architecture"
+      className="min-h-full bg-white text-slate-900"
+    >
+      <div className="mx-auto flex min-h-full w-full max-w-[1120px] flex-col gap-8 px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
+        <section className="pt-3">
+          <div className="mx-auto max-w-[900px] text-center">
+            <p className="text-sm font-medium tracking-[0.08em] text-slate-500">
+              AI创作无限画布Agent
+            </p>
+            <h1 className="mt-3 text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">
+              让设计灵感来的更快一些！
+            </h1>
+          </div>
 
-        <motion.h1
-          variants={fadeUp}
-          custom={1}
-          className="mb-1.5 text-xl font-bold text-foreground sm:text-2xl md:mb-2"
-        >
-          让创意设计更简单
-        </motion.h1>
-        <motion.p
-          variants={fadeUp}
-          custom={2}
-          className="mb-6 text-sm text-muted-foreground sm:text-base md:mb-8"
-        >
-          你的 AI 设计助手，从想法到作品
-        </motion.p>
+          <div className="mx-auto mt-6 max-w-[920px]">
+            <HomePrompt
+              ref={promptRef}
+              onSubmit={handlePromptSubmit}
+              disabled={creating}
+              attachments={imageAttachments}
+              onAddFiles={addFiles}
+              onRemoveAttachment={removeAttachment}
+              isUploading={isUploading}
+              readyAttachments={readyAttachments}
+              selectedSeed={selectedExample}
+              onClearSelectedSeed={handleExampleClear}
+            />
+          </div>
 
-        {/* Prompt input */}
-        <motion.div variants={fadeUp} custom={3} className="w-full">
-          <HomePrompt
-            ref={promptRef}
-            onSubmit={handlePromptSubmit}
-            disabled={creating}
-            attachments={imageAttachments}
-            onAddFiles={addFiles}
-            onRemoveAttachment={removeAttachment}
-            isUploading={isUploading}
-            readyAttachments={readyAttachments}
-            selectedSeed={selectedExample}
-            onClearSelectedSeed={handleExampleClear}
-          />
-        </motion.div>
+          <div className="mt-5 flex justify-center">
+            <a
+              href="https://www.bilibili.com/video/BV1jVQZBnE5h/"
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-2 rounded-[10px] border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-[0_10px_24px_rgba(15,23,42,0.06)] transition-colors hover:bg-slate-50"
+            >
+              <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-slate-100 text-[11px] text-slate-600">
+                ▶
+              </span>
+              <span>视频教程</span>
+            </a>
+          </div>
+        </section>
 
-        <motion.div variants={fadeUp} custom={4} className="w-full">
+        <section className="rounded-[10px] border border-slate-200 bg-white px-5 py-5 shadow-[0_18px_50px_rgba(15,23,42,0.05)] sm:px-6">
+          <div className="mb-4">
+            <h2 className="text-xl font-semibold text-slate-900">最近项目</h2>
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,280px)_repeat(3,minmax(0,1fr))]">
+            <button
+              type="button"
+              disabled={creating}
+              onClick={handleCreateProject}
+              className="flex min-h-[188px] flex-col justify-between rounded-[10px] border border-dashed border-slate-300 bg-slate-50 px-5 py-5 text-left transition-colors hover:bg-slate-100"
+            >
+              <div className="flex h-12 w-12 items-center justify-center rounded-[10px] bg-slate-100 text-2xl text-slate-700 shadow-[inset_0_0_0_1px_rgba(15,23,42,0.04)]">
+                +
+              </div>
+              <div>
+                <p className="text-lg font-semibold text-slate-900">新建项目</p>
+                <p className="mt-2 text-sm leading-6 text-slate-500">
+                  从一句需求或一张参考图开始新的无限画布创作。
+                </p>
+              </div>
+            </button>
+
+            {projectsLoading ? (
+              <HomeProjectsSkeleton
+                includeNewProjectPlaceholder={false}
+                projectCount={RECENT_PROJECTS_LIMIT - 1}
+              />
+            ) : (
+              projects.map((project) => (
+                <article
+                  key={project.id}
+                  className="group relative flex min-h-[188px] cursor-pointer flex-col overflow-hidden rounded-[10px] border border-slate-200 bg-white shadow-[0_12px_28px_rgba(15,23,42,0.04)] transition-shadow hover:shadow-[0_18px_36px_rgba(15,23,42,0.08)]"
+                  onClick={() =>
+                    router.push(
+                      buildCanvasUrl(project.primaryCanvas.id, {
+                        studio: "architecture",
+                      }),
+                    )
+                  }
+                >
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      requestDelete(project.id);
+                    }}
+                    aria-label={`删除 ${project.name}`}
+                    className="absolute right-4 top-4 z-10 flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white/95 text-slate-500 opacity-0 transition-all hover:bg-white group-hover:opacity-100"
+                  >
+                    ×
+                  </button>
+
+                  <div className="flex h-[112px] items-end bg-[linear-gradient(135deg,#ffffff,#f3f4f6)] px-5 py-4 text-sm text-slate-500">
+                    {project.thumbnailUrl ? (
+                      <img
+                        src={project.thumbnailUrl}
+                        alt=""
+                        className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+                        loading="lazy"
+                        onError={(event) => {
+                          (event.currentTarget as HTMLImageElement).style.display =
+                            "none";
+                        }}
+                      />
+                    ) : (
+                      "继续当前画布里的参考整理、生成结果和评审记录。"
+                    )}
+                  </div>
+
+                  <div className="flex flex-1 items-end justify-between gap-3 px-5 py-4">
+                    <div className="min-w-0">
+                      <p className="truncate text-base font-semibold text-slate-900">
+                        {project.name}
+                      </p>
+                      <p className="mt-1 text-sm text-slate-500">
+                        更新于：{formatDate(project.updatedAt)}
+                      </p>
+                    </div>
+                    <div className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 transition-colors group-hover:bg-slate-100">
+                      →
+                    </div>
+                  </div>
+                </article>
+              ))
+            )}
+          </div>
+        </section>
+
+        <section className="rounded-[10px] border border-slate-200 bg-white px-5 py-5 shadow-[0_18px_50px_rgba(15,23,42,0.05)] sm:px-6">
+          <div className="mb-4">
+            <h2 className="text-xl font-semibold text-slate-900">参考案例</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              直接从案例卡片进入无限画布，再继续延展你的方案方向。
+            </p>
+          </div>
+
           <HomeExampleBrowser
             categories={homeExampleCategories}
             selectedExample={selectedExample}
             onExampleSelect={handleExampleSelect}
           />
-        </motion.div>
-      </motion.div>
-
-      {/* Recent projects */}
-      <div className="mt-8 w-full sm:mt-10 md:mt-14">
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.5, duration: 0.4, ease: "easeOut" }}
-          className="mb-3 flex items-center justify-between md:mb-4"
-        >
-          <h2 className="text-base font-medium text-foreground sm:text-lg">
-            最近项目
-          </h2>
-          <Link
-            href="/projects"
-            className="flex min-h-[44px] items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground sm:text-base"
-          >
-            查看全部
-            <span className="flex h-6 w-6 -rotate-90 items-center justify-center">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 13 8"
-                className="h-[6px] w-[10px]"
-              >
-                <path
-                  stroke="currentColor"
-                  d="m1 .657 5.657 5.657L12.314.657"
-                />
-              </svg>
-            </span>
-          </Link>
-        </motion.div>
-
-        {projectsLoading ? (
-          <HomeProjectsSkeleton />
-        ) : (
-          <motion.div
-            variants={cardStagger}
-            initial="hidden"
-            animate="visible"
-            className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5"
-          >
-            {/* New project card */}
-            <motion.button
-              variants={cardItem}
-              whileHover={{ y: -4 }}
-              whileTap={{ scale: 0.98 }}
-              type="button"
-              disabled={creating}
-              onClick={() => createNewProject()}
-              className="aspect-[286/208] cursor-pointer rounded-xl bg-card p-2 shadow-card transition-shadow duration-300 hover:shadow-md sm:rounded-2xl sm:p-3"
-            >
-              <div className="flex h-full w-full flex-col items-center justify-center gap-2 rounded-xl bg-muted sm:gap-3">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 14 14"
-                  className="h-5 w-5 text-foreground sm:h-6 sm:w-6"
-                >
-                  <path
-                    fill="currentColor"
-                    fillRule="evenodd"
-                    d="M6.417 2.917a.583.583 0 0 1 1.166 0v3.5h3.5a.583.583 0 0 1 0 1.166h-3.5v3.5a.583.583 0 1 1-1.166 0v-3.5h-3.5a.583.583 0 1 1 0-1.166h3.5z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-                <span className="text-xs font-semibold text-foreground sm:text-sm">
-                  新建项目
-                </span>
-              </div>
-            </motion.button>
-
-            {/* Project cards */}
-            {projects.map((project) => (
-              <motion.div
-                key={project.id}
-                variants={cardItem}
-                whileHover={{ y: -4 }}
-                className="group relative aspect-[286/208] cursor-pointer rounded-lg bg-card p-2 text-left shadow-card transition-shadow duration-300 hover:shadow-md sm:p-3"
-                onClick={() =>
-                  router.push(`/canvas?id=${project.primaryCanvas.id}`)
-                }
-              >
-                {/* Trash icon -- hover reveal */}
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    requestDelete(project.id);
-                  }}
-                  aria-label={`Delete ${project.name}`}
-                  className="absolute right-3 top-3 z-10 flex size-8 items-center justify-center rounded-[4px] bg-foreground/70 text-background opacity-0 transition-all duration-300 hover:bg-foreground/80 group-hover:opacity-100 sm:right-5 sm:top-5"
-                >
-                  <Trash2 size={14} />
-                </button>
-                {/* Thumbnail */}
-                <div className="aspect-[395/227] w-full overflow-hidden rounded-lg bg-muted">
-                  {project.thumbnailUrl && (
-                    <img
-                      src={project.thumbnailUrl}
-                      alt=""
-                      className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
-                      loading="lazy"
-                      onError={(e) => {
-                        (e.currentTarget as HTMLImageElement).style.display =
-                          "none";
-                      }}
-                    />
-                  )}
-                </div>
-                {/* Info */}
-                <div className="mt-2 flex items-center justify-between sm:mt-3">
-                  <div className="truncate text-xs text-foreground sm:text-sm">
-                    {project.name}
-                  </div>
-                </div>
-                <div className="mt-0.5 text-[10px] text-muted-foreground sm:text-[11px]">
-                  更新于 {formatDate(project.updatedAt)}
-                </div>
-              </motion.div>
-            ))}
-          </motion.div>
-        )}
+        </section>
       </div>
 
-      <HomeDiscoveryGallery
-        categories={homeDiscoveryCategories}
-        onCaseSelect={handleDiscoverySelect}
-      />
-
-      {/* Delete confirmation dialog */}
       <DeleteProjectDialog
         open={pendingId !== null}
         deleting={deleting}
         onConfirm={confirmDelete}
         onCancel={cancelDelete}
+      />
+      <NewProjectDialog
+        open={newProjectDialogOpen}
+        creating={creating}
+        onCancel={handleNewProjectCancel}
+        onConfirm={handleNewProjectConfirm}
       />
     </div>
   );

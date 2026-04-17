@@ -4,8 +4,9 @@ import "@excalidraw/excalidraw/index.css";
 
 import dynamic from "next/dynamic";
 import { useTheme } from "next-themes";
-import { useCallback, useEffect, useMemo, useRef, useState, memo } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, memo, type PointerEvent as ReactPointerEvent } from "react";
 
+import type { CanvasCollaborator, CanvasCursor } from "@loomic/shared";
 import type { WebSocketHandle } from "../hooks/use-websocket";
 import { getServerBaseUrl } from "../lib/env";
 import { saveCanvas, uploadThumbnail } from "../lib/server-api";
@@ -14,6 +15,7 @@ import { isVideoUrl } from "../lib/canvas-elements";
 import { CanvasToolMenu } from "./canvas-tool-menu";
 import { normalizeCanvasElements } from "../lib/canvas-normalize";
 import { ErrorBoundary } from "./error-boundary";
+import { extractSelectedCanvasElements } from "../lib/canvas-selection";
 
 const Excalidraw = dynamic(
   () => import("@excalidraw/excalidraw").then((mod) => mod.Excalidraw),
@@ -42,17 +44,33 @@ export type CanvasSelectedElement = {
   y: number;
   width: number;
   height: number;
+  locked?: boolean;
   text?: string;
   fileId?: string;
   dataUrl?: string;
   /** Supabase storage public URL -- prefer over dataUrl for message attachments */
   storageUrl?: string;
+  strokeColor?: string;
+  backgroundColor?: string;
+  strokeWidth?: number;
+};
+
+export type CanvasViewportState = {
+  scrollX: number;
+  scrollY: number;
+  zoom: number;
+};
+
+export type RemoteCanvasCursor = {
+  collaborator: CanvasCollaborator;
+  cursor: CanvasCursor;
 };
 
 type CanvasEditorProps = {
   canvasId: string;
   projectId: string;
   accessToken: string;
+  immersiveArchitecture?: boolean;
   initialContent: {
     elements: Record<string, unknown>[];
     appState: Record<string, unknown>;
@@ -62,21 +80,88 @@ type CanvasEditorProps = {
   ws?: WebSocketHandle;
   leftPanelOpen?: boolean;
   onSelectionChange?: (elements: CanvasSelectedElement[]) => void;
+  onViewportChange?: (viewport: CanvasViewportState) => void;
+  onPointerChange?: (cursor: CanvasCursor | null) => void;
+  onInsertReferenceBoard?: () => void;
+  onSeedArchitectureBoardStack?: () => void;
+  remoteCursors?: RemoteCanvasCursor[];
+  onContextMenuRequest?: (payload: {
+    x: number;
+    y: number;
+    clientX: number;
+    clientY: number;
+    selectedElements: CanvasSelectedElement[];
+  }) => void;
+  onSelectionIntent?: (intent: "left" | "right") => void;
+  onUploadReference?: () => void;
 };
 
 const SAVE_DEBOUNCE_MS = 1500;
 const THUMBNAIL_DEBOUNCE_MS = 10_000;
 const THUMBNAIL_MAX_SIZE = 400;
 
+function serializeCanvasContent(options: {
+  api: {
+    getFiles?: () => Record<string, any>;
+  };
+  appState: any;
+  elements: readonly any[];
+}) {
+  const files: Record<string, Record<string, unknown>> = {};
+  const rawFiles = options.api.getFiles?.() as Record<string, any> | undefined;
+
+  for (const [id, file] of Object.entries(rawFiles ?? {})) {
+    files[id] = {
+      id: file.id,
+      dataURL: file.dataURL,
+      mimeType: file.mimeType,
+      created: file.created,
+    };
+  }
+
+  return {
+    elements: options.elements.filter(
+      (element: any) => !element.isDeleted,
+    ) as Record<string, unknown>[],
+    appState: {
+      viewBackgroundColor: options.appState.viewBackgroundColor,
+      gridModeEnabled: options.appState.gridModeEnabled,
+    },
+    files,
+  };
+}
+
+function isContextMenuTargetBlocked(target: EventTarget | null) {
+  const element = target as HTMLElement | null;
+  if (!element) {
+    return false;
+  }
+
+  return Boolean(
+    element.closest(
+      "button, input, textarea, [role='menu'], [role='dialog'], [contenteditable='true']",
+    ),
+  );
+}
+
 export function CanvasEditor({
   canvasId,
   projectId,
   accessToken,
+  immersiveArchitecture = false,
   initialContent,
   onApiReady,
   ws,
   leftPanelOpen,
   onSelectionChange,
+  onViewportChange,
+  onPointerChange,
+  onInsertReferenceBoard,
+  onSeedArchitectureBoardStack,
+  remoteCursors = [],
+  onContextMenuRequest,
+  onSelectionIntent,
+  onUploadReference,
 }: CanvasEditorProps) {
   const { resolvedTheme } = useTheme();
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -85,10 +170,18 @@ export function CanvasEditor({
   accessTokenRef.current = accessToken;
   const canvasIdRef = useRef(canvasId);
   canvasIdRef.current = canvasId;
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const excalidrawApiRef = useRef<any>(null);
+  const rightClickInterceptedRef = useRef(false);
   const [excalidrawApi, setExcalidrawApi] = useState<any>(null);
   const prevSelectedIdsRef = useRef<string>("");
   const onSelectionChangeRef = useRef(onSelectionChange);
   onSelectionChangeRef.current = onSelectionChange;
+  const onViewportChangeRef = useRef(onViewportChange);
+  onViewportChangeRef.current = onViewportChange;
+  const onPointerChangeRef = useRef(onPointerChange);
+  onPointerChangeRef.current = onPointerChange;
+  const prevViewportKeyRef = useRef("");
   // Tracks whether the one-time normalization pass has already run
   const normalizedRef = useRef(false);
 
@@ -109,6 +202,48 @@ export function CanvasEditor({
   // without adding the full initialContent to the dependency array.
   const initialFilesRef = useRef(initialContent.files);
   initialFilesRef.current = initialContent.files;
+
+  const queueCanvasSave = useCallback(
+    (options: {
+      api?: any;
+      appState?: any;
+      elements?: readonly any[];
+      source: "change" | "programmatic";
+    }) => {
+      if (!hydratedRef.current) return;
+
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      pendingSaveRef.current = { elements: [] as any, appState: {}, files: {} };
+
+      saveTimerRef.current = setTimeout(() => {
+        const api = options.api ?? excalidrawApiRef.current;
+        if (!api) {
+          return;
+        }
+
+        const content = serializeCanvasContent({
+          api,
+          appState: options.appState ?? api.getAppState(),
+          elements: options.elements ?? api.getSceneElements(),
+        });
+        pendingSaveRef.current = content;
+
+        saveCanvas(accessTokenRef.current, canvasIdRef.current, content)
+          .then(() => {
+            if (pendingSaveRef.current === content) {
+              pendingSaveRef.current = null;
+            }
+            console.log("[canvas-editor] save persisted", {
+              canvasId: canvasIdRef.current,
+              elementCount: content.elements.length,
+              source: options.source,
+            });
+          })
+          .catch((err) => console.error("[canvas-editor] save failed:", err));
+      }, SAVE_DEBOUNCE_MS);
+    },
+    [],
+  );
 
   // Separate inline files (ready) from storage URLs (need async fetch)
   const { inlineFiles, pendingUrls } = useMemo(() => {
@@ -167,12 +302,50 @@ export function CanvasEditor({
     return () => { cancelled = true; };
   }, [excalidrawApi, pendingUrls]);
 
+  const syncViewport = useCallback((appState: any) => {
+    const nextViewport = {
+      scrollX: appState?.scrollX ?? 0,
+      scrollY: appState?.scrollY ?? 0,
+      zoom: appState?.zoom?.value ?? 1,
+    };
+    const nextViewportKey = `${nextViewport.scrollX}:${nextViewport.scrollY}:${nextViewport.zoom}`;
+
+    if (nextViewportKey === prevViewportKeyRef.current) {
+      return;
+    }
+
+    prevViewportKeyRef.current = nextViewportKey;
+    onViewportChangeRef.current?.(nextViewport);
+  }, []);
+
   const handleExcalidrawApi = useCallback(
     (api: any) => {
-      setExcalidrawApi(api);
-      onApiReady?.(api);
+      const patchedApi = api as any;
+      if (!patchedApi.__loomicProgrammaticSaveWrapped) {
+        const originalUpdateScene = api.updateScene.bind(api);
+        patchedApi.__loomicProgrammaticSaveWrapped = true;
+        patchedApi.updateScene = (scene: any) => {
+          originalUpdateScene(scene);
+
+          if (
+            hydratedRef.current &&
+            Array.isArray(scene?.elements) &&
+            scene.captureUpdate !== "NONE"
+          ) {
+            queueCanvasSave({
+              api: patchedApi,
+              source: "programmatic",
+            });
+          }
+        };
+      }
+
+      excalidrawApiRef.current = patchedApi;
+      setExcalidrawApi(patchedApi);
+      syncViewport(patchedApi.getAppState?.());
+      onApiReady?.(patchedApi);
     },
-    [onApiReady],
+    [onApiReady, queueCanvasSave, syncViewport],
   );
 
   // Normalize agent-created elements on initial load.
@@ -180,6 +353,10 @@ export function CanvasEditor({
   useEffect(() => {
     if (!excalidrawApi || normalizedRef.current) return;
     normalizedRef.current = true;
+
+    if (initialElementCountRef.current === 0 && pendingUrls.length === 0) {
+      hydratedRef.current = true;
+    }
 
     // Run normalization after Excalidraw has loaded fonts.
     // Store the handle so we can cancel on unmount to prevent memory leaks.
@@ -224,52 +401,20 @@ export function CanvasEditor({
 
   const handleChange = useCallback(
     (elements: readonly any[], appState: any) => {
+      syncViewport(appState);
+
       // Skip auto-save until Excalidraw has fully hydrated with initial data.
       // During initialization, onChange may fire with empty/partial elements
       // which would wipe the persisted canvas via FULL REPLACE.
       if (!hydratedRef.current) return;
 
       // --- 1. Debounced save ---
-      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-
-      // Mark that a save is pending. The full payload is built lazily inside
-      // the timeout to avoid constructing the files map on every drag frame.
-      pendingSaveRef.current = { elements: [] as any, appState: {}, files: {} };
-
-      saveTimerRef.current = setTimeout(() => {
-        // Build the full payload only when the debounce fires
-        const files: Record<string, Record<string, unknown>> = {};
-        if (excalidrawApi) {
-          const rawFiles = excalidrawApi.getFiles() as Record<string, any>;
-          for (const [id, file] of Object.entries(rawFiles)) {
-            files[id] = {
-              id: file.id,
-              dataURL: file.dataURL,
-              mimeType: file.mimeType,
-              created: file.created,
-            };
-          }
-        }
-        const content = {
-          elements: elements.filter(
-            (el: any) => !el.isDeleted,
-          ) as Record<string, unknown>[],
-          appState: {
-            viewBackgroundColor: appState.viewBackgroundColor,
-            gridModeEnabled: appState.gridModeEnabled,
-          },
-          files,
-        };
-        pendingSaveRef.current = content;
-
-        saveCanvas(accessTokenRef.current, canvasId, content)
-          .then(() => {
-            if (pendingSaveRef.current === content) {
-              pendingSaveRef.current = null;
-            }
-          })
-          .catch((err) => console.error("[canvas-editor] save failed:", err));
-      }, SAVE_DEBOUNCE_MS);
+      queueCanvasSave({
+        api: excalidrawApiRef.current ?? excalidrawApi,
+        appState,
+        elements,
+        source: "change",
+      });
 
       // --- 2. Debounced thumbnail (runs much less frequently than save) ---
       if (thumbnailTimerRef.current) clearTimeout(thumbnailTimerRef.current);
@@ -312,46 +457,18 @@ export function CanvasEditor({
           if (!selectedIds) {
             onSelectionChangeRef.current([]);
           } else {
-            const idSet = new Set(selectedIds.split(","));
-            const selFiles: Record<string, any> = excalidrawApi?.getFiles() ?? {};
-            const selected: CanvasSelectedElement[] = elements
-              .filter((el: any) => idSet.has(el.id) && !el.isDeleted)
-              .map((el: any) => {
-                const base: CanvasSelectedElement = {
-                  id: el.id,
-                  type: el.type,
-                  x: el.x ?? 0,
-                  y: el.y ?? 0,
-                  width: el.width ?? 0,
-                  height: el.height ?? 0,
-                };
-                if (el.type === "text" && el.text) {
-                  base.text = el.text;
-                }
-                if (el.type === "image" && el.fileId) {
-                  base.fileId = el.fileId;
-                  const file = selFiles[el.fileId];
-                  if (file?.dataURL) {
-                    base.dataUrl = file.dataURL;
-                  }
-                  // Prefer storage URL over base64 dataUrl for message attachments.
-                  // Sources: 1) element customData (model-generated images)
-                  //          2) initial canvas content files (server-resolved URLs)
-                  const sUrl =
-                    el.customData?.storageUrl ??
-                    initialFilesRef.current[el.fileId]?.storageUrl;
-                  if (typeof sUrl === "string" && sUrl) {
-                    base.storageUrl = sUrl;
-                  }
-                }
-                return base;
-              });
+            const selected = extractSelectedCanvasElements({
+              elements,
+              files: excalidrawApi?.getFiles() ?? {},
+              initialFiles: initialFilesRef.current,
+              selectedElementIds: appState.selectedElementIds ?? {},
+            });
             onSelectionChangeRef.current(selected);
           }
         }
       }
     },
-    [canvasId, projectId, excalidrawApi],
+    [projectId, excalidrawApi, queueCanvasSave, syncViewport],
   );
 
   // Register screenshot RPC handler so the server can request canvas captures
@@ -443,7 +560,6 @@ export function CanvasEditor({
     if (!hydratedRef.current) return null;
     try {
       const sceneElements = excalidrawApi.getSceneElements();
-      const rawFiles = excalidrawApi.getFiles() as Record<string, any>;
       const appState = excalidrawApi.getAppState();
 
       // Safety: refuse to save empty when we loaded with elements — prevents
@@ -453,23 +569,11 @@ export function CanvasEditor({
         console.warn("[canvas-editor] skipping save: 0 elements but loaded with", initialElementCountRef.current);
         return null;
       }
-      const files: Record<string, Record<string, unknown>> = {};
-      for (const [id, file] of Object.entries(rawFiles)) {
-        files[id] = {
-          id: file.id,
-          dataURL: file.dataURL,
-          mimeType: file.mimeType,
-          created: file.created,
-        };
-      }
-      return {
-        elements: sceneElements.filter((el: any) => !el.isDeleted),
-        appState: {
-          viewBackgroundColor: appState.viewBackgroundColor,
-          gridModeEnabled: appState.gridModeEnabled,
-        },
-        files,
-      };
+      return serializeCanvasContent({
+        api: excalidrawApi,
+        appState,
+        elements: sceneElements,
+      });
     } catch (err) {
       console.warn("[canvas-editor] failed to build save payload on flush:", err);
       return null;
@@ -556,13 +660,120 @@ export function CanvasEditor({
   // Allow any URL as a valid embeddable so our video links are accepted
   const validateEmbeddable = useCallback(() => true, []);
 
+  const emitPointerCursor = useCallback(
+    (
+      event: ReactPointerEvent<HTMLDivElement>,
+      button: "down" | "up" = event.buttons > 0 ? "down" : "up",
+    ) => {
+      if (!onPointerChangeRef.current) return;
+
+      const bounds = event.currentTarget.getBoundingClientRect();
+      if (!bounds.width || !bounds.height) return;
+
+      const x = (event.clientX - bounds.left) / bounds.width;
+      const y = (event.clientY - bounds.top) / bounds.height;
+
+      onPointerChangeRef.current({
+        x: Math.min(Math.max(x, 0), 1),
+        y: Math.min(Math.max(y, 0), 1),
+        tool: "pointer",
+        button,
+      });
+    },
+    [],
+  );
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container || !onContextMenuRequest) {
+      return;
+    }
+
+    const handlePointerDown = (event: globalThis.PointerEvent) => {
+      if (event.button !== 2) {
+        rightClickInterceptedRef.current = false;
+        return;
+      }
+
+      if (isContextMenuTargetBlocked(event.target)) {
+        rightClickInterceptedRef.current = false;
+        return;
+      }
+
+      rightClickInterceptedRef.current = true;
+      onSelectionIntent?.("right");
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+
+      const bounds = container.getBoundingClientRect();
+      console.log("[canvas-editor] intercepted right-click", {
+        clientX: event.clientX,
+        clientY: event.clientY,
+      });
+      onContextMenuRequest({
+        x: Math.max(event.clientX - bounds.left, 0),
+        y: Math.max(event.clientY - bounds.top, 0),
+        clientX: event.clientX,
+        clientY: event.clientY,
+        selectedElements: extractSelectedCanvasElements({
+          elements: excalidrawApiRef.current?.getSceneElements?.() ?? [],
+          files: excalidrawApiRef.current?.getFiles?.() ?? {},
+          initialFiles: initialFilesRef.current,
+          selectedElementIds:
+            excalidrawApiRef.current?.getAppState?.()?.selectedElementIds ?? {},
+        }),
+      });
+    };
+
+    const handleContextMenu = (event: MouseEvent) => {
+      if (!rightClickInterceptedRef.current) {
+        return;
+      }
+
+      rightClickInterceptedRef.current = false;
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+    };
+
+    container.addEventListener("pointerdown", handlePointerDown, {
+      capture: true,
+    });
+    container.addEventListener("contextmenu", handleContextMenu, {
+      capture: true,
+    });
+
+    return () => {
+      container.removeEventListener("pointerdown", handlePointerDown, {
+        capture: true,
+      });
+      container.removeEventListener("contextmenu", handleContextMenu, {
+        capture: true,
+      });
+    };
+  }, [onContextMenuRequest]);
+
   return (
     <ErrorBoundary
       onError={(err) => console.error("[canvas-editor] render crashed:", err)}
     >
-      <div className="h-full w-full relative">
+      <div
+        ref={containerRef}
+        className="h-full w-full relative"
+        onPointerDown={(event) => {
+          if (event.button === 0 && !isContextMenuTargetBlocked(event.target)) {
+            onSelectionIntent?.("left");
+          }
+          emitPointerCursor(event, "down");
+        }}
+        onPointerLeave={() => onPointerChangeRef.current?.(null)}
+        onPointerMove={(event) => emitPointerCursor(event)}
+        onPointerUp={(event) => emitPointerCursor(event, "up")}
+      >
         <Excalidraw
           theme={resolvedTheme === "dark" ? "dark" : "light"}
+          langCode="zh-CN"
           initialData={{
             elements: initialContent.elements as any,
             appState: initialContent.appState as any,
@@ -573,11 +784,39 @@ export function CanvasEditor({
           renderEmbeddable={renderEmbeddable}
           validateEmbeddable={validateEmbeddable}
         />
+        {remoteCursors.length > 0 ? (
+          <div className="pointer-events-none absolute inset-0 z-10">
+            {remoteCursors.map(({ collaborator, cursor }) => (
+              <div
+                key={collaborator.connectionId}
+                className="absolute -translate-x-1/2 -translate-y-1/2"
+                style={{
+                  left: `${cursor.x * 100}%`,
+                  top: `${cursor.y * 100}%`,
+                }}
+              >
+                <div className="flex items-center gap-2 rounded-full border border-border bg-background/90 px-2 py-1 shadow-sm">
+                  <span
+                    className="h-3 w-3 rounded-full border border-background"
+                    style={{ backgroundColor: collaborator.color }}
+                  />
+                  <span className="text-xs font-medium text-foreground">
+                    {collaborator.displayName}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : null}
         {excalidrawApi && (
           <MemoizedCanvasToolMenu
             accessToken={accessToken}
             excalidrawApi={excalidrawApi}
+            immersiveArchitecture={immersiveArchitecture}
             leftPanelOpen={leftPanelOpen ?? false}
+            onInsertReferenceBoard={onInsertReferenceBoard}
+            onSeedArchitectureBoardStack={onSeedArchitectureBoardStack}
+            onUploadReference={onUploadReference}
           />
         )}
       </div>

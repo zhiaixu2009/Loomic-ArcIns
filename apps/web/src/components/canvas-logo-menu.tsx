@@ -29,6 +29,7 @@ import {
   getViewportCenter,
   scaleToFit,
 } from "@/lib/canvas-elements";
+import { duplicateSelectedCanvasElements } from "@/lib/canvas-context-actions";
 import { deleteProject } from "@/lib/server-api";
 import { useToast } from "@/components/toast";
 import { useCreateProject } from "@/hooks/use-create-project";
@@ -80,29 +81,7 @@ export function CanvasLogoMenu({
 
   const handleDuplicateElements = useCallback(() => {
     if (!excalidrawApi) return;
-    const appState = excalidrawApi.getAppState();
-    const selectedIds: Record<string, boolean> =
-      appState.selectedElementIds ?? {};
-    const allElements = excalidrawApi.getSceneElements();
-    const selected = allElements.filter(
-      (el: any) => selectedIds[el.id] && !el.isDeleted,
-    );
-
-    if (!selected.length) return;
-
-    const OFFSET = 10;
-    const newSelectedIds: Record<string, boolean> = {};
-    const clones = selected.map((el: any) => {
-      const newId = generateFileId();
-      newSelectedIds[newId] = true;
-      return { ...el, id: newId, x: el.x + OFFSET, y: el.y + OFFSET };
-    });
-
-    excalidrawApi.updateScene({
-      elements: [...allElements, ...clones],
-      appState: { selectedElementIds: newSelectedIds },
-      captureUpdate: "IMMEDIATELY",
-    });
+    duplicateSelectedCanvasElements(excalidrawApi);
   }, [excalidrawApi]);
 
   const handleDeleteProject = useCallback(async () => {

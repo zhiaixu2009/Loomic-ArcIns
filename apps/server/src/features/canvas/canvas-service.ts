@@ -68,12 +68,13 @@ export function createCanvasService(options: {
       // Extract base64 files to Storage, replacing dataURLs with oss:// markers
       const leanContent = await extractFilesToStorage(client, canvasId, content);
 
-      const { error } = await client
+      const { data, error } = await client
         .from("canvases")
         .update({ content: leanContent as unknown as Json })
-        .eq("id", canvasId);
+        .eq("id", canvasId)
+        .select("id");
 
-      if (error) {
+      if (error || !data || data.length === 0) {
         throw new CanvasServiceError("canvas_save_failed", "Unable to save canvas.", 500);
       }
     },

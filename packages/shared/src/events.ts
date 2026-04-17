@@ -2,7 +2,15 @@ import { z } from "zod";
 
 import { toolArtifactSchema } from "./artifacts.js";
 import {
+  agentPlanSchema,
+  agentPlanStepSchema,
+  canvasCollaboratorSchema,
+  canvasCursorSchema,
+  canvasIdSchema,
+  canvasMutationSourceSchema,
+  canvasSelectionSchema,
   conversationIdSchema,
+  identifierSchema,
   messageIdSchema,
   runIdSchema,
   sessionIdSchema,
@@ -83,6 +91,21 @@ export const canvasSyncEventSchema = z.object({
   timestamp: timestampSchema,
 });
 
+export const agentPlanUpdatedEventSchema = z.object({
+  type: z.literal("agent.plan.updated"),
+  runId: runIdSchema,
+  plan: agentPlanSchema,
+  timestamp: timestampSchema,
+});
+
+export const agentStepUpdatedEventSchema = z.object({
+  type: z.literal("agent.step.updated"),
+  runId: runIdSchema,
+  planId: identifierSchema,
+  step: agentPlanStepSchema,
+  timestamp: timestampSchema,
+});
+
 export const billingErrorCodeSchema = z.enum([
   "insufficient_credits",
   "model_not_accessible",
@@ -105,6 +128,65 @@ export const billingErrorEventSchema = z.object({
   dailyClaimed: z.boolean().optional(),
 });
 
+export const runInterruptedEventSchema = z.object({
+  type: z.literal("run.interrupted"),
+  runId: runIdSchema,
+  interrupt: z.object({
+    runId: runIdSchema,
+    reason: z.enum(["user", "billing", "system"]),
+    message: z.string().trim().min(1).optional(),
+    interruptedAt: timestampSchema,
+  }),
+  timestamp: timestampSchema,
+});
+
+export const runResumedEventSchema = z.object({
+  type: z.literal("run.resumed"),
+  runId: runIdSchema,
+  sourceRunId: runIdSchema,
+  timestamp: timestampSchema,
+});
+
+export const runRetriedEventSchema = z.object({
+  type: z.literal("run.retried"),
+  runId: runIdSchema,
+  sourceRunId: runIdSchema,
+  timestamp: timestampSchema,
+});
+
+export const collabPresenceEventSchema = z.object({
+  type: z.literal("collab.presence"),
+  canvasId: canvasIdSchema,
+  collaborators: z.array(canvasCollaboratorSchema),
+  timestamp: timestampSchema,
+});
+
+export const collabCursorEventSchema = z.object({
+  type: z.literal("collab.cursor"),
+  canvasId: canvasIdSchema,
+  collaborator: canvasCollaboratorSchema,
+  cursor: canvasCursorSchema.nullable(),
+  timestamp: timestampSchema,
+});
+
+export const collabSelectionEventSchema = z.object({
+  type: z.literal("collab.selection"),
+  canvasId: canvasIdSchema,
+  collaborator: canvasCollaboratorSchema,
+  selection: canvasSelectionSchema,
+  timestamp: timestampSchema,
+});
+
+export const collabCanvasMutationEventSchema = z.object({
+  type: z.literal("collab.canvas_mutation"),
+  canvasId: canvasIdSchema,
+  mutationId: identifierSchema,
+  collaborator: canvasCollaboratorSchema,
+  source: canvasMutationSourceSchema,
+  elementCount: z.number().int().nonnegative(),
+  timestamp: timestampSchema,
+});
+
 export const streamEventSchema = z.discriminatedUnion("type", [
   runStartedEventSchema,
   messageDeltaEventSchema,
@@ -115,7 +197,27 @@ export const streamEventSchema = z.discriminatedUnion("type", [
   runCompletedEventSchema,
   runFailedEventSchema,
   canvasSyncEventSchema,
+  agentPlanUpdatedEventSchema,
+  agentStepUpdatedEventSchema,
   billingErrorEventSchema,
+  runInterruptedEventSchema,
+  runResumedEventSchema,
+  runRetriedEventSchema,
+  collabPresenceEventSchema,
+  collabCursorEventSchema,
+  collabSelectionEventSchema,
+  collabCanvasMutationEventSchema,
 ]);
 
 export type StreamEvent = z.infer<typeof streamEventSchema>;
+export type AgentPlanUpdatedEvent = z.infer<typeof agentPlanUpdatedEventSchema>;
+export type AgentStepUpdatedEvent = z.infer<typeof agentStepUpdatedEventSchema>;
+export type RunInterruptedEvent = z.infer<typeof runInterruptedEventSchema>;
+export type RunResumedEvent = z.infer<typeof runResumedEventSchema>;
+export type RunRetriedEvent = z.infer<typeof runRetriedEventSchema>;
+export type CollabPresenceEvent = z.infer<typeof collabPresenceEventSchema>;
+export type CollabCursorEvent = z.infer<typeof collabCursorEventSchema>;
+export type CollabSelectionEvent = z.infer<typeof collabSelectionEventSchema>;
+export type CollabCanvasMutationEvent = z.infer<
+  typeof collabCanvasMutationEventSchema
+>;

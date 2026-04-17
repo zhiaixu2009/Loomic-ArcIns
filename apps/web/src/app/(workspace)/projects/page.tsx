@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { LoadingScreen } from "@/components/loading-screen";
+import { ArchitectureStudioEntry } from "@/components/architecture/architecture-studio-entry";
 import { ProjectList } from "@/components/project-list";
 import { ProjectsSkeleton } from "@/components/skeletons/projects-skeleton";
 import { useCreateProject } from "@/hooks/use-create-project";
@@ -96,6 +97,12 @@ export default function ProjectsPage() {
 
   return (
     <div className="px-4 py-6 sm:px-6 md:p-8">
+      <ArchitectureStudioEntry
+        className="mb-6"
+        workspaceName={workspace?.name ?? null}
+        ctaLabel="New architecture studio"
+        onEnterStudio={() => createNewProject({ studioMode: "architecture" })}
+      />
       <ProjectList
         projects={projects}
         highlightId={highlightId}

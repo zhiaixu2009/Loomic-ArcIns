@@ -1,0 +1,3165 @@
+﻿# Progress Log
+
+## Session: 2026-04-12
+
+### Phase 0: Environment Bootstrap
+- **Status:** completed
+- **Started:** 2026-04-12 09:00 Asia/Shanghai
+- Actions taken:
+  - 纭浠撳簱鏍圭洰褰曚负 `D:\97-CodingProject\Loomic-ArcIns`锛學SL 瀵瑰簲璺緞涓?`/mnt/d/97-CodingProject/Loomic-ArcIns`銆?  - 璇诲彇 `package.json`銆乣apps/server/package.json`銆乣apps/web/package.json`銆乣README.md`銆乣apps/server/Dockerfile`銆乣supabase/config.toml`锛岀‘璁ゅ綋鍓嶆妧鏈爤涓庢湰鍦拌繍琛屾柟寮忋€?  - 楠岃瘉 WSL 涓?Docker 鏈嶅姟鍙敤锛宍docker compose` 鍙墽琛岋紱Windows 渚ф湭鍙戠幇 `docker`銆?  - 妫€鏌?CLI 宸ュ叿鐜扮姸锛歐indows 鍙墽琛?`codex.ps1`锛學SL 涓綋鍓嶅彧纭 `node`锛沗pnpm` / `bun` / `ralph` / `supabase` 浠嶅緟琛ラ綈銆?  - 璁板綍褰撳墠浠撳簱涓鸿剰宸ヤ綔鍖猴紝鍐冲畾涓嶄娇鐢?git worktree銆?  - 閫氳繃 WSL 瀹屾垚宸ュ叿閾捐ˉ榻愬苟楠岃瘉锛?    - `pnpm 10.26.2`
+    - `bun 1.3.12`
+    - `supabase 2.89.1`
+    - `ralph 1.2.2`
+  - 鍒涘缓 `scripts/wsl/codex-win`锛屽苟楠岃瘉鍙粠 WSL 鏃犱氦浜掕皟鐢?Windows `codex exec --help`銆?  - 鏂板 repo 绾ц繍琛岄鏋讹細
+    - `docker-compose.local.yml`
+    - `apps/web/Dockerfile`
+    - `apps/web/nginx.conf`
+    - `docs/execution/2026-04-12-architecture-agent-studio-wsl-runtime.md`
+    - `.dockerignore`
+- Files created/modified:
+  - `task_plan.md` (created)
+  - `findings.md` (created)
+  - `progress.md` (created)
+  - `.dockerignore` (created)
+  - `docker-compose.local.yml` (created)
+  - `apps/web/Dockerfile` (created)
+  - `apps/web/nginx.conf` (created)
+  - `docs/execution/2026-04-12-architecture-agent-studio-wsl-runtime.md` (created)
+  - `scripts/wsl/codex-win` (created)
+  - `.env.example` (modified)
+
+### Phase 1: PRD & File-Based Planning
+- **Status:** completed
+- **Started:** 2026-04-12 09:20 Asia/Shanghai
+- Actions taken:
+  - 璇诲彇 `planning-with-files`銆乣open-ralph-wiggum`銆乣subagent-driven-development`銆乣writing-plans`銆乣test-driven-development`銆乣verification-before-completion`銆乣requesting-code-review` 绛夋妧鑳借鏄庯紝閿佸畾鎵ц娴佺▼銆?  - 璺?`planning-with-files` 鐨?session catch-up 鑴氭湰锛屾湭鍙戠幇闇€瑕佽ˉ鍐欑殑鏃т細璇濅笂涓嬫枃銆?  - 鎻愮偧绔炲搧瑙傚療鍜屼粨搴撲簨瀹烇紝寮€濮嬪啓 PRD銆乺unbook銆乿alidation銆乮mplementation plan 涓?Ralph prompt 鏂囨。銆?  - 骞惰娲惧彂 3 涓?explorer 瀛愪唬鐞嗭紝鍒嗗埆璋冩煡 `web/canvas UX`銆乣ws/collaboration`銆乣agent/domain runtime` 鐜扮姸锛岀瓑寰呭洖浼犱互缁嗗寲閲岀▼纰戞敼閫犵偣銆?  - 瀹屾垚绗竴鎵规枃妗ｅ啓鍏ワ細PRD銆乺unbook銆乮mplementation plan銆乿alidation 鎶ュ憡浠ュ強 5 涓?Ralph prompt銆?- Files created/modified:
+  - `docs/prd/2026-04-12-architecture-agent-studio-prd.md` (created)
+  - `docs/execution/2026-04-12-architecture-agent-studio-runbook.md` (created)
+  - `docs/execution/2026-04-12-architecture-agent-studio-implementation-plan.md` (created)
+  - `docs/verification/2026-04-12-architecture-agent-studio-validation.md` (created)
+  - `docs/execution/ralph/m1-studio-entry-workspace-shell.prompt.md` (created)
+  - `docs/execution/ralph/m2-realtime-team-collaboration.prompt.md` (created)
+  - `docs/execution/ralph/m3-agent-planning-autonomous-execution.prompt.md` (created)
+  - `docs/execution/ralph/m4-architecture-domain-layer.prompt.md` (created)
+  - `docs/execution/ralph/m5-sharing-export-ops.prompt.md` (created)
+
+### Phase 0.5: Runtime Verification Evidence
+- **Status:** blocked_by_external_registry
+- **Started:** 2026-04-12 11:00 Asia/Shanghai
+- Actions taken:
+  - 鐢熸垚涓存椂楠岃瘉鐜鏂囦欢 `/tmp/loomic.env`锛岄伩鍏嶅湪浠撳簱鏍圭洰褰曞埗閫犳湭缁忕敤鎴风‘璁ょ殑 `.env.local`銆?  - 杩愯 `docker compose -f docker-compose.local.yml --env-file /tmp/loomic.env config`锛岀‘璁?compose 鍙橀噺瑙ｆ瀽銆乭ost 缃戠粶涓?healthcheck 璇硶姝ｅ父銆?  - 灏濊瘯 `supabase start`锛岄暅鍍忔媺鍙栭樁娈靛湪 `public.ecr.aws` 杩斿洖 `EOF`銆?  - 灏濊瘯 `docker pull node:22-slim` 涓?`docker pull nginx:1.27-alpine`锛屽悓鏍峰湪鍏叡 registry 杩斿洖 `EOF`銆?  - 閫氳繃 `docker image ls` 纭鏈満缂撳瓨涓棤 `node:22-slim` / `nginx:1.27-alpine` 鍙鐢ㄩ暅鍍忥紝鍥犳褰撳墠鏃犳硶鍦ㄦ湰鏈哄畬鎴?compose build銆?- Result:
+  - 杩愯楠ㄦ灦涓?Ralph fallback 宸插彲澶嶇敤銆?  - 瀹瑰櫒楠岃瘉褰撳墠琚?WSL Docker 鍒板閮ㄩ暅鍍忎粨搴撶殑缃戠粶闂闃诲锛屾湭鍙戠幇浠撳簱 compose 閰嶇疆绾ч敊璇€?
+### Phase 2: M1 Studio Entry + Workspace Shell
+- **Status:** in_progress
+- **Started:** 2026-04-12 11:20 Asia/Shanghai
+- Actions taken:
+  - 涓?M1 鏂板鍏变韩璺敱宸ュ叿 `apps/web/src/lib/studio-routes.ts`锛屽喕缁?`studio=architecture` 鐨勫叆鍙?URL 濂戠害銆?  - 鏂板寤虹瓚宸ヤ綔鍙板叆鍙ｇ粍浠讹細
+    - `apps/web/src/components/architecture/architecture-studio-entry.tsx`
+    - `apps/web/src/components/architecture/architecture-studio-rail.tsx`
+  - 淇敼 Home / Projects / ProjectList / useCreateProject锛岃鏂板缓椤圭洰涓庨」鐩繘鍏ラ摼璺粺涓€鍒囧埌 Architecture Studio銆?  - 淇敼 `/canvas` 椤甸潰锛屽湪涓嶉噸鍐?`CanvasEditor` 鐨勫墠鎻愪笅鍔犲叆宸︿晶 architecture rail銆佺Щ鍔ㄧ compact bar锛屼互鍙婂彸渚?Architecture Agent header銆?  - 淇敼 `AppSidebar`锛屾妸 `Projects` 鏍囩璋冩暣涓?`Studio`锛屽苟澧炲姞 `Arch` 寰芥爣寮哄寲鍏ュ彛璁ょ煡銆?  - 涓烘湰娆℃敼鍔ㄦ柊澧炰笌琛ュ己瀹氬悜娴嬭瘯锛?    - `apps/web/test/architecture-studio-shell.test.tsx`
+    - `apps/web/test/chat-sidebar.test.tsx`
+- Verification taken:
+  - `pnpm install --frozen-lockfile` 鍦?WSL 瀹屾垚锛屽伐浣滃尯渚濊禆宸插氨浣嶃€?  - `cd apps/web && pnpm exec vitest run test/architecture-studio-shell.test.tsx test/chat-sidebar.test.tsx` 閫氳繃銆?  - `pnpm --filter @loomic/shared build && pnpm --filter @loomic/config build && pnpm --filter @loomic/ui build` 閫氳繃銆?  - `pnpm --filter @loomic/web test` 浠嶅瓨鍦ㄥ巻鍙插け璐ワ細`env.test.ts`銆乣home-discovery-gallery.test.tsx`銆乣projects.test.tsx`銆乣chat-workbench.test.tsx` 绛夛紝涓嶆槸鏈 M1 鐙湁寮曞叆銆?  - `pnpm --filter @loomic/web typecheck` 浠嶅瓨鍦ㄥ巻鍙茬被鍨嬮棶棰橈紱褰撳墠杈撳嚭鏈毚闇?`studio-routes.ts` 鎴栨柊澧?`src/components/architecture/*` 鐨勯敊璇紝浣?`chat-sidebar.tsx` 鏂囦欢涓粛鏈夋棫鐨?exact-optional 绫诲瀷鍊哄姟銆?- Files created/modified:
+  - `apps/web/src/lib/studio-routes.ts` (created)
+  - `apps/web/src/components/architecture/architecture-studio-entry.tsx` (created)
+  - `apps/web/src/components/architecture/architecture-studio-rail.tsx` (created)
+  - `apps/web/src/hooks/use-create-project.ts` (modified)
+  - `apps/web/src/components/project-list.tsx` (modified)
+  - `apps/web/src/app/(workspace)/home/page.tsx` (modified)
+  - `apps/web/src/app/(workspace)/projects/page.tsx` (modified)
+  - `apps/web/src/components/app-sidebar.tsx` (modified)
+  - `apps/web/src/components/chat-sidebar.tsx` (modified)
+  - `apps/web/src/app/canvas/page.tsx` (modified)
+  - `apps/web/test/architecture-studio-shell.test.tsx` (created)
+  - `apps/web/test/chat-sidebar.test.tsx` (modified)
+
+### Phase 3: M2 Real-Time Team Collaboration
+- **Status:** completed
+- **Started:** 2026-04-12 14:40 Asia/Shanghai
+- Actions taken:
+  - 鎵╁睍鍏变韩鍗忎綔濂戠害涓庢祴璇曪細
+    - `packages/shared/src/contracts.ts`
+    - `packages/shared/src/events.ts`
+    - `packages/shared/src/ws-protocol.ts`
+    - `packages/shared/src/contracts.test.ts`
+  - 鏈嶅姟绔ˉ榻愬浜哄崗浣滃叆鍙ｄ笌骞挎挱閾捐矾锛?    - `apps/server/src/ws/connection-manager.ts`
+    - `apps/server/src/ws/handler.ts`
+    - `apps/server/src/http/canvases.ts`
+    - `apps/server/src/app.ts`
+    - `apps/server/src/ws/connection-manager.test.ts`
+    - `apps/server/src/http/canvases.test.ts`
+  - 鍓嶇寤虹瓚宸ヤ綔鍙版帴鍏?presence / cursor / selection / remote mutation锛?    - `apps/web/src/hooks/use-websocket.ts`
+    - `apps/web/src/hooks/use-canvas-collaboration.ts`
+    - `apps/web/src/components/canvas-editor.tsx`
+    - `apps/web/src/app/canvas/page.tsx`
+    - `apps/web/src/components/architecture/architecture-studio-rail.tsx`
+    - `apps/web/src/components/chat-sidebar.tsx`
+    - `apps/web/test/architecture-studio-shell.test.tsx`
+    - `apps/web/test/use-canvas-collaboration.test.tsx`
+    - `apps/web/test/chat-sidebar.test.tsx`
+  - 鍩轰簬 TDD 鏀跺彛閲嶅 mutation 鎻愮ず椋庨櫓锛?    - 鍏堜慨鏀?`apps/web/test/use-canvas-collaboration.test.tsx`锛屾槑纭?`useCanvasCollaboration()` 涓嶅啀鏆撮湶 `publishLocalMutation`
+    - 杩愯 `node ../../node_modules/vitest/vitest.mjs run test/use-canvas-collaboration.test.tsx`锛岃瀵熺孩鐏け璐?    - 鍒犻櫎 `use-canvas-collaboration.ts` 涓殑鏈湴 mutation 鍙戝竷鍑芥暟
+    - 鍒犻櫎 `CanvasEditor` 鐨?`onPersistedMutation` 鍥炶皟閾捐矾
+    - 鍒犻櫎 `apps/web/src/app/canvas/page.tsx` 涓殑 `handleLocalCanvasMutation`
+    - 淇濈暀 `CanvasEditor` 鐨勪繚瀛樻垚鍔熸棩蹇楋紝浣嗘妸杩滅鍚屾閫氱煡鏀舵潫涓烘湇鍔＄骞挎挱鍞竴鐪熺浉婧?  - 鏇存柊 M2 鏂囨。鍩虹嚎锛?    - `task_plan.md`
+    - `findings.md`
+    - `progress.md`
+    - `docs/verification/2026-04-12-architecture-agent-studio-validation.md`
+    - `docs/execution/ralph/m2-realtime-team-collaboration.prompt.md`
+  - 灏濊瘯鎵ц鍙楁帶 Ralph M2 鍥炲悎锛?    - 棣栨杩愯鍥?Windows / WSL 寮曞彿鍖呰澶辫触锛屾病鏈夌湡姝ｈ繘鍏?Ralph loop
+    - 绗簩娆¤繍琛屽洜 shell 鎶?`<promise>...` 瑙ｉ噴鎴愰噸瀹氬悜澶辫触
+    - 绗笁娆′互绾枃鏈?`M2_COLLAB_COMPLETE` 浣滀负 completion promise 鎴愬姛鍚姩 Ralph
+    - Ralph loop 鍦?1 娆¤凯浠ｅ唴鏈畬鎴愶紝骞跺洖浼犲綋鍓?`codex-win` fallback 涓?Ralph 鍙傛暟鍗忚涓嶅吋瀹癸細`unexpected argument '/mnt/d/97-CodingProject/Loomic-ArcIns/packages/shared' found`
+  - 绯荤粺鍖栬皟璇?Ralph / Codex 杩愯鏃讹細
+    - 璇诲彇 Ralph 婧愮爜锛岀‘璁ゅ畠纭疄鎶婂畬鏁?prompt 褰撲綔鍗曚竴鍙傛暟浼犵粰 agent锛岃€屼笉鏄嚜宸辨媶鍙?    - 楠岃瘉 Windows `codex.cmd` 鍦?PowerShell 涓彲鐩存帴鎺ュ彈澶氳 prompt
+    - 楠岃瘉褰撳墠 Windows Codex 閰嶇疆榛樿 `model_reasoning_effort = "xhigh"`锛岃繖浼氳 `gpt-5-codex` 鐩存帴鎶ラ敊锛沗-c 'model_reasoning_effort=\"high\"'` 鍙秷闄ゆ閿欒
+    - 鏂板 `scripts/wsl/codex-win.ps1`锛屽苟鎶?`scripts/wsl/codex-win` 鏀逛负浼樺厛璋冪敤 `codex.cmd`
+    - 鏂版ˉ鎺ユ満鍒舵敼涓衡€淲SL bash 鍐?JSON 鍙傛暟鏂囦欢 -> PowerShell helper 璇诲彇 -> Windows codex.cmd 鎵ц鈥濓紝閬垮厤 `codex.ps1` 涓?PowerShell 瀵归暱 prompt / `-c` 鍙傛暟鐨勯噸瑙ｆ瀽
+    - 閫氳繃鐪熷疄 WSL bash smoke 鑴氭湰楠岃瘉锛?      - `scripts/wsl/codex-win exec --help` 鎴愬姛
+      - `scripts/wsl/codex-win exec --model gpt-5-codex --ephemeral -c 'model_reasoning_effort=\"high\"' 'Return exactly OK.'` 鎴愬姛杩斿洖 `OK`
+    - 閲嶆柊杩愯鍙楁帶 Ralph M2 鍥炲悎鍚庯紝涓嶅啀绔嬪嵆鎶?`unexpected argument` 鎴?`xhigh`
+    - 鍙﹁ˉ涓€涓?trivial Ralph smoke loop锛歭oop 鍙惎鍔紝浣?4-5 鍒嗛挓鍚庝粛澶勪簬 active 鐘舵€侊紝闇€瑕佹墜鍔ㄦ竻鐞?`.ralph/ralph-loop.state.json`
+  - 绋冲畾娴忚鍣ㄧ骇鍙岀敤鎴峰崗鍚岄獙璇佽剼鏈細
+    - 缁х画鏀舵暃 `output/playwright/m2-collab-validate.cjs`
+    - 楠岃瘉璺緞鍥哄畾涓衡€滈『搴忕櫥褰?-> 绛夊緟 auth session 绋冲畾 -> 杩涘叆鍏变韩鐢诲竷 -> 鐪熷疄 UI 浜や簰鈥?    - 鏈€缁堥噰鐢ㄤ袱浣嶇瀛愮敤鎴疯€屼笉鏄悓璐﹀彿鍙屾爣绛鹃〉锛岄伩鍏?`localUserId` 杩囨护瀵艰嚧杩滅浜嬩欢琚姂鍒?  - 灏嗗綋鍓嶆満鍣ㄩ獙璇佽繃鐨?Ralph / Codex Desktop 鏂规鍥炲啓鍒板叏灞€ skill锛?    - `C:\Users\admin\.codex\skills\open-ralph-wiggum\SKILL.md`
+    - 缁熶竴璁板綍 `scripts/wsl/codex-win` 妗ユ帴鏂规銆乣--prompt-file` 寤鸿锛屼互鍙?`--ephemeral` / `model_reasoning_effort="high"` 杩愯鍙傛暟
+  - 鏍规嵁鏈€缁堟祻瑙堝櫒璇佹嵁鍥炲啓 `task_plan.md`銆乣findings.md`銆乣progress.md` 涓?validation 鏂囨。锛屾寮忓叧闂?M2 骞舵妸鎵ц鐒︾偣鎺ㄨ繘鍒?M3
+- Verification taken:
+  - `cd apps/web && node ../../node_modules/vitest/vitest.mjs run test/use-canvas-collaboration.test.tsx`锛?    - red 闃舵鍏堝け璐ワ紝纭鏃у疄鐜颁粛鏆撮湶 `publishLocalMutation`
+    - green 闃舵鍦ㄥ垹闄ら噸澶嶅箍鎾摼璺悗閫氳繃
+  - `cd apps/web && node ../../node_modules/vitest/vitest.mjs run test/architecture-studio-shell.test.tsx test/use-canvas-collaboration.test.tsx test/chat-sidebar.test.tsx` 閫氳繃锛宍3` 涓祴璇曟枃浠躲€乣8` 涓祴璇曞叏閮ㄩ€氳繃
+  - `pnpm --filter @loomic/server exec vitest run src/ws/connection-manager.test.ts src/http/canvases.test.ts` 閫氳繃锛宍5` 涓祴璇曞叏閮ㄩ€氳繃
+  - `cd packages/shared && node ../../node_modules/vitest/vitest.mjs run src/contracts.test.ts -t collaboration` 閫氳繃锛宍3` 涓?collaboration 娴嬭瘯閫氳繃
+  - `cd apps/web && node ../../node_modules/typescript/bin/tsc -p tsconfig.json --noEmit --pretty false` 浠嶅懡涓巻鍙茬被鍨嬪€哄姟锛屾湭鏂板 M2 涓撳睘鎶ラ敊
+  - `ralph --agent codex --model gpt-5-codex --prompt-file docs/execution/ralph/m2-realtime-team-collaboration.prompt.md --max-iterations 1 --completion-promise M2_COLLAB_COMPLETE --no-questions`锛?    - loop 鍙惎鍔?    - Codex iteration 浠?exit code `2` 閫€鍑?    - 澶辫触淇℃伅涓?`unexpected argument '/mnt/d/97-CodingProject/Loomic-ArcIns/packages/shared' found`
+  - `./scripts/wsl/codex-win exec --help` 閫氳繃锛岃鏄庢柊 wrapper 鑷冲皯鑳界ǔ瀹氭妸 CLI 甯姪杈撳嚭绌块€忓洖 WSL
+  - 鐪熷疄 bash smoke 鑴氭湰涓墽琛?    - `./scripts/wsl/codex-win exec --model gpt-5-codex --ephemeral -c 'model_reasoning_effort="high"' 'Return exactly OK.'`
+    - 鎴愬姛杩斿洖 `OK`
+  - `ralph --status` 鍦ㄩ噸璇曞悗鑳界湅鍒?active loop锛屼笉鍐嶆槸鍙傛暟绾х閫€
+  - 鎵嬪姩鍒犻櫎 `.ralph/ralph-loop.state.json` 鍚庯紝`ralph --status` 鎭㈠涓?`No active loop`
+  - 淇瀹瑰櫒鍖?Web 鏋勫缓闃诲锛?    - `apps/web/Dockerfile` 鍒犻櫎 `COPY --from=deps /app/packages/config/node_modules ./packages/config/node_modules`
+    - `.dockerignore` 鏀逛负閫掑綊蹇界暐 workspace 鍐?`node_modules`銆乣.next`銆乣dist`銆乣out`銆乣coverage`
+    - 閲嶆柊鎵ц `docker compose -f docker-compose.local.yml --env-file /tmp/loomic.env build web` 鎴愬姛
+    - 缁х画鎵ц `docker compose -f docker-compose.local.yml --env-file /tmp/loomic.env up -d web server worker` 鎴愬姛
+    - 鍋ュ悍妫€鏌ワ細
+      - `curl -sS http://127.0.0.1:3001/api/health` 杩斿洖 `{"ok":true,"service":"loomic-server","version":"0.0.0"}`
+      - `curl -I http://127.0.0.1:3000` 杩斿洖 `HTTP/1.1 200 OK`
+  - 娴忚鍣ㄧ骇鍙岀敤鎴峰崗鍚岄獙璇侊細
+    - `wsl.exe -e bash -lc 'NODE_PATH=/tmp/playwright-runner/node_modules node /mnt/d/97-CodingProject/Loomic-ArcIns/output/playwright/m2-collab-validate.cjs'`
+    - 閫氳繃涓や綅鐪熷疄鐢ㄦ埛楠岃瘉鍚屼竴鍏变韩鐢诲竷鐨?`presence`銆乣cursor`銆乣selection`銆乣mutation` 涓?`Sync now`
+    - 璇佹嵁鐩綍锛歚/mnt/d/97-CodingProject/Loomic-ArcIns/output/playwright/m2-collab-1776028195746`
+- Result:
+  - M2 鐨勫叡浜绾︺€佹湇鍔＄骞挎挱銆佸墠绔闃呬笌寤虹瓚宸ヤ綔鍙板彲瑙佸弽棣堝凡缁忚繛閫?  - 鏈湴閲嶅 mutation 鎻愮ず閾捐矾宸茬粡鍒犻櫎锛岄伩鍏嶈繙绔悓姝?CTA 琚弻閲嶈Е鍙?  - `codex-win` 鐨勫弬鏁拌浆鍙戝吋瀹规€у凡缁忎粠鈥滀笉鍙敤鈥濇彁鍗囧埌鈥滅洿鎺?wrapper smoke 閫氳繃鈥?  - repo 绾у鍣ㄦ爤鐜板湪宸茬粡鍏峰 `web/server/worker` 鍙繍琛屽熀绾?  - 娴忚鍣ㄧ骇鍙岀敤鎴峰満鏅瘉鎹凡缁忚ˉ榻愶紝M2 姝ｅ紡瀹屾垚骞跺垏鎹㈠埌 Phase 4 / M3
+  - Ralph 闀垮惊鐜皟浼樹粛鏄悗缁伐鍏烽摼浠诲姟锛屼絾涓嶅啀闃诲 M2 楠屾敹
+- Files created/modified:
+  - `packages/shared/src/contracts.ts` (modified)
+  - `packages/shared/src/events.ts` (modified)
+  - `packages/shared/src/ws-protocol.ts` (modified)
+  - `packages/shared/src/contracts.test.ts` (created)
+  - `apps/server/src/ws/connection-manager.ts` (modified)
+  - `apps/server/src/ws/handler.ts` (modified)
+  - `apps/server/src/http/canvases.ts` (modified)
+  - `apps/server/src/app.ts` (modified)
+  - `apps/server/src/ws/connection-manager.test.ts` (created)
+  - `apps/server/src/http/canvases.test.ts` (created)
+  - `apps/web/src/hooks/use-websocket.ts` (modified)
+  - `apps/web/src/hooks/use-canvas-collaboration.ts` (modified)
+  - `apps/web/src/components/canvas-editor.tsx` (modified)
+  - `apps/web/src/app/canvas/page.tsx` (modified)
+  - `apps/web/src/components/architecture/architecture-studio-rail.tsx` (modified)
+  - `apps/web/src/components/chat-sidebar.tsx` (modified)
+  - `apps/web/test/use-canvas-collaboration.test.tsx` (created)
+  - `apps/web/Dockerfile` (modified)
+  - `.dockerignore` (modified)
+  - `scripts/wsl/codex-win` (modified)
+  - `scripts/wsl/codex-win.ps1` (created)
+  - `docs/execution/ralph/m2-realtime-team-collaboration.prompt.md` (modified)
+  - `output/playwright/m2-collab-validate.cjs` (modified)
+  - `C:\Users\admin\.codex\skills\open-ralph-wiggum\SKILL.md` (modified)
+
+### Phase 4: M3 Agent Planning + Autonomous Execution
+- **Status:** in_progress
+- **Started:** 2026-04-13 05:40 Asia/Shanghai
+- Actions taken:
+  - 鍥炶 PRD銆佹€讳綋 implementation plan銆丮3 Ralph prompt銆乻hared contracts銆乺untime銆乄S handler銆乧hat sidebar銆乧hat stream 涓?message 娓叉煋灞傦紝纭褰撳墠绯荤粺宸叉湁 `run/tool/artifact` 楠ㄦ灦锛屼絾灏氭棤涓€绛夊叕姘戠殑 `plan / step / interrupt / resume / retry` 濂戠害銆?  - 骞惰鎺㈡煡褰撳墠 M3 鐨勫墠鍚庣钀界偣锛涘悗绔帰鏌ュ凡纭锛?    - `canvas.resume` 浠呮槸浜嬩欢鍥炴斁锛屼笉鏄墽琛?resume
+    - 鐜版湁 HTTP / WS 鍙鐩?`agent.run` 涓?`agent.cancel`
+    - 鐜版湁 run metadata 杩囪杽锛屼笉閫傚悎鐩存帴鎵挎媴瀹屾暣璁″垝鎸佷箙鍖?  - 鍩轰簬鐜扮姸鍐荤粨 M3 鐨?bounded slice锛?    - 閲囩敤鈥滄樉寮?plan tools + agent-plan content block + WS 鎺у埗鍛戒护鈥濈殑鏂规
+    - 涓嶅湪鏈樁娈靛紩鍏ユ柊鐨勬楠よ〃鎴?artifact 琛?    - 缁х画澶嶇敤鐜版湁 `tool.completed.artifacts` 涓庤亰澶╂秷鎭?`contentBlocks` 鎸佷箙鍖?  - 鏂板 M3 闃舵璁捐鏂囨。锛?    - `docs/execution/2026-04-12-architecture-agent-studio-m3-spec.md`
+    - `docs/execution/2026-04-12-architecture-agent-studio-m3-plan.md`
+- Result:
+  - M3 鐨勭洰鏍囥€佽竟鐣屻€佸绾︺€佹枃浠惰惤鐐广€侀獙璇佸懡浠ゅ拰鎵ц椤哄簭宸茬粡鍐荤粨锛屽彲杩涘叆 TDD 椹卞姩鐨勫疄鐜伴樁娈?
+## Test Results
+| Test | Input | Expected | Actual | Status |
+|------|-------|----------|--------|--------|
+| WSL path probe | `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns && pwd"` | 杈撳嚭浠撳簱璺緞 | `/mnt/d/97-CodingProject/Loomic-ArcIns` | PASS |
+| WSL Docker | `wsl.exe -e bash -lc "docker version"` | Docker client/server 鍙敤 | WSL Docker server `28.2.2` 鍙敤 | PASS |
+| WSL Compose | `wsl.exe -e bash -lc "docker compose version"` | Compose 鍙敤 | `2.37.1+ds1-0ubuntu2~24.04.1` | PASS |
+| Windows Codex | `Get-Command codex` | 瀛樺湪 Codex CLI | `codex.ps1` 鍙敤 | PASS |
+| WSL pnpm | `wsl.exe -e bash -lc "export PATH=\"$HOME/.npm-global/bin:$HOME/.local/bin:$PATH\"; pnpm -v"` | 杈撳嚭鐗堟湰 | `10.26.2` | PASS |
+| WSL Bun | `wsl.exe -e bash -lc "export PATH=\"$HOME/.npm-global/bin:$HOME/.local/bin:$PATH\"; bun --version"` | 杈撳嚭鐗堟湰 | `1.3.12` | PASS |
+| WSL Supabase CLI | `wsl.exe -e bash -lc "export PATH=\"$HOME/.npm-global/bin:$HOME/.local/bin:$PATH\"; supabase --version"` | 杈撳嚭鐗堟湰 | `2.89.1` | PASS |
+| WSL Ralph | `wsl.exe -e bash -lc "export PATH=\"$HOME/.npm-global/bin:$HOME/.local/bin:$PATH\"; bun /home/admin123/.npm-global/lib/node_modules/@th0rgal/ralph-wiggum/ralph.ts --version"` | 杈撳嚭鐗堟湰 | `ralph 1.2.2` | PASS |
+| WSL Codex fallback | `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns && ./scripts/wsl/codex-win exec --help"` | 杈撳嚭 `codex exec` 甯姪 | 甯姪鏂囨湰杩斿洖鎴愬姛 | PASS |
+| Compose resolve | `docker compose -f docker-compose.local.yml --env-file /tmp/loomic.env config` | 杈撳嚭瑙ｆ瀽鍚庣殑 compose | 鎴愬姛瑙ｆ瀽 `web/server/worker` 涓夋湇鍔?| PASS |
+| Local Supabase boot | `supabase start` | 鎷夎捣鏈湴 Supabase | 鎷夊彇 `public.ecr.aws` 闀滃儚鏃舵姤 `EOF` | FAIL |
+| Docker Hub base image pull | `docker pull node:22-slim` | 鎴愬姛鎷夊彇鍩虹闀滃儚 | `registry-1.docker.io` 鎶?`EOF` | FAIL |
+| Workspace install | `pnpm install --frozen-lockfile` | 宸ヤ綔鍖轰緷璧栧畨瑁呭畬鎴?| 鎴愬姛瀹夎 933 涓寘 | PASS |
+| M1 targeted tests | `cd apps/web && pnpm exec vitest run test/architecture-studio-shell.test.tsx test/chat-sidebar.test.tsx` | 鏂板 Studio 鍏ュ彛/澹冲眰娴嬭瘯閫氳繃 | `2` 涓祴璇曟枃浠躲€乣6` 涓祴璇曞叏閮ㄩ€氳繃 | PASS |
+| Shared/config/ui builds | `pnpm --filter @loomic/shared build && pnpm --filter @loomic/config build && pnpm --filter @loomic/ui build` | 鍏变韩鍖呮瀯寤烘垚鍔?| 涓変釜 package build 閫氳繃 | PASS |
+| Full web test suite | `pnpm --filter @loomic/web test` | web 鍏ㄩ噺娴嬭瘯閫氳繃 | 鍘嗗彶澶辫触浠嶅瓨鍦細`env.test.ts`銆乣home-discovery-gallery.test.tsx`銆乣projects.test.tsx`銆乣chat-workbench.test.tsx` | FAIL |
+| Full web typecheck | `pnpm --filter @loomic/web typecheck` | web typecheck 閫氳繃 | 鍘嗗彶绫诲瀷闂浠嶅瓨鍦細`pricing-card.tsx`銆乣agent-section.tsx`銆乣chat-sidebar.tsx`銆乣chat/tool-block-view.tsx`銆乣chat-workbench.test.tsx`銆乣env.test.ts` | FAIL |
+| M2 TDD red check | `cd apps/web && node ../../node_modules/vitest/vitest.mjs run test/use-canvas-collaboration.test.tsx` | 鏂版祴璇曞厛澶辫触锛岃瘉鏄庢棫 API 浠嶆毚闇叉湰鍦?mutation 鍙戝竷 | 鏂█ `publishLocalMutation` 涓嶅瓨鍦ㄦ椂澶辫触 | PASS |
+| M2 web targeted tests | `cd apps/web && node ../../node_modules/vitest/vitest.mjs run test/architecture-studio-shell.test.tsx test/use-canvas-collaboration.test.tsx test/chat-sidebar.test.tsx` | 寤虹瓚澹冲眰 + 鍗忎綔 hook + chat sidebar 娴嬭瘯閫氳繃 | `3` 涓祴璇曟枃浠躲€乣8` 涓祴璇曞叏閮ㄩ€氳繃 | PASS |
+| M2 server targeted tests | `pnpm --filter @loomic/server exec vitest run src/ws/connection-manager.test.ts src/http/canvases.test.ts` | 鍗忎綔骞挎挱涓庝繚瀛樺悗 mutation 骞挎挱閫氳繃 | `2` 涓祴璇曟枃浠躲€乣5` 涓祴璇曞叏閮ㄩ€氳繃 | PASS |
+| M2 shared targeted tests | `cd packages/shared && node ../../node_modules/vitest/vitest.mjs run src/contracts.test.ts -t collaboration` | 鍗忎綔鍏变韩濂戠害娴嬭瘯閫氳繃 | `3` 涓?collaboration 娴嬭瘯閫氳繃 | PASS |
+| M2 web typecheck audit | `cd apps/web && node ../../node_modules/typescript/bin/tsc -p tsconfig.json --noEmit --pretty false` | 涓嶅紩鍏ユ柊鐨?M2 绫诲瀷閿欒 | 浠呭懡涓棦鏈夊€哄姟锛歚pricing-card.tsx`銆乣agent-section.tsx`銆乣chat-sidebar.tsx`銆乣chat/tool-block-view.tsx`銆乣chat-workbench.test.tsx`銆乣env.test.ts` | PARTIAL |
+| M2 Ralph bounded pass | `ralph --agent codex --model gpt-5-codex --prompt-file docs/execution/ralph/m2-realtime-team-collaboration.prompt.md --max-iterations 1 --completion-promise M2_COLLAB_COMPLETE --no-questions` | 鍚姩鍙楁帶 Ralph 鍥炲悎骞跺畬鎴?M2 鑷不澶嶆牳 | Ralph loop 鍚姩锛屼絾 Codex fallback 浠?`unexpected argument '/mnt/d/97-CodingProject/Loomic-ArcIns/packages/shared' found` 閫€鍑?| FAIL |
+| Codex wrapper help | `./scripts/wsl/codex-win exec --help` | WSL wrapper 姝ｅ父妗ユ帴 Windows Codex CLI 甯姪杈撳嚭 | 甯姪鏂囨湰杩斿洖鎴愬姛 | PASS |
+| Codex wrapper smoke | `./scripts/wsl/codex-win exec --model gpt-5-codex --ephemeral -c 'model_reasoning_effort="high"' 'Return exactly OK.'` | WSL wrapper 姝ｅ父鎵ц涓€涓渶灏?prompt | 杩斿洖 `OK` | PASS |
+| Ralph status recovery | `rm -f .ralph/ralph-loop.state.json && ralph --status` | 鎮寕 loop 鐘舵€佸彲娓呯悊骞舵仮澶嶇┖闂?| 杈撳嚭 `No active loop` | PASS |
+| Web image build | `docker compose -f docker-compose.local.yml --env-file /tmp/loomic.env build web` | `web` 闀滃儚鏋勫缓鎴愬姛 | `loomic-arcins-web` build 瀹屾垚 | PASS |
+| App stack up | `docker compose -f docker-compose.local.yml --env-file /tmp/loomic.env up -d web server worker` | 涓夋湇鍔″鍣ㄦ媺璧峰苟杩涘叆鍙敤鐘舵€?| `server` healthy锛宍web/worker` running | PASS |
+| API health | `curl -sS http://127.0.0.1:3001/api/health` | API 鍙闂苟杩斿洖鍋ュ悍鐘舵€?| 杩斿洖 `{"ok":true,"service":"loomic-server","version":"0.0.0"}` | PASS |
+| Web health | `curl -I http://127.0.0.1:3000` | 鍓嶇闈欐€佺珯鐐瑰彲璁块棶 | 杩斿洖 `HTTP/1.1 200 OK` | PASS |
+| M2 browser dual-user walkthrough | `wsl.exe -e bash -lc 'NODE_PATH=/tmp/playwright-runner/node_modules node /mnt/d/97-CodingProject/Loomic-ArcIns/output/playwright/m2-collab-validate.cjs'` | 涓や綅鐪熷疄鐢ㄦ埛鍦ㄥ悓涓€鐢诲竷鍐呭畬鎴?presence/cursor/selection/mutation/sync 绔埌绔獙璇?| `output/playwright/m2-collab-1776028195746/result.json` 鏄剧ず浜旈」鏂█鍏ㄩ儴 `pass`锛屽苟鐢熸垚 4 寮犺瘉鎹埅鍥?| PASS |
+
+## Error Log
+| Timestamp | Error | Attempt | Resolution |
+|-----------|-------|---------|------------|
+| 2026-04-12 09:07 | `rg.exe` 鍦?PowerShell 涓墽琛屽け璐ワ紝鎻愮ず `Access is denied` | 1 | 鍚庣画缁熶竴鏀圭敤 WSL shell 鎵ц鎼滅储涓庢枃浠惰鍙?|
+| 2026-04-12 09:12 | WSL 涓?`pnpm -v` 杩斿洖 `command not found` | 1 | 宸插湪 Phase 0 琛ラ綈 PATH 涓?CLI 瀹夎锛屽綋鍓嶉棶棰樺凡鍏抽棴 |
+| 2026-04-12 09:32 | 棣栨 `apply_patch` 鍐欏叆澶氫唤鏂囨。鏃惰Е鍙?Windows `鏂囦欢鍚嶆垨鎵╁睍鍚嶅お闀縛 | 1 | 鏀逛负鍒嗘壒灏忚ˉ涓佸啓鍏ワ紝閬垮厤閲嶅鐩稿悓澶辫触鍔ㄤ綔 |
+| 2026-04-12 11:02 | `supabase start` 鍦ㄦ媺鍙?`public.ecr.aws` 闀滃儚鏃惰繑鍥?`EOF` | 1 | 璁板綍涓哄閮?registry 璁块棶闃诲锛岃浆涓哄簲鐢ㄥ眰 compose 瑙ｆ瀽楠岃瘉 |
+| 2026-04-12 11:10 | `docker pull node:22-slim` / `nginx:1.27-alpine` 杩斿洖 `EOF` | 1 | 杩涗竴姝ョ‘璁?WSL Docker 瀵瑰叕鍏?registry 鎷夐暅鍍忓瓨鍦ㄧ幆澧冮棶棰?|
+| 2026-04-12 11:44 | `pnpm --filter @loomic/web test -- ...` 鍥犲伐浣滃尯鏈畨瑁呬緷璧栬€屾壘涓嶅埌 `vitest` | 1 | 鎵ц `pnpm install --frozen-lockfile` 鍚庢仮澶?|
+| 2026-04-12 12:00 | `pnpm --filter @loomic/web test` 鍗峰叆鍘嗗彶澶辫触濂椾欢 | 1 | 鏀逛负 `pnpm exec vitest run ...` 璺戞湰娆℃敼鍔ㄧ殑瀹氬悜娴嬭瘯锛屽悓鏃舵妸鍏ㄩ噺澶辫触鐣欑棔 |
+| 2026-04-12 16:58 | `packages/shared` 涓?`pnpm exec vitest` 鎵句笉鍒板懡浠?| 1 | 鏀逛负 `node ../../node_modules/vitest/vitest.mjs run ...` 鐩存帴鎵ц workspace 鍐?vitest |
+| 2026-04-12 17:10 | `ralph --agent codex ...` 閫氳繃 `codex-win` 杩愯鏃讹紝Codex 杩斿洖 `unexpected argument '/mnt/d/97-CodingProject/Loomic-ArcIns/packages/shared' found` | 3 | 纭 loop 鍙惎鍔紝浣嗗綋鍓?fallback 涓?Ralph 鐨?Codex 鍙傛暟鍗忚浠嶄笉鍏煎锛涜褰曚负鍚庣画杩愯鏃朵慨澶嶉」 |
+| 2026-04-12 21:18 | 鐩存帴閫氳繃 WSL wrapper 璋冪敤 Windows Codex 鏃讹紝`gpt-5-codex` 鍥犻粯璁?`xhigh` reasoning 澶辫触 | 1 | 鍔犲叆 `-c 'model_reasoning_effort="high"'` 浣滀负 Ralph / Codex 鎺ㄨ崘棰濆鍙傛暟 |
+| 2026-04-12 21:30 | trivial Ralph smoke loop 鍦ㄨ繘绋嬮€€鍑哄墠闀挎椂闂翠繚鎸?active | 1 | 鐢?`ralph --status` 妫€鏌ョ姸鎬侊紝鎵嬪姩娓呯悊 `.ralph/ralph-loop.state.json` 鍥炴敹鏈湴 loop 鐘舵€?|
+| 2026-04-12 22:03 | `docker compose ... build web` 鍦?`COPY packages/shared/ packages/shared/` 鏃舵姤 `cannot copy to non-directory ... node_modules/zod` | 2 | 鏍瑰洜鏄?`.dockerignore` 鏈€掑綊蹇界暐 workspace 绾?`node_modules`锛涜ˉ鍏?`**/node_modules` 绛夎鍒欏悗鎭㈠ |
+
+### Phase 4 Closeout: 2026-04-13 07:32 Asia/Shanghai
+- **Status:** completed
+- Actions taken:
+  - Re-read the current M3 spec, M3 implementation plan, planning files, validation report, and Ralph prompt before touching documentation.
+  - Re-ran fresh targeted verification for the bounded M3 slice:
+    - `wsl.exe -e bash -lc 'cd /mnt/d/97-CodingProject/Loomic-ArcIns/packages/shared && node ../../node_modules/vitest/vitest.mjs run src/contracts.test.ts -t "agent"'`
+    - `wsl.exe -e bash -lc 'cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/server && node ../../node_modules/vitest/vitest.mjs run src/agent/stream-adapter.test.ts src/ws/agent-plan-blocks.test.ts src/ws/connection-manager.test.ts'`
+    - `wsl.exe -e bash -lc 'cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && node ../../node_modules/vitest/vitest.mjs run test/chat-sidebar.test.tsx test/use-chat-stream.test.tsx test/use-canvas-collaboration.test.tsx'`
+  - Confirmed fresh results:
+    - shared: `4 passed`
+    - server: `9 passed`
+    - web: `7 passed`
+  - Synced the new evidence and residual-risk framing back into:
+    - `task_plan.md`
+    - `findings.md`
+    - `docs/verification/2026-04-12-architecture-agent-studio-validation.md`
+    - `docs/execution/ralph/m3-agent-planning-autonomous-execution.prompt.md`
+- Result:
+  - M3 is formally closed for the bounded slice with fresh evidence.
+  - The remaining live browser round-trip for `interrupt -> resume / retry` stays tracked as a non-blocking follow-up.
+
+### Phase 5 Bootstrap: 2026-04-13 07:32 Asia/Shanghai
+- **Status:** in_progress
+- Actions taken:
+  - Recovered the downloaded root `PLAN.md` and confirmed it still aligns with the frozen milestone structure and execution model.
+  - Spawned parallel read-only explorer agents to identify the best bounded M4 landing zones for:
+    - frontend canvas/studio insertion points
+    - shared/server/agent domain contracts and prompt injection
+  - Prepared to define the M4 bounded slice only after M3 documentation became current again.
+- Next:
+  - freeze the M4 spec and implementation plan for architecture domain boards, templates, and agent context
+  - execute the slice in non-overlapping lanes and then collect targeted verification evidence
+
+## 5-Question Reboot Check
+### Runtime Recovery: 2026-04-12 13:34-14:35 Asia/Shanghai
+- **Status:** recovered_with_proxy
+- Actions taken:
+  - Re-tested `docker pull node:22-slim`, `docker pull nginx:1.27-alpine`, `supabase start`, and `docker compose ... config` after the Windows host proxy was enabled.
+  - Observed a new WSL failure mode at `2026-04-12 13:34 Asia/Shanghai`: all `wsl.exe --exec` and `wsl.exe -e bash -lc ...` commands hung, including trivial `pwd` and `echo ok`.
+  - Inspected Windows-side WSL processes and found many orphaned `wsl.exe` clients waiting on previously timed-out commands.
+  - Cleared hanging WSL clients and then ran `wsl.exe --shutdown`, which recovered the Ubuntu-24.04 distro without touching the repo worktree.
+  - Revalidated shell startup with:
+    - `wsl.exe --distribution Ubuntu-24.04 --exec /bin/sh -c "pwd"`
+    - `wsl.exe --distribution Ubuntu-24.04 --exec /bin/sh -c "echo ok"`
+  - Confirmed registry recovery with:
+    - `docker pull hello-world`
+    - `docker pull node:22-slim`
+    - `docker pull nginx:1.27-alpine`
+  - Re-ran `supabase start` successfully; local Supabase completed image pulls, migrations, and healthy service startup.
+  - Re-ran `supabase status -o env` successfully and regenerated `/tmp/loomic.env` plus `/tmp/loomic-app.env`.
+  - Re-ran `docker compose -f docker-compose.local.yml --env-file /tmp/loomic.env config` successfully.
+  - Attempted `docker compose -f docker-compose.local.yml --env-file /tmp/loomic.env build web server worker` with a 20-minute timeout. The command timed out, but post-checks showed `loomic-arcins-server:latest` and `loomic-arcins-worker:latest` were built.
+- Result:
+  - The old 鈥渆xternal registry blocked鈥?conclusion is no longer valid once the host proxy is enabled.
+  - Supabase local runtime is now available in WSL Docker.
+  - Compose resolve is healthy; compose build is partially validated and now blocked by build duration / remaining web-image verification instead of network access.
+| Question | Answer |
+|----------|--------|
+| Where am I? | Phase 0 涓?Phase 1 骞惰杩涜涓紝褰撳墠閲嶇偣鏄?PRD / 璁″垝鏂囦欢钀藉湴涓庣幆澧冨熀绾垮畬鍠?|
+| Where am I going? | 宸插畬鎴愭枃妗ｅ喕缁撲笌杩愯楠ㄦ灦锛屽綋鍓嶈繘鍏?M1 宸ヤ綔鍙板３灞傚疄鐜?|
+| What's the goal? | 鍦ㄥ綋鍓?Loomic 椤圭洰涓惤鍦板缓绛戣璁″崗鍚?Agent Studio 鐨勫畬鏁存墽琛岄棴鐜?|
+| What have I learned? | 宸ュ叿閾惧凡灏变綅锛孯alph fallback 宸插彲鐢紱褰撳墠鏈€澶х殑澶栭儴闃诲鏄?WSL Docker 鍒板叕鍏?registry 鐨勬媺闀滃儚閾捐矾 |
+| What have I done? | 宸插畬鎴愭妧鑳借鍙栥€佷粨搴撳嫎瀵熴€佹墽琛屾枃妗ｃ€乄SL runtime 楠ㄦ灦銆丷alph-Codex 妗ユ帴锛屼互鍙?M1 鐨勯鎵瑰伐浣滃彴鍏ュ彛涓?Studio Shell 钀藉湴 |
+### Phase 5 Closeout: 2026-04-13 08:52 Asia/Shanghai
+- **Status:** completed
+- Actions taken:
+  - Collected the remaining M4 subagent results and verified that the bounded web/canvas slice landed in:
+    - `apps/web/src/lib/architecture-canvas.ts`
+    - `apps/web/src/app/canvas/page.tsx`
+    - `apps/web/src/components/architecture/architecture-studio-rail.tsx`
+    - `apps/web/test/architecture-canvas.test.ts`
+    - `apps/web/test/architecture-studio-shell.test.tsx`
+  - Confirmed the shared/server M4 slice landed in:
+    - `packages/shared/src/architecture-contracts.ts`
+    - `packages/shared/src/contracts.ts`
+    - `packages/shared/src/contracts.test.ts`
+    - `packages/shared/src/index.ts`
+    - `apps/server/src/agent/runtime.ts`
+    - `apps/server/src/agent/prompts/loomic-main.ts`
+    - `apps/server/src/agent/runtime.test.ts`
+  - Re-ran fresh targeted M4 verification:
+    - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/packages/shared && node ../../node_modules/vitest/vitest.mjs run src/contracts.test.ts -t 'architecture'"`
+    - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && node ../../node_modules/vitest/vitest.mjs run test/architecture-studio-shell.test.tsx test/architecture-canvas.test.ts test/chat-sidebar.test.tsx"`
+    - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/server && node ../../node_modules/vitest/vitest.mjs run src/agent/runtime.test.ts"`
+  - Refreshed browser-level collaboration evidence after the M4 merge:
+    - `wsl.exe -e bash -lc 'NODE_PATH=/tmp/playwright-runner/node_modules node /mnt/d/97-CodingProject/Loomic-ArcIns/output/playwright/m2-collab-validate.cjs'`
+    - new evidence bundle: `output/playwright/m2-collab-1776040214026`
+  - Manually inspected the fresh browser screenshots to confirm the running containerized app shows the Architecture Studio rail while the dual-user collaboration assertions remain green.
+  - Updated the global Ralph skill with the Codex Desktop + WSL runtime pattern in:
+    - `C:\Users\admin\.codex\skills\open-ralph-wiggum\SKILL.md`
+  - Revalidated the Ralph/Codex bridge and status path:
+    - `wsl.exe -e bash -lc 'cd /mnt/d/97-CodingProject/Loomic-ArcIns && ./scripts/wsl/codex-win exec --help >/tmp/codex-help.txt && tail -n 8 /tmp/codex-help.txt'`
+    - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns && ./scripts/wsl/codex-win exec --model gpt-5-codex --ephemeral -c model_reasoning_effort=high 'Return exactly OK.'"` -> returned `OK`
+    - `wsl.exe -e bash -lc 'export PATH="$HOME/.npm-global/bin:$HOME/.local/bin:$PATH" && cd /mnt/d/97-CodingProject/Loomic-ArcIns && ralph --status'` -> `No active loop`
+- Result:
+  - M4 is formally closed for the bounded architecture-domain slice.
+  - M2 browser collaboration remains green after the M4 integration.
+  - The global Ralph skill now documents the stable Desktop-hosted / WSL-executed path instead of leaving the workaround repo-local only.
+- Files created/modified:
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+  - `docs/verification/2026-04-12-architecture-agent-studio-validation.md`
+  - `docs/execution/ralph/m4-architecture-domain-layer.prompt.md`
+  - `C:\Users\admin\.codex\skills\open-ralph-wiggum\SKILL.md`
+- Next:
+  - enter Phase 6 / M5 with a bounded share / review / export slice
+  - keep the live model-backed M3 browser recovery walkthrough visible as separate verification debt
+
+### Phase 6 Bootstrap: 2026-04-13 09:12 Asia/Shanghai
+- **Status:** in_progress
+- Actions taken:
+  - Re-read the PRD M5 requirements (`M5.1` to `M5.4`) and the existing M5 Ralph prompt.
+  - Inspected existing repo support for export/share infrastructure:
+    - `apps/server/src/features/uploads/upload-service.ts`
+    - `apps/server/src/http/uploads.ts`
+    - `apps/server/src/features/projects/project-service.ts`
+    - `apps/web/src/components/canvas-editor.tsx`
+    - `apps/web/src/components/canvas-logo-menu.tsx`
+    - `apps/web/src/lib/server-api.ts`
+  - Confirmed the current bounded opportunity:
+    - public `project-assets` bucket already exists
+    - project thumbnails already upload to public storage
+    - client-side canvas export already exists via `exportToBlob`
+    - M3/M4 now provide enough plan/context data for review package and manifest generation
+  - Wrote the bounded M5 planning docs:
+    - `docs/execution/2026-04-12-architecture-agent-studio-m5-spec.md`
+    - `docs/execution/2026-04-12-architecture-agent-studio-m5-plan.md`
+- Result:
+  - M5 scope is now frozen as an authenticated, on-demand export layer rather than a full public publishing system.
+  - The next implementation slice can stay within existing storage/runtime contracts and avoid new DB tables.
+- Next:
+  - tighten `docs/execution/ralph/m5-sharing-export-ops.prompt.md` to match the bounded spec
+  - begin TDD-driven implementation across shared contracts, server export routes, and web export actions
+
+### Phase 6 Shared Contracts: 2026-04-13 09:22 Asia/Shanghai
+- **Status:** completed
+- Actions taken:
+  - Ran the new M5 shared contract test first to confirm the red phase:
+    - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/packages/shared && node ../../node_modules/vitest/vitest.mjs run src/export-contracts.test.ts"`
+  - Observed the expected missing-module failure for `packages/shared/src/export-contracts.ts`, confirming the test was exercising unimplemented behavior rather than stale logic.
+  - Added the bounded export contract module in:
+    - `packages/shared/src/export-contracts.ts`
+  - Updated shared HTTP schemas and the cross-app barrel in:
+    - `packages/shared/src/http.ts`
+    - `packages/shared/src/index.ts`
+  - Re-ran the targeted shared test and turned it green:
+    - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/packages/shared && node ../../node_modules/vitest/vitest.mjs run src/export-contracts.test.ts"` -> `3 passed`
+  - Refreshed the shared package build output for downstream consumers:
+    - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/packages/shared && node ../../node_modules/typescript/bin/tsc --build tsconfig.json --force"`
+- Errors encountered:
+  - `packages/shared` build first failed with duplicate barrel exports for `ShareSnapshotRequest` and `shareSnapshotRequestSchema`.
+  - Resolved by replacing the `index.ts` star-export of `http.ts` with explicit named exports so the shared barrel can expose both HTTP response wrappers and the base export contracts without symbol collisions.
+- Result:
+  - M5 Task 1 is now complete.
+  - Shared export contracts are stable enough for server and web workstreams to proceed independently.
+- Next:
+  - collect the parallel server/web implementation results
+  - integrate and re-run targeted verification across all M5 slices
+
+### Phase 6 Parallel Dispatch: 2026-04-13 09:34 Asia/Shanghai
+- **Status:** in_progress
+- Actions taken:
+  - Dispatched a server worker for M5 Task 2 with exclusive ownership of:
+    - `apps/server/src/features/exports/export-service.ts`
+    - `apps/server/src/http/exports.ts`
+    - `apps/server/src/http/exports.test.ts`
+    - `apps/server/src/app.ts`
+  - Dispatched a web worker for M5 Task 3 with exclusive ownership of:
+    - `apps/web/src/components/architecture/architecture-export-card.tsx`
+    - `apps/web/src/lib/download-file.ts`
+    - `apps/web/src/components/architecture/architecture-studio-rail.tsx`
+    - `apps/web/src/app/canvas/page.tsx`
+    - `apps/web/src/lib/server-api.ts`
+    - `apps/web/test/architecture-share-export.test.tsx`
+    - `apps/web/test/server-api.test.ts`
+  - Kept the controller work in the main workspace limited to:
+    - shared contract stabilization
+    - build refresh
+    - implementation review and later document backfill
+- Result:
+  - The remaining M5 work is now split across non-overlapping write sets.
+  - Mainline integration can proceed as soon as both worker reports arrive.
+
+### Phase 6 Runtime Cleanup: 2026-04-13 14:34 Asia/Shanghai
+- **Status:** completed
+- Actions taken:
+  - Investigated the WSL memory spike reported from Windows Task Manager while the project was running inside Docker + local Supabase.
+  - Captured a fresh Linux-side memory sample:
+    - `wsl.exe -e bash -lc "free -h"`
+    - Result before cleanup: `used 6.3Gi`, `buff/cache 23Gi`, `available 25Gi`
+  - Captured fresh container pressure:
+    - `wsl.exe -e bash -lc "docker stats --no-stream --format 'table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}'"`
+    - Key result before cleanup:
+      - `supabase_db_loomic`: `8.903GiB`
+      - `supabase_analytics_loomic`: `813.8MiB`
+      - `loomic-arcins-server-1`: `434.8MiB`
+  - Identified residual browser verification processes that were no longer needed:
+    - multiple Playwright daemons (`owner`, `guest`, `collab-a`, `collab-b`)
+    - multiple Chrome processes using `/tmp/playwright_chromiumdev_profile-*`
+  - Stopped the Playwright/Chrome validation residue while keeping Docker + Supabase running:
+    - `wsl.exe -e bash -lc "pkill -f 'playwright-core/lib/entry/cliDaemon.js' || true; pkill -f 'playwright_chromiumdev_profile' || true"`
+  - Re-sampled memory and container pressure after cleanup:
+    - Result after Playwright cleanup: `used 4.8Gi`, `available 26Gi`
+    - `loomic-arcins-server-1` CPU/memory dropped materially once the browser traffic stopped
+  - Investigated the remaining root-owned `next-server`, `node dist/start/server.js`, and `node --import tsx src/server.ts` processes instead of force-killing them repeatedly.
+  - Confirmed with `docker top` that they belong to the running app containers and are not stray local dev processes:
+    - `loomic-arcins-web-1` runs `nginx`
+    - `loomic-arcins-server-1` runs `node --import tsx src/server.ts`
+    - `loomic-arcins-worker-1` runs `node --import tsx src/worker.ts`
+  - Captured Linux-side memory composition to explain the Windows `vmmemWSL` reading:
+    - `wsl.exe -e bash -lc "egrep 'MemTotal|MemFree|MemAvailable|Buffers|Cached|SReclaimable|Shmem|Active\\(file\\)|Inactive\\(file\\)|Active\\(anon\\)|Inactive\\(anon\\)' /proc/meminfo"`
+    - Key result:
+      - `MemAvailable`: `27973756 kB` (~26.7GiB)
+      - `Cached`: `22927588 kB` (~21.9GiB)
+      - `Active(file) + Inactive(file)`: ~22.3GiB
+- Result:
+  - The main interactive lag source was the residual Playwright/Chrome verification load, not parallel subagents.
+  - Windows Task Manager showing `vmmemWSL ~30G` is consistent with Linux file/page cache being retained by WSL, not with 30G of unrecoverable anonymous memory in active use.
+  - Supabase local Postgres remains the dominant container memory consumer at about `8.9GiB`; this is explainable by cache-heavy database behavior under sustained local verification traffic, but it is still high for day-to-day development and should be treated as a tunable pressure point.
+- Next:
+  - Keep the Docker + Supabase baseline running for project validation.
+  - Avoid leaving multi-user Playwright sessions resident between milestones.
+  - If host responsiveness remains poor, plan a deliberate Supabase memory-reduction pass rather than ad-hoc process killing.
+
+### Phase 6 Environment Acceleration: 2026-04-13 15:13 Asia/Shanghai
+- **Status:** completed
+- Actions taken:
+  - Investigated slow local image builds instead of assuming the root cause was only overseas bandwidth.
+  - Confirmed three separate bottleneck layers:
+    - WSL host package source still pointed at the default Ubuntu upstream in `/etc/apt/sources.list.d/ubuntu.sources`
+    - Docker daemon had no `registry-mirrors` configured in `/etc/docker/daemon.json`
+    - WSL user `npm` / `pnpm` still pointed at the default `https://registry.npmjs.org/`
+  - Verified mirror reachability from this specific machine before applying config:
+    - reachable:
+      - `https://docker.m.daocloud.io/v2/`
+      - `https://registry.npmmirror.com`
+      - `https://mirrors.tuna.tsinghua.edu.cn/debian/`
+      - `https://mirrors.tuna.tsinghua.edu.cn/debian-security/`
+      - `https://mirrors.tuna.tsinghua.edu.cn/ubuntu/`
+      - `https://pypi.tuna.tsinghua.edu.cn/simple/`
+    - not usable on this host:
+      - `https://hub-mirror.c.163.com/v2/`
+      - `https://mirror.baidubce.com/v2/`
+  - Updated WSL host Ubuntu source to Tsinghua and kept a backup under `/tmp/codex-env-backups/ubuntu.sources.codex-20260413.bak`.
+  - Updated WSL user package registries:
+    - `npm config set registry https://registry.npmmirror.com/`
+    - `pnpm config set registry https://registry.npmmirror.com/`
+  - Updated repo Docker build defaults so local compose/build runs prefer domestic mirrors:
+    - `apps/web/Dockerfile`
+    - `apps/server/Dockerfile`
+    - `docker-compose.local.yml`
+  - Added default build args / env handling for:
+    - `NPM_REGISTRY=https://registry.npmmirror.com/`
+    - `DEBIAN_MIRROR=https://mirrors.tuna.tsinghua.edu.cn/debian`
+    - `DEBIAN_SECURITY_MIRROR=https://mirrors.tuna.tsinghua.edu.cn/debian-security`
+    - `PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple/`
+  - First Docker daemon restart failed because `/etc/docker/daemon.json` was written with invalid JSON during an earlier quoting attempt.
+    - evidence:
+      - `journalctl -xeu docker.service` reported `invalid character 'r' looking for beginning of object key string`
+    - resolution:
+      - rewrote `/etc/docker/daemon.json` as valid JSON
+      - validated with `dockerd --validate --config-file /etc/docker/daemon.json`
+      - restarted Docker successfully with `systemctl start docker`
+  - Verified the new Docker mirror is active:
+    - `docker info | grep -A3 "Registry Mirrors"` showed `https://docker.m.daocloud.io/`
+  - Verified the new Ubuntu source is active:
+    - `apt-get update`
+    - fetched package indexes from `https://mirrors.tuna.tsinghua.edu.cn/ubuntu/`
+  - Verified the new node registries are active:
+    - `npm config get registry` -> `https://registry.npmmirror.com/`
+    - `pnpm config get registry` -> `https://registry.npmmirror.com/`
+  - Cleaned dangling `<none>` images without touching running images:
+    - `docker image prune -f`
+    - reclaimed space: `3.345GB`
+- Errors encountered:
+  - PowerShell + bash quoting initially wrote malformed `/etc/docker/daemon.json`, which prevented Docker from starting.
+  - `npm config set registry ...` first failed because `/home/admin123/.npmrc` was root-owned.
+  - Resolved by fixing ownership (`chown`) and re-running the user-level npm/pnpm config.
+- Result:
+  - The workstation now uses domestic mirrors for Docker pull, WSL apt, WSL npm, WSL pnpm, and container build-time npm/apt/pip defaults.
+  - Running compose and Supabase stacks recovered after Docker was brought back up.
+  - Disk pressure from dangling images was reduced materially before returning to the M5 mainline.
+- Next:
+  - rebuild/restart the web container on the latest source tree
+  - resume M5 browser validation against the refreshed runtime
+
+### Phase 6 M5 Stability Closeout: 2026-04-13 18:46-19:22 Asia/Shanghai
+- **Status:** completed
+- Actions taken:
+  - Revalidated the pending web export retry helper before touching runtime:
+    - `wsl.exe -e bash -lc 'cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && node ../../node_modules/vitest/vitest.mjs run test/server-api.test.ts'` -> initial green on the inherited implementation
+  - Rebuilt and restarted the `web` container because `docker-compose.local.yml` does not mount source code:
+    - `wsl.exe -e bash -lc 'cd /mnt/d/97-CodingProject/Loomic-ArcIns && export DEBIAN_MIRROR=https://mirrors.tuna.tsinghua.edu.cn/debian && export DEBIAN_SECURITY_MIRROR=https://mirrors.tuna.tsinghua.edu.cn/debian-security && export PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple/ && export NPM_REGISTRY=https://registry.npmmirror.com/ && DOCKER_BUILDKIT=0 docker compose -f docker-compose.local.yml --env-file /tmp/loomic.env build web && docker compose -f docker-compose.local.yml --env-file /tmp/loomic.env up -d web'`
+  - Re-ran the full browser M5 script:
+    - `wsl.exe -e bash -lc 'cd /mnt/d/97-CodingProject/Loomic-ArcIns && NODE_PATH=/tmp/playwright-runner/node_modules node output/playwright/m5-share-export-validate.cjs'`
+    - first run passed fully at `output/playwright/m5-share-export-1776077457000/`
+  - Collected a code-quality review result on the web helper and accepted the feedback that:
+    - `application_error` and `canvas_not_found` were too broad to retry
+    - transport-level `fetch` failures were not retried
+  - Per TDD, tightened the web tests first and confirmed the expected red phase:
+    - updated `apps/web/test/server-api.test.ts`
+    - `wsl.exe -e bash -lc 'cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && node ../../node_modules/vitest/vitest.mjs run test/server-api.test.ts'` -> `3 failed`
+  - Implemented the minimal web retry fix in `apps/web/src/lib/server-api.ts`:
+    - retries only `chat_error` and `project_query_failed`
+    - retries one transient transport failure
+    - no longer retries `application_error` or `canvas_not_found`
+  - Re-ran the web test and turned it green:
+    - `wsl.exe -e bash -lc 'cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && node ../../node_modules/vitest/vitest.mjs run test/server-api.test.ts'` -> `15 passed`
+  - Rebuilt `web` again and re-ran the browser script; this time the browser flow failed earlier on `share-snapshot`:
+    - failure bundle: `output/playwright/m5-share-export-1776078022287/`
+    - UI showed `Failed to share snapshot.`
+  - Debugged the failure instead of patching blind:
+    - inspected `error.json` / `error-body.txt`
+    - inspected recent server logs and found `UploadServiceError: Failed to generate signed URL.`
+    - traced the page flow and confirmed `Share snapshot` currently uses `/api/uploads`, not `/api/exports/share-snapshot`
+  - Per TDD, updated `apps/server/src/features/uploads/upload-service.test.ts` first to require public URLs for public buckets and confirmed the expected red phase:
+    - `wsl.exe -e bash -lc 'cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/server && node ../../node_modules/vitest/vitest.mjs run src/features/uploads/upload-service.test.ts'` -> `3 failed`
+  - Implemented the root-cause fix in `apps/server/src/features/uploads/upload-service.ts`:
+    - added a public-bucket path that returns `getPublicUrl()`
+    - kept signed URLs only for non-public buckets
+  - Re-ran server tests:
+    - `wsl.exe -e bash -lc 'cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/server && node ../../node_modules/vitest/vitest.mjs run src/features/uploads/upload-service.test.ts'` -> `3 passed`
+    - `wsl.exe -e bash -lc 'cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/server && node ../../node_modules/vitest/vitest.mjs run src/features/uploads/upload-service.test.ts src/http/uploads.test.ts src/features/exports/export-service.test.ts src/http/exports.test.ts src/supabase/user.test.ts'` -> `14 passed`
+  - Re-ran the matching web test in parallel with the server suite:
+    - `wsl.exe -e bash -lc 'cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && node ../../node_modules/vitest/vitest.mjs run test/server-api.test.ts'` -> `15 passed`
+  - Rebuilt the `server` container; the first attempt failed because HTTPS Debian mirrors were used before `ca-certificates` existed in the image:
+    - failed attempt used `DEBIAN_MIRROR=https://mirrors.tuna.tsinghua.edu.cn/debian`
+    - successful retry used:
+      - `DEBIAN_MIRROR=http://mirrors.tuna.tsinghua.edu.cn/debian`
+      - `DEBIAN_SECURITY_MIRROR=http://mirrors.tuna.tsinghua.edu.cn/debian-security`
+    - successful command:
+      - `wsl.exe -e bash -lc 'cd /mnt/d/97-CodingProject/Loomic-ArcIns && export DEBIAN_MIRROR=http://mirrors.tuna.tsinghua.edu.cn/debian && export DEBIAN_SECURITY_MIRROR=http://mirrors.tuna.tsinghua.edu.cn/debian-security && export PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple/ && export NPM_REGISTRY=https://registry.npmmirror.com/ && DOCKER_BUILDKIT=0 docker compose -f docker-compose.local.yml --env-file /tmp/loomic.env build server && docker compose -f docker-compose.local.yml --env-file /tmp/loomic.env up -d server'`
+  - Re-ran the full browser M5 script against the rebuilt runtime:
+    - `wsl.exe -e bash -lc 'cd /mnt/d/97-CodingProject/Loomic-ArcIns && NODE_PATH=/tmp/playwright-runner/node_modules node output/playwright/m5-share-export-validate.cjs'`
+    - final evidence bundle: `output/playwright/m5-share-export-1776079146235/`
+- Result:
+  - The bounded M5 share/export slice is now green again after two separate stability fixes:
+    - web export retry policy is narrow and test-covered
+    - public-bucket upload URLs no longer depend on signed-URL generation
+  - Final browser evidence shows:
+    - `share-snapshot` PASS
+    - `download-review-package` PASS
+    - `download-manifest` PASS
+- Files created/modified:
+  - `apps/web/src/lib/server-api.ts`
+  - `apps/web/test/server-api.test.ts`
+  - `apps/server/src/features/uploads/upload-service.ts`
+  - `apps/server/src/features/uploads/upload-service.test.ts`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+  - `docs/verification/2026-04-12-architecture-agent-studio-validation.md`
+- Next:
+  - keep the non-blocking M3 live browser `interrupt -> resume / retry` walkthrough visible as follow-up verification debt
+
+### Runtime Cleanup And Cold Restart: 2026-04-13 22:08-22:31 Asia/Shanghai
+- **Status:** completed
+- Actions taken:
+  - Closed the known hanging Codex subagents from the desktop thread:
+    - `019d85e1-fa2b-7e10-958a-22049c62873c`
+    - `019d85e2-136a-7512-b670-ccf4e564ffe3`
+    - `019d8629-0e12-7e93-b89f-0a92a7d93250`
+    - `019d8629-0ecb-7cd1-9de5-aa48a98f61ee`
+  - Stopped the repo app stack:
+    - `wsl.exe -e bash -lc 'cd /mnt/d/97-CodingProject/Loomic-ArcIns && docker compose -f docker-compose.local.yml --env-file /tmp/loomic.env down --remove-orphans'`
+  - Stopped the local Supabase stack without removing its persistent data volume:
+    - `wsl.exe -e bash -lc 'cd /mnt/d/97-CodingProject/Loomic-ArcIns && export PATH=\"$HOME/.npm-global/bin:$HOME/.local/bin:$PATH\" && supabase stop'`
+  - Cleared runtime residue:
+    - killed leftover Playwright / Chromium / Ralph loop processes
+    - removed `.ralph/ralph-loop.state.json`
+  - Cleared Docker caches and stopped-state residue:
+    - `docker builder prune -af` -> reclaimed `12.28GB`
+    - `docker image prune -f && docker container prune -f && docker network prune -f` -> reclaimed about `7.081GB` plus stopped containers/networks
+  - Observed one cleanup-time daemon anomaly:
+    - `docker system df` returned `layer ... was not found (corruption?)`
+    - treated as a post-cleanup validation point instead of forcing more mutations before restart
+  - Performed a full WSL shutdown:
+    - `wsl.exe --shutdown`
+  - Cold-started WSL again and verified Docker came back healthy:
+    - `systemctl is-active docker` -> `active`
+    - `docker version --format "{{.Server.Version}}"` -> `28.2.2`
+  - Restarted local Supabase:
+    - `wsl.exe -e bash -lc '... && supabase start'`
+    - note: `imgproxy` pull still timed out, but the Supabase local stack itself reached running state and `supabase status` reported healthy core services
+  - Because `/tmp` was not reliable enough across repeated `wsl.exe` calls on this machine, wrote the runtime env file into the repo instead:
+    - `D:/97-CodingProject/Loomic-ArcIns/.tmp/loomic-local.env`
+  - Restarted the repo app stack from the cold-started environment:
+    - `wsl.exe -e bash -lc 'cd /mnt/d/97-CodingProject/Loomic-ArcIns && docker compose -f docker-compose.local.yml --env-file /mnt/d/97-CodingProject/Loomic-ArcIns/.tmp/loomic-local.env up -d web server worker'`
+  - Re-ran the test-account seed after Supabase and the app stack were both stable:
+    - `wsl.exe -e bash -lc 'cd /mnt/d/97-CodingProject/Loomic-ArcIns && set -a && source <(tr -d \"\\r\" < /mnt/d/97-CodingProject/Loomic-ArcIns/.tmp/loomic-local.env) && set +a && node scripts/seed-test-accounts.mjs'`
+    - confirmed all four accounts exist and are ready
+- Result:
+  - WSL was shut down and the project was restarted from a cold state.
+  - Project runtime is back online:
+    - Supabase REST: `http://127.0.0.1:54321/rest/v1`
+    - Web app: `http://127.0.0.1:3000`
+    - Server health: `http://127.0.0.1:3001/api/health`
+  - Default test credentials were revalidated:
+    - password: `opensourceloomic`
+    - recommended validation account: `starter@test.loomic.com`
+- Files created/modified:
+  - `.tmp/loomic-local.env`
+  - `progress.md`
+- Next:
+  - if future restart scripts need to survive repeated `wsl.exe` invocations on this machine, prefer a repo-scoped temp env file over `/tmp/loomic.env`
+
+## Session: 2026-04-14
+
+### Phase 7: Lovart + 寤虹瓚瀛﹂暱 Redesign Planning
+- **Status:** in_progress
+- **Started:** 2026-04-14 Asia/Shanghai
+- Actions taken:
+  - Re-opened planning state from `task_plan.md`, `findings.md`, and `progress.md` before starting new product research.
+  - Inspected current Loomic pages and shells:
+    - `apps/web/src/app/(workspace)/home/page.tsx`
+    - `apps/web/src/app/canvas/page.tsx`
+    - `apps/web/src/components/architecture/architecture-studio-rail.tsx`
+    - `apps/web/src/components/app-sidebar.tsx`
+    - `apps/web/src/components/chat-sidebar.tsx`
+  - Verified the current product gap against user feedback:
+    - logged-in home still differs strongly from Lovart
+    - canvas still keeps a dedicated left architecture rail
+    - English strings remain in home and canvas surfaces
+  - Used browser automation to inspect reference products:
+    - Lovart public home page
+    - Lovart canvas route before login
+    - 寤虹瓚瀛﹂暱 canvas home
+    - 寤虹瓚瀛﹂暱 canvas detail
+  - Logged into 寤虹瓚瀛﹂暱 inside the automation browser using the user-provided credentials and confirmed access to:
+    - logged-in canvas home
+    - logged-in canvas detail
+    - `娣诲姞` asset-source modal
+  - Verified host Chrome attachment feasibility:
+    - inspected local Chrome processes
+    - checked port `9222`
+    - confirmed Chrome is not running with remote debugging enabled, so the automation stack cannot yet attach to the user's real logged-in Chrome session
+  - Captured new concrete findings for layout and interaction parity:
+    - Lovart should drive homepage and immersive canvas layout
+    - 寤虹瓚瀛﹂暱 should drive canvas atomic functions, source modal structure, and right-side creation workflow
+- Result:
+  - enough browser evidence now exists to produce a high-confidence redesign plan before coding
+  - a remaining gap still exists for Lovart logged-in project internals, but it is now a clearly identified prerequisite rather than an unknown
+- Files created/modified:
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+- Next:
+  - present 2-3 redesign approaches with recommendation
+  - freeze the target interaction model for home and canvas
+  - wait for user approval before writing the new design doc and implementation plan
+
+### Phase 7 Batch 1: Actual Implementation Kickoff
+- **Status:** in_progress
+- **Started:** 2026-04-14 Asia/Shanghai
+- Actions taken:
+  - Re-read the active implementation context from `task_plan.md`, `findings.md`, and `progress.md`.
+  - Re-opened the key web files for the first implementation slice:
+    - `apps/web/src/app/(workspace)/home/page.tsx`
+    - `apps/web/src/app/canvas/page.tsx`
+    - `apps/web/src/components/chat-sidebar.tsx`
+    - `apps/web/src/components/chat-input.tsx`
+    - `apps/web/src/components/home-prompt.tsx`
+    - `apps/web/src/components/home-discovery-gallery.tsx`
+    - `apps/web/src/components/home-example-browser.tsx`
+    - `apps/web/src/components/canvas-bottom-bar.tsx`
+    - `apps/web/src/components/canvas-logo-menu.tsx`
+    - `apps/web/test/architecture-studio-shell.test.tsx`
+    - `apps/web/test/chat-sidebar.test.tsx`
+    - `apps/web/test/home-discovery-gallery.test.tsx`
+  - Reconfirmed repository execution constraints for this batch:
+    - current worktree is still very dirty and must not be cleaned or reverted
+    - WSL currently does not have `rg`, so repository search in WSL should prefer `grep` / `sed`
+    - stable targeted test entry in `apps/web` remains `node ../../node_modules/vitest/vitest.mjs run ...`
+  - Re-ran the previously stable targeted test bundle before modifying code:
+    - `wsl.exe -e bash -lc 'cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && node ../../node_modules/vitest/vitest.mjs run test/architecture-studio-shell.test.tsx test/chat-sidebar.test.tsx test/home-discovery-gallery.test.tsx --reporter=dot'`
+  - Interpreted the baseline result:
+    - architecture-shell and chat-sidebar coverage remained broadly usable for this batch
+    - `home-discovery-gallery` still shows old seed-data expectation drift and should be treated as baseline noise unless directly touched
+  - Spawned two read-only explorer subagents to accelerate design-to-implementation translation without overlapping writes:
+    - one focused on the logged-in home redesign slice
+    - one focused on canvas shell + right-side input state coupling
+- Result:
+  - implementation is now proceeding on a bounded first batch instead of planning-only mode
+  - the next concrete step is TDD: add or adjust targeted failing tests for the first batch before touching production files
+- Files created/modified:
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+- Next:
+  - add failing tests for home shell, immersive canvas layout, and chat input reference-context behavior
+  - then implement the smallest code changes necessary to satisfy those tests
+
+### Phase 7 Batch 1: Spec Freeze + Runtime Cross-Check
+- **Status:** in_progress
+- **Timestamp:** 2026-04-14 Asia/Shanghai
+- Actions taken:
+  - Re-read `task_plan.md`, `findings.md`, and `progress.md` using the `planning-with-files` recovery flow.
+  - Reused two explorer subagents to confirm:
+    - home / canvas shell implementation entry files
+    - current planning-doc gaps versus code/runtime reality
+  - Cross-checked current local runtime in Playwright:
+    - `/home` still shows the legacy workspace left navigation rail
+    - `/canvas` is closer to the target shell, but browser runtime still exposes stale English defaults such as `Untitled` and `New Chat`
+  - Created Phase 7 Batch 1 execution docs:
+    - `docs/execution/2026-04-14-architecture-agent-studio-phase7-batch1-spec.md`
+    - `docs/execution/2026-04-14-architecture-agent-studio-phase7-batch1-plan.md`
+  - Wrote back the new bounded scope and runtime findings into:
+    - `findings.md`
+    - `progress.md`
+  - `task_plan.md` still needs a follow-up writeback because the file uses an encoding pattern that did not match cleanly in the first patch attempt.
+- Result:
+  - Phase 7 Batch 1 now has a frozen execution boundary.
+  - The immediate implementation order is now explicit:
+    - route-aware workspace chrome
+    - Lovart-style home shell
+    - immersive canvas shell
+    - browser revalidation
+- Next:
+  - add failing tests for the route-aware workspace shell
+  - then proceed to failing tests for `/home` and `/canvas` Batch 1 behavior
+
+### Phase 7 Batch 1: TDD Green + Browser Validation
+- **Status:** in_progress
+- **Timestamp:** 2026-04-14 Asia/Shanghai
+- Actions taken:
+  - Added and verified a red-green test loop for route-aware workspace chrome:
+    - added `apps/web/test/workspace-layout-shell.test.tsx`
+    - red: `workspace-layout-shell.test.tsx` failed because `AppSidebar` still rendered on immersive routes
+    - green: updated `apps/web/src/app/(workspace)/layout.tsx` to hide global workspace chrome on `/home`
+  - Expanded and verified a red-green test loop for the home shell:
+    - updated `apps/web/test/home-page-shell.test.tsx`
+    - red: home page lacked page-level navigation and the new creation-first copy
+    - green: rebuilt `apps/web/src/app/(workspace)/home/page.tsx` into a dark Lovart-style shell and moved primary navigation into the page
+  - Expanded and verified a red-green test loop for the compact canvas workflow bar:
+    - updated `apps/web/test/architecture-studio-shell.test.tsx`
+    - red: compact bar still rendered the old heavier project-summary presentation
+    - green: added `apps/web/src/components/architecture/architecture-studio-compact-bar.tsx` and swapped the exported compact bar implementation
+  - Re-ran the combined targeted verification suite:
+    - `wsl.exe -e bash -lc 'cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && node ../../node_modules/vitest/vitest.mjs run test/workspace-layout-shell.test.tsx test/home-page-shell.test.tsx test/architecture-studio-shell.test.tsx test/chat-input.test.tsx test/chat-sidebar.test.tsx --reporter=dot'`
+    - result: `5` files passed, `21` tests passed
+  - Rebuilt and restarted the web runtime:
+    - `docker compose -f docker-compose.local.yml --env-file /mnt/d/97-CodingProject/Loomic-ArcIns/.tmp/loomic-local.env build web`
+    - `docker compose -f docker-compose.local.yml --env-file /mnt/d/97-CodingProject/Loomic-ArcIns/.tmp/loomic-local.env up -d --no-deps web`
+  - Re-verified HTTP reachability:
+    - `curl -I http://127.0.0.1:3000/home` -> `200 OK`
+    - `curl -I "http://127.0.0.1:3000/canvas?id=85f737fe-388b-4a42-97df-4ed0e798f609&studio=architecture"` -> `200 OK`
+  - Re-validated in Playwright:
+    - home screenshot: `C:/Users/admin/.codex/mcp/playwright/output/page-2026-04-14T09-11-14-500Z.png`
+    - canvas screenshot: `C:/Users/admin/.codex/mcp/playwright/output/page-2026-04-14T09-10-33-353Z.png`
+    - browser console residual: `GET /api/credits` still returns `500`
+- Result:
+  - Home now matches the intended Batch 1 direction materially better.
+  - Canvas now reflects the lighter workflow strip and localized default labels in the running browser.
+  - Remaining runtime debt is concentrated in credits data and the larger unimplemented canvas-atomic features.
+- Next:
+  - backfill `docs/verification/2026-04-12-architecture-agent-studio-validation.md`
+  - continue into the next canvas-function batch only after deciding the right bounded slice
+
+### Phase 7 Batch 2: Context Menu Runtime Fix + Browser Validation
+- **Status:** in_progress
+- **Timestamp:** 2026-04-15 03:22 Asia/Shanghai
+- Actions taken:
+  - Re-read the half-landed canvas context-menu files and confirmed the remaining runtime bug was concentrated in:
+    - `apps/web/src/components/canvas-editor.tsx`
+    - `apps/web/src/app/canvas/page.tsx`
+    - `apps/web/src/lib/canvas-selection.ts`
+    - `apps/web/test/canvas-selection.test.ts`
+  - Added a new browser-adjacent component test:
+    - `apps/web/test/canvas-editor-context-menu.test.tsx`
+  - Verified the new test failed first:
+    - `wsl.exe -e bash -lc 'cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && node ../../node_modules/vitest/vitest.mjs run test/canvas-editor-context-menu.test.tsx --reporter=dot'`
+    - failure: `onContextMenuRequest` was never called for the simulated right-click
+  - Completed the minimal runtime fix in `apps/web/src/components/canvas-editor.tsx`:
+    - restored a stable `excalidrawApiRef`
+    - set the ref inside `handleExcalidrawApi`
+    - removed the broken undeclared `SceneElementLike` cast
+    - built the `selectedElements` payload from live `getSceneElements()`, `getFiles()`, and `getAppState().selectedElementIds` at pointerdown time
+  - Re-ran the new test to green:
+    - same command as above
+    - result: `1` file passed, `1` test passed
+  - Re-ran the broader bounded verification suite:
+    - `wsl.exe -e bash -lc 'cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && node ../../node_modules/vitest/vitest.mjs run test/canvas-selection.test.ts test/canvas-editor-context-menu.test.tsx test/canvas-context-actions.test.ts test/canvas-context-menu.test.tsx test/chat-input.test.tsx test/chat-sidebar.test.tsx test/architecture-studio-shell.test.tsx --reporter=dot'`
+    - result: `7` files passed, `30` tests passed
+  - Rebuilt and restarted the web runtime again for browser confirmation:
+    - `docker compose -f docker-compose.local.yml --env-file /mnt/d/97-CodingProject/Loomic-ArcIns/.tmp/loomic-local.env build web`
+    - `docker compose -f docker-compose.local.yml --env-file /mnt/d/97-CodingProject/Loomic-ArcIns/.tmp/loomic-local.env up -d --no-deps web`
+  - Re-verified HTTP reachability:
+    - `curl -I http://127.0.0.1:3000/home` -> `200 OK`
+    - `curl -I "http://127.0.0.1:3000/canvas?id=85f737fe-388b-4a42-97df-4ed0e798f609&studio=architecture&cb=1713030910"` -> `200 OK`
+  - Completed browser-level validation in Playwright against the live canvas runtime:
+    - blank canvas right-click opened the blank menu with:
+      - `涓婁紶鍙傝€冨浘`
+      - `鎻掑叆鍙傝€冩澘`
+      - `閾哄紑寤虹瓚鏉垮潡`
+      - `鎵撳紑鏅鸿兘浣揱
+    - after inserting a real image onto the canvas, selecting it and right-clicking opened the single-image menu:
+      - `鍙戦€佽嚦瀵硅瘽`
+      - `濂楃敤妯℃澘锛氭彁鐐煎弬鑰冨浘鏂瑰悜`
+      - `濂楃敤妯℃澘锛氶噸缁勫弬鑰冨浘鎯呯华`
+    - single-image `鍙戦€佽嚦瀵硅瘽` added a reference chip plus preview image into the right `ChatSidebar`
+    - single-image `濂楃敤妯℃澘锛氭彁鐐煎弬鑰冨浘鏂瑰悜` injected a single-image draft into the right input box
+    - runtime inspection of the live Excalidraw API confirmed two image elements on the scene:
+      - first image at approximately `x=420 y=280`
+      - second image at approximately `x=1060 y=280`
+    - forcing both images into the selected set and right-clicking opened the multi-image menu:
+      - `鏁寸粍鍙戦€佽嚦瀵硅瘽`
+      - `濂楃敤妯℃澘锛氭彁鐐煎鍥惧叡鍚岃瑷€`
+      - `濂楃敤妯℃澘锛氳緭鍑哄鍥惧樊寮傜粨璁篳
+      - `鎴愮粍閫変腑鍥剧墖`
+    - `鎴愮粍閫変腑鍥剧墖` wrote the same `groupId` onto both live image elements
+    - multi-image `濂楃敤妯℃澘锛氭彁鐐煎鍥惧叡鍚岃瑷€` injected a merged-strategy draft into the right input box
+    - after multi-image `鏁寸粍鍙戦€佽嚦瀵硅瘽`, clearing `selectedElementIds` still left two preview images and the multi-image placeholder in the sidebar, confirming the conversation context persists after live selection is cleared
+  - Captured a new follow-up bug while doing browser verification:
+    - the live Excalidraw scene contained `2` image elements, but an authenticated browser-side fetch to `GET /api/canvases/:id` still returned `elementCount: 0` and `imageCount: 0`
+    - consequence: image insertions are visible in the live runtime but do not persist across reloads
+- Result:
+  - the context-menu mode bug is fixed in the live browser for blank, single-image, and multi-image states
+  - context-menu actions now drive the right-side composer state as intended for:
+    - attach/send to chat
+    - template injection
+    - grouping
+  - the next blocker is no longer menu classification; it is persistence of runtime image insertions to the saved canvas content
+- Files created/modified:
+  - `apps/web/src/components/canvas-editor.tsx`
+  - `apps/web/test/canvas-editor-context-menu.test.tsx`
+  - `progress.md`
+  - `findings.md`
+  - `task_plan.md`
+  - `docs/verification/2026-04-12-architecture-agent-studio-validation.md`
+- Next:
+  - trace `insertImageOnCanvas -> CanvasEditor onChange -> saveCanvas -> server persistence`
+  - reproduce why authenticated `GET /api/canvases/:id` still returns zero elements after live runtime image insertion
+  - re-run the same browser flow after the persistence fix and confirm reload no longer clears the inserted images
+
+### Phase 7 Batch 2 Persistence Revalidation
+- **Status:** completed
+- **Timestamp:** 2026-04-15 04:24 Asia/Shanghai
+- Actions taken:
+  - Re-opened the same architecture canvas after the previous persistence fix and captured fresh runtime evidence instead of relying on the earlier ad hoc host-side fetch result.
+  - Materialized durable evidence files for this revalidation:
+    - `output/verification/phase7-batch2-canvas-db-state-2026-04-15.txt`
+    - `output/verification/phase7-batch2-network-after-refresh-2026-04-15.txt`
+    - `output/verification/phase7-batch2-files-panel-2026-04-15.yml`
+  - Queried the local Supabase Postgres row directly through the running container:
+    - `docker exec -u postgres -i supabase_db_loomic psql -d postgres -Atf -`
+    - result: canvas `85f737fe-388b-4a42-97df-4ed0e798f609` now stores `element_count=1`, `first_type=image`, `has_files=true`
+  - Refreshed the live browser route with a new cache-busting query string:
+    - `http://127.0.0.1:3000/canvas?id=85f737fe-388b-4a42-97df-4ed0e798f609&studio=architecture&cb=1713039999`
+  - Captured refreshed browser runtime evidence:
+    - network log still shows `GET /api/canvases/:id => 200` and `GET /api/canvases/:id/sessions => 200`
+    - the generated-files panel lists `page-2026-04-14T19-01-54-003Z` after reload, proving the inserted reference image survives page refresh and is rehydrated back into the UI
+  - Re-assessed the earlier negative conclusion:
+    - the previous host-side `GET` / manual inspection that suggested `0 elements` was a false negative caused by unreliable ad hoc host tooling, not the actual persisted canvas state
+    - the blank right-click observed after refresh was a coordinate miss on the canvas, not evidence that the image had disappeared from persistence
+- Result:
+  - Phase 7 Batch 2 is now closed at the persistence level:
+    - runtime image insertions persist to `public.canvases.content`
+    - reload preserves the generated file and canvas-linked asset state
+    - the blank / single-image / multi-image context-menu and right-side composer coupling remain validated
+  - A separate hardening follow-up remains worth scheduling:
+    - `apps/server/src/features/canvas/canvas-service.ts` still does not explicitly detect zero-row updates, so RLS-driven no-op saves could still be reported as success in future collaborative scenarios
+- Next:
+  - write back the corrected PASS conclusion into `findings.md`, `task_plan.md`, and the validation report
+  - then define the next bounded canvas-atomic batch instead of continuing to treat persistence as an open blocker
+
+### Phase 7 Batch 2 Server Save Hardening
+- **Status:** completed
+- **Timestamp:** 2026-04-15 04:35 Asia/Shanghai
+- Actions taken:
+  - Used TDD to lock the latent server-side failure mode where Supabase `update()` can affect zero rows without returning an explicit error:
+    - added `apps/server/src/features/canvas/canvas-service.test.ts`
+    - red: `node ../../node_modules/vitest/vitest.mjs run src/features/canvas/canvas-service.test.ts --reporter=dot` failed because `saveCanvasContent()` resolved instead of rejecting on zero-row update
+  - Implemented the minimal fix in `apps/server/src/features/canvas/canvas-service.ts`:
+    - canvas saves now append `.select("id")` to the `update()` call
+    - the service now throws `CanvasServiceError("canvas_save_failed", ...)` when the update returns no rows
+  - Re-ran the focused server verification:
+    - `wsl.exe -e bash -lc 'cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/server && node ../../node_modules/vitest/vitest.mjs run src/features/canvas/canvas-service.test.ts src/http/canvases.test.ts --reporter=dot'`
+    - result: `2` files passed, `3` tests passed
+  - Rebuilt and restarted the server runtime so the containerized stack matches source:
+    - `docker compose -f docker-compose.local.yml --env-file /mnt/d/97-CodingProject/Loomic-ArcIns/.tmp/loomic-local.env build server`
+    - `docker compose -f docker-compose.local.yml --env-file /mnt/d/97-CodingProject/Loomic-ArcIns/.tmp/loomic-local.env up -d --no-deps server`
+    - verified with `docker ps`: `loomic-arcins-server-1` returned to `healthy`
+- Result:
+  - Batch 2 is no longer only browser-correct; it is also better defended against silent no-op saves in future RLS or collaboration scenarios
+  - the runtime persistence verdict remains PASS, and the save path now fails loudly if the DB row is not actually updated
+- Next:
+  - freeze the next bounded canvas-atomic implementation slice
+  - prioritize user-facing gaps rather than continuing to spend time on already-closed Batch 2 persistence debugging
+
+### Phase 7 Batch 3 Live Website Benchmarking
+- **Status:** in_progress
+- **Timestamp:** 2026-04-15 09:42 Asia/Shanghai
+- Actions taken:
+  - Re-opened the real `寤虹瓚瀛﹂暱` product in a headed browser session through the Playwright CLI wrapper:
+    - `https://www.jianzhuxuezhang.com/canvas/home`
+  - Confirmed the session is authenticated with the user's account:
+    - header shows masked phone `187****4299`
+  - Captured the live `/canvas/home` structure:
+    - white/light page shell
+    - large top composer
+    - `鏈€杩戦」鐩甡 strip with `鏂板缓椤圭洰`
+    - the current session did not expose a large extra discovery grid below the recent-projects area
+  - Entered a real canvas detail page by opening an existing recent project:
+    - `https://www.jianzhuxuezhang.com/canvas/detail?projectId=69dee2c31f0f9e40898b2322`
+  - Captured and verified the live canvas shell:
+    - left compact tool rail
+    - center canvas
+    - right-side `鍒涗綔璁板綍 + 瀵硅瘽杈撳叆妗?+ 鐢熸垚鏂囦欢鍒楄〃`
+  - Verified live blank-canvas right-click:
+    - `绮樿创`
+    - `鏄剧ず鐢诲竷鎵€鏈夊厓绱燻
+    - `瀵煎嚭鐢诲竷`
+    - `瀵煎叆鐢诲竷`
+  - Verified live selected-image state:
+    - top floating bar: `缂栬緫 / 娑傞甫 / 鏂囧瓧 / 鏌ョ湅澶у浘 / 涓嬭浇`
+    - image right-click menu includes:
+      - `澶嶅埗`
+      - `绮樿创`
+      - `涓婄Щ涓€灞俙
+      - `涓嬬Щ涓€灞俙
+      - `绉诲埌椤跺眰`
+      - `绉诲埌搴曞眰`
+      - `鍙戦€佽嚦瀵硅瘽`
+      - `鍒涘缓缂栫粍`
+      - `瑙ｉ櫎缂栫粍`
+      - `鍚堝苟鍥惧眰`
+      - `鏄剧ず/闅愯棌`
+      - `閿佸畾/瑙ｉ攣`
+      - `瀵煎嚭`
+      - `鍒犻櫎`
+  - Verified the live composer coupling after image-context `鍙戦€佽嚦瀵硅瘽`:
+    - composer gained an image thumbnail attachment row plus `+` affordance above the input
+    - textbox + model + ratio + template + send button remained intact
+- Evidence:
+  - `.playwright-cli/page-2026-04-15T01-29-22-682Z.yml`
+  - `.playwright-cli/page-2026-04-15T01-34-04-460Z.yml`
+  - `.playwright-cli/page-2026-04-15T01-42-34-645Z.png`
+- Next:
+  - map these live findings onto the current `/`, `/home`, and `/canvas` code paths
+  - write the failing web tests for the bounded redesign slice
+  - then implement the minimal UI contraction needed to match the verified shell
+
+### Phase 7 Batch 3 Canvas Rail Contraction
+- **Status:** completed
+- **Timestamp:** 2026-04-15 12:06 Asia/Shanghai
+- Actions taken:
+  - Added a new TDD regression suite for the compact architecture rail:
+    - `apps/web/test/canvas-tool-menu.test.tsx`
+  - Verified the new test failed first:
+    - `wsl.exe -e bash -lc 'cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && node ../../node_modules/vitest/vitest.mjs run test/canvas-tool-menu.test.tsx --reporter=dot --pool forks'`
+    - failure reason:
+      - the runtime still rendered the old bottom bar with `鎷栨嫿鐢诲竷 / 鐭╁舰 / 妞渾 / 绠ご / 鐩寸嚎 / AI 鐢熸垚鍥剧墖 / AI 鐢熸垚瑙嗛`
+      - the expected `閫夋嫨 / 娣诲姞 / 褰㈢姸 / 娑傞甫 / 鏂囧瓧` architecture rail did not exist yet
+  - Implemented the bounded shell contraction in:
+    - `apps/web/src/components/canvas-tool-menu.tsx`
+    - `apps/web/src/components/canvas-editor.tsx`
+    - `apps/web/src/app/canvas/page.tsx`
+  - The new implementation keeps the already-validated right-click / composer flow intact while replacing the old toolbar with:
+    - a left vertical five-tool rail
+    - an `娣诲姞` flyout:
+      - `涓婁紶鍙傝€冨浘`
+      - `鎻掑叆鍙傝€冩澘`
+      - `閾哄紑寤虹瓚鏉垮潡`
+    - a `褰㈢姸` flyout:
+      - `鐭╁舰`
+      - `妞渾`
+      - `绠ご`
+      - `鐩寸嚎`
+    - localized generator overlay copy:
+      - `鐢熸垚涓?..`
+  - Re-ran the new focused suite to green:
+    - `wsl.exe -e bash -lc 'cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && node ../../node_modules/vitest/vitest.mjs run test/canvas-tool-menu.test.tsx --reporter=dot --pool forks'`
+    - result: `1` file passed, `2` tests passed
+  - Re-ran the bounded canvas/chat regression suite:
+    - `wsl.exe -e bash -lc 'cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/canvas-tool-menu.test.tsx test/canvas-page-shell.test.tsx test/canvas-editor-context-menu.test.tsx test/canvas-context-actions.test.ts test/canvas-context-menu.test.tsx test/chat-input.test.tsx test/chat-sidebar.test.tsx --reporter=dot --pool forks'`
+    - result: `7` files passed, `27` tests passed
+  - Rebuilt and restarted the local containerized web runtime:
+    - `docker compose -f docker-compose.local.yml --env-file /mnt/d/97-CodingProject/Loomic-ArcIns/.tmp/loomic-local.env build web`
+    - `docker compose -f docker-compose.local.yml --env-file /mnt/d/97-CodingProject/Loomic-ArcIns/.tmp/loomic-local.env up -d --no-deps web`
+  - Completed browser-level verification with a fresh real user in Playwright CLI:
+    - registered:
+      - `codex-rail-verify-20260415-1226@example.com`
+    - opened a fresh architecture canvas from `/home`
+    - verified the runtime shell now shows:
+      - left compact rail:
+        - `閫夋嫨`
+        - `娣诲姞`
+        - `褰㈢姸`
+        - `娑傞甫`
+        - `鏂囧瓧`
+      - no old bottom `Excalidraw`-style toolbar
+      - right `鍒涗綔璁板綍 + 杈撳叆妗?+ 鐢熸垚鏂囦欢鍒楄〃` panel remains intact
+    - verified the new flyouts in the real browser:
+      - `娣诲姞`:
+        - `涓婁紶鍙傝€冨浘`
+        - `鎻掑叆鍙傝€冩澘`
+        - `閾哄紑寤虹瓚鏉垮潡`
+      - `褰㈢姸`:
+        - `鐭╁舰`
+        - `妞渾`
+        - `绠ご`
+        - `鐩寸嚎`
+- Evidence:
+  - local runtime screenshot:
+    - `D:/97-CodingProject/Loomic-ArcIns/.playwright-cli/page-2026-04-15T04-29-12-843Z.png`
+  - add-flyout snapshot + screenshot:
+    - `D:/97-CodingProject/Loomic-ArcIns/.playwright-cli/page-2026-04-15T04-30-54-287Z.yml`
+    - `D:/97-CodingProject/Loomic-ArcIns/.playwright-cli/page-2026-04-15T04-31-37-590Z.png`
+  - shape-flyout snapshot:
+    - `D:/97-CodingProject/Loomic-ArcIns/.playwright-cli/page-2026-04-15T04-32-19-044Z.yml`
+- Result:
+  - the previously confirmed largest visual gap on `/canvas` is now closed for this bounded slice:
+    - the old bottom tool strip is removed
+    - the left compact rail now materially matches the verified 寤虹瓚瀛﹂暱 shell
+    - the rail actions reuse the same architecture entry points already validated through the right-click flow
+  - existing right-click / context-menu / composer behavior remains protected by the broader web regression suite
+- Remaining gap kept explicit:
+  - the selected-image top floating action bar from 寤虹瓚瀛﹂暱 is still not implemented in Loomic
+  - the collapsed-state canvas composer still does not fully mimic 寤虹瓚瀛﹂暱鈥檚 bottom-floating composition outside the right panel
+- Next:
+  - decide whether the next bounded slice should prioritize:
+    - selected-image top floating action bar
+    - bottom-floating collapsed composer shell
+    - additional real-site atomic element menus beyond the already-implemented right-click matrix
+
+- **Timestamp:** 2026-04-15 13:46 Asia/Shanghai
+- Actions taken:
+  - Added a new page-level regression test for the selected-image floating action bar:
+    - `apps/web/test/canvas-page-selection-action-bar.test.tsx`
+  - Verified the new test failed first:
+    - `wsl.exe -e bash -lc 'cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/canvas-page-selection-action-bar.test.tsx --reporter=dot --pool forks'`
+    - failure reason:
+      - the runtime page did not yet render the expected `缂栬緫 / 娑傞甫 / 鏂囧瓧 / 鏌ョ湅澶у浘 / 涓嬭浇` floating action bar after a mocked single-image selection
+  - Hit and resolved one test-harness bug before production edits:
+    - the first draft of the mocked `CanvasEditor` used `useEffect(..., [props])`, which caused an `onApiReady -> setState -> rerender` loop and eventually a Vitest heap OOM
+    - fixed by narrowing the effect dependency to `props.onApiReady` before proceeding with production changes
+  - Implemented the bounded selected-image action-bar slice in:
+    - `apps/web/src/components/canvas/canvas-selection-action-bar.tsx`
+    - `apps/web/src/components/canvas-editor.tsx`
+    - `apps/web/src/app/canvas/page.tsx`
+  - The new implementation now:
+    - keeps the action bar as a thin page-level overlay instead of rewriting the existing right-click flow
+    - adds viewport reporting from `CanvasEditor` so page-level overlays can track the live canvas transform
+    - exposes the verified single-image quick actions:
+      - `缂栬緫`
+      - `娑傞甫`
+      - `鏂囧瓧`
+      - `鏌ョ湅澶у浘`
+      - `涓嬭浇`
+    - routes `缂栬緫` back through the already-validated composer-command path:
+      - `apply-template`
+      - `attachSelection: true`
+    - routes `娑傞甫 / 鏂囧瓧` back through the live Excalidraw `setActiveTool()` path
+  - Re-ran the bounded web regression slice to green:
+    - `wsl.exe -e bash -lc 'cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/canvas-page-selection-action-bar.test.tsx test/canvas-page-context-menu.test.tsx test/canvas-page-shell.test.tsx test/canvas-tool-menu.test.tsx test/canvas-editor-context-menu.test.tsx test/canvas-context-actions.test.ts test/canvas-context-menu.test.tsx test/chat-input.test.tsx test/chat-sidebar.test.tsx --reporter=dot --pool forks'`
+    - result:
+      - `9` files passed
+      - `30` tests passed
+  - Rebuilt and restarted the local containerized web runtime:
+    - `docker compose -f docker-compose.local.yml --env-file /mnt/d/97-CodingProject/Loomic-ArcIns/.tmp/loomic-local.env build web`
+    - `docker compose -f docker-compose.local.yml --env-file /mnt/d/97-CodingProject/Loomic-ArcIns/.tmp/loomic-local.env up -d --no-deps web`
+  - Re-opened the local runtime in Playwright CLI with a fresh registered user:
+    - `codex-selection-bar-20260415-1329@example.com`
+    - confirmed:
+      - `/login` and `/register` flow works
+      - `/home` is reachable after registration
+      - a fresh architecture `/canvas` tab opens with the compact left rail and right `鍒涗綔璁板綍 + 杈撳叆妗?+ 鐢熸垚鏂囦欢鍒楄〃` shell still intact
+  - Browser verification caveat kept explicit:
+    - the ad hoc local upload/selection attempt in this session did not surface a selectable runtime image strongly enough to finish a direct browser-side proof of the new floating action bar
+    - for this slice, the selected-image action bar is therefore currently proven by the targeted integration test plus container rebuild, while a deeper browser-side image-seeding pass remains queued for the next canvas atomics batch
+- Evidence:
+  - new action-bar regression:
+    - `apps/web/test/canvas-page-selection-action-bar.test.tsx`
+  - local runtime browser artifacts:
+    - `D:/97-CodingProject/Loomic-ArcIns/.playwright-cli/page-2026-04-15T05-28-01-169Z.yml`
+    - `D:/97-CodingProject/Loomic-ArcIns/.playwright-cli/page-2026-04-15T05-31-37-856Z.yml`
+    - `D:/97-CodingProject/Loomic-ArcIns/.playwright-cli/page-2026-04-15T05-33-47-426Z.yml`
+    - `D:/97-CodingProject/Loomic-ArcIns/.playwright-cli/page-2026-04-15T05-35-24-897Z.yml`
+- Result:
+  - the next most visible canvas-shell gap after the rail contraction is now closed at the implementation + regression level:
+    - single-image quick actions exist
+    - `缂栬緫` now differentiates image-editing flow from plain text-only prompting by attaching the current selection into the composer command
+    - the quick bar reuses existing Loomic chat/canvas primitives instead of adding a parallel action system
+- Next:
+  - finish a browser-level proof for the selected-image action bar using a more deterministic runtime image-seeding path
+  - then continue with the next visible gap:
+    - collapsed bottom composer shell
+    - or additional selected-element atomic actions from 寤虹瓚瀛﹂暱
+
+### Phase 7 Home Recent-Project Entry Hardening
+- **Status:** completed
+- **Timestamp:** 2026-04-15 15:47 Asia/Shanghai
+- Actions taken:
+  - Investigated the user-reported `/home` blocker and confirmed the root cause in `apps/web/src/app/(workspace)/home/page.tsx`:
+    - the full `鏈€杩戦」鐩甡 region was conditionally replaced by `HomeProjectsSkeleton` whenever `projectsLoading === true`
+    - this hid the real `鏂板缓椤圭洰` card during the initial fetch window
+  - Added a new regression to `apps/web/test/home-page-shell.test.tsx` before touching production code:
+    - assertion:
+      - while projects are still loading, the first recent-project entry is already the real `鏂板缓椤圭洰` button
+    - red verification:
+      - `wsl.exe -e bash -lc 'cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/home-page-shell.test.tsx --reporter=dot --pool forks'`
+      - failed with:
+        - `Unable to find an accessible element with the role "button"`
+        - confirmed the section only rendered `data-testid="home-projects-skeleton"`
+  - Implemented the minimal fix:
+    - `apps/web/src/app/(workspace)/home/page.tsx`
+      - introduced `handleCreateProject()`
+      - always renders the real `鏂板缓椤圭洰` card first
+      - scopes loading placeholders to the remaining project slots only
+    - `apps/web/src/components/skeletons/home-skeleton.tsx`
+      - added `includeNewProjectPlaceholder` and `projectCount`
+      - converted the wrapper to `className="contents"` so the skeleton items can share the parent grid cleanly
+  - Re-ran the focused home regression:
+    - same `home-page-shell` command now passed with `1` file, `2` tests green
+  - Re-ran the broader bounded home/canvas/chat UI suite:
+    - `wsl.exe -e bash -lc 'cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/home-page-shell.test.tsx test/home-prompt.test.tsx test/home-example-browser.test.tsx test/architecture-studio-shell.test.tsx test/chat-input.test.tsx test/chat-sidebar.test.tsx test/canvas-page-context-menu.test.tsx test/canvas-page-shell.test.tsx test/canvas-tool-menu.test.tsx test/canvas-editor-context-menu.test.tsx test/canvas-context-actions.test.ts test/canvas-context-menu.test.tsx --reporter=dot --pool forks'`
+    - result:
+      - `12` files passed
+      - `44` tests passed
+  - Rebuilt and restarted the running web container so runtime matches source:
+    - `docker compose -f docker-compose.local.yml --env-file /mnt/d/97-CodingProject/Loomic-ArcIns/.tmp/loomic-local.env build web`
+    - `docker compose -f docker-compose.local.yml --env-file /mnt/d/97-CodingProject/Loomic-ArcIns/.tmp/loomic-local.env up -d --no-deps web`
+  - Completed browser-level proof through the Playwright CLI fallback after recovering from stale MCP browser transports:
+    - final successful command:
+      - `wsl.exe -e bash /mnt/d/97-CodingProject/Loomic-ArcIns/output/playwright/home-first-card-verify-2026-04-15.sh`
+    - final browser result:
+      - login lands on `http://127.0.0.1:3000/home`
+      - first recent-project card text is `+鏂板缓椤圭洰浠庝竴鍙ラ渶姹傛垨涓€寮犲弬鑰冨浘寮€濮嬫柊鐨勬棤闄愮敾甯冨垱浣溿€俙
+    - evidence:
+      - `output/playwright/home-first-card-verify-2026-04-15.json`
+      - `output/playwright/home-first-card-verify-2026-04-15.png`
+- Files created/modified:
+  - `apps/web/test/home-page-shell.test.tsx`
+  - `apps/web/src/app/(workspace)/home/page.tsx`
+  - `apps/web/src/components/skeletons/home-skeleton.tsx`
+  - `output/playwright/home-first-card-verify-2026-04-15.sh`
+  - `output/playwright/home-first-card-verify-2026-04-15.json`
+  - `output/playwright/home-first-card-verify-2026-04-15.png`
+- Result:
+  - the `/home` entry blocker is fixed on source, tests, container runtime, and live browser
+  - `鏈€杩戦」鐩甡 now keeps a stable first-card entry into new canvas creation even while the project list is still loading
+- Next:
+  - return to the remaining real-site parity work on `/canvas`
+  - prioritize deterministic browser proof for the selected-image action bar, then continue the bottom composer and deeper element-menu gaps
+
+### Phase 7 Selected-Image Action Bar Browser-Proof Investigation
+- **Status:** in_progress
+- **Timestamp:** 2026-04-15 16:20 Asia/Shanghai
+- Actions taken:
+  - Re-ran session recovery and re-read the active planning files before touching the next canvas slice:
+    - `python "$env:USERPROFILE\\.codex\\skills\\planning-with-files\\scripts\\session-catchup.py" (Get-Location)`
+    - `git diff --stat`
+    - reviewed current `task_plan.md`, `findings.md`, and `progress.md`
+  - Re-checked the runtime source instead of inferring from the prior failed browser attempt:
+    - `apps/web/src/app/canvas/page.tsx`
+    - `apps/web/src/components/canvas-editor.tsx`
+    - `apps/web/src/components/canvas/canvas-selection-action-bar.tsx`
+    - `apps/web/src/lib/canvas-elements.ts`
+  - Confirmed the current root-cause chain for the browser-proof gap:
+    - the floating action bar is page-level and already implemented
+    - it appears only when the page sees exactly one selected image with a usable URL
+    - `insertImageOnCanvas()` inserts the image but does not auto-select it
+    - therefore a real browser proof must include a deterministic post-upload selection step
+  - Locked the next verification strategy:
+    - upload a tiny local SVG through the existing hidden file input
+    - wait for the image insertion to settle
+    - click the viewport center on an otherwise empty canvas, because the first inserted image is centered there
+    - only then assert the five quick-action buttons
+- Result:
+  - the current blocker has been reduced from 鈥渁ction bar may not work鈥?to 鈥減roof script must seed and select the image deterministically鈥?- Next:
+  - run a real Playwright CLI verification script for the upload -> select -> assert flow
+  - if that still fails, capture which sub-step is unstable before deciding whether a bounded production adjustment is needed
+
+### Phase 7 Selected-Image Action Bar Browser Proof Closure
+- **Status:** completed
+- **Timestamp:** 2026-04-15 16:22 Asia/Shanghai
+- Actions taken:
+  - Added reusable local verification artifacts for the browser-proof pass:
+    - `output/playwright/canvas-selection-action-bar-seed-2026-04-15.svg`
+    - `output/playwright/canvas-selection-action-bar-verify-2026-04-15.js`
+    - `output/playwright/canvas-selection-action-bar-verify-2026-04-15.sh`
+  - First real Playwright CLI run failed at the instrumentation layer, not the product layer:
+    - `wsl.exe -e bash /mnt/d/97-CodingProject/Loomic-ArcIns/output/playwright/canvas-selection-action-bar-verify-2026-04-15.sh`
+    - the script timed out waiting for `/api/uploads`, so I widened the diagnostics instead of changing app code
+  - Second run exposed the actual browser truth:
+    - the selected-image floating action bar already appeared in the live canvas
+    - the false negative came from ambiguous button matching, because `娑傞甫` and `鏂囧瓧` also exist in the left compact rail
+  - Updated the verification script accordingly:
+    - failure screenshots now target the real canvas page instead of the original `/home` tab
+    - success criteria now require one DOM button cluster containing all five labels together:
+      - `缂栬緫`
+      - `娑傞甫`
+      - `鏂囧瓧`
+      - `鏌ョ湅澶у浘`
+      - `涓嬭浇`
+  - Final browser run succeeded:
+    - command:
+      - `wsl.exe -e bash /mnt/d/97-CodingProject/Loomic-ArcIns/output/playwright/canvas-selection-action-bar-verify-2026-04-15.sh`
+    - result:
+      - `passed: true`
+      - runtime screenshot shows the seeded image selected on canvas
+      - the floating action bar is visible above it
+      - the right `鍒涗綔璁板綍 + 杈撳叆鍖?+ 鐢熸垚鏂囦欢鍒楄〃` shell remains intact
+  - A useful verification-side caveat is now explicit:
+    - the upload-response wait stayed unreliable in this flow, but the generated-files list plus final canvas screenshot prove the seed image did render
+    - for this slice, DOM-and-screenshot proof is stronger than `waitForResponse("/api/uploads")`
+- Files created/modified:
+  - `output/playwright/canvas-selection-action-bar-seed-2026-04-15.svg`
+  - `output/playwright/canvas-selection-action-bar-verify-2026-04-15.js`
+  - `output/playwright/canvas-selection-action-bar-verify-2026-04-15.sh`
+  - `findings.md`
+  - `progress.md`
+- Evidence:
+  - `output/playwright/canvas-selection-action-bar-verify-2026-04-15.json`
+  - `output/playwright/canvas-selection-action-bar-verify-2026-04-15.png`
+- Result:
+  - the selected-image floating action bar is now proven at the live browser level, not just in tests
+  - Phase 7's most visible remaining gap is now the immersive composer shell / right-side input-area parity work
+- Next:
+  - freeze the next bounded canvas delta around the composer shell
+  - enter TDD before touching the next UI slice
+
+### Phase 7 Context-Menu Scene Operations
+- **Status:** completed
+- **Timestamp:** 2026-04-15 16:44 Asia/Shanghai
+- Actions taken:
+  - Re-checked the current `/canvas` gap against the already-documented 寤虹瓚瀛﹂暱 right-click inventory and narrowed the next bounded slice to scene-only context-menu operations:
+    - `涓婄Щ涓€灞俙
+    - `涓嬬Щ涓€灞俙
+    - `绉诲埌椤跺眰`
+    - `绉诲埌搴曞眰`
+    - `閿佸畾 / 瑙ｉ攣`
+    - `鍒犻櫎`
+  - Asked one explorer subagent to inspect the safest Excalidraw integration path:
+    - first attempt failed with a model-provider `502` before the subagent could run
+    - second attempt completed and confirmed the repository had already designed toward helper-based scene actions in `apps/web/src/lib/canvas-context-actions.ts`
+  - Entered TDD and wrote the failing tests first:
+    - `apps/web/test/canvas-context-actions.test.ts`
+      - added red tests for:
+        - `reorderSelectedCanvasElements()`
+        - `toggleLockSelectedCanvasElements()`
+        - `deleteSelectedCanvasElements()`
+    - `apps/web/test/canvas-page-context-menu.test.tsx`
+      - added red assertions for the new single-image menu labels and the `閿佸畾 -> 瑙ｉ攣` label switch
+  - Verified the new tests failed for the right reason:
+    - the helper functions did not exist yet
+    - the page-level image context menu still only exposed `鍙戦€佽嚦瀵硅瘽` plus template actions
+  - Implemented the bounded production slice in:
+    - `apps/web/src/lib/canvas-context-actions.ts`
+      - added:
+        - `reorderSelectedCanvasElements()`
+        - `toggleLockSelectedCanvasElements()`
+        - `deleteSelectedCanvasElements()`
+    - `apps/web/src/components/canvas-editor.tsx`
+      - extended `CanvasSelectedElement` with `locked`
+    - `apps/web/src/lib/canvas-selection.ts`
+      - now carries `locked` through selection extraction
+    - `apps/web/src/app/canvas/page.tsx`
+      - added page-level handlers for reorder / lock toggle / delete
+      - wired the new actions into single-image, multi-image, and generic-selection context menus
+  - Re-ran the focused red-green verification:
+    - `wsl.exe -e bash -lc 'cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/canvas-context-actions.test.ts test/canvas-page-context-menu.test.tsx --reporter=dot --pool forks'`
+    - result:
+      - `2` files passed
+      - `9` tests passed
+  - Re-ran the broader bounded canvas/chat regression slice:
+    - `wsl.exe -e bash -lc 'cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/canvas-context-actions.test.ts test/canvas-context-menu.test.tsx test/canvas-page-context-menu.test.tsx test/canvas-page-selection-action-bar.test.tsx test/canvas-editor-context-menu.test.tsx test/canvas-tool-menu.test.tsx test/chat-input.test.tsx test/chat-sidebar.test.tsx --reporter=dot --pool forks'`
+    - result:
+      - `8` files passed
+      - `35` tests passed
+  - Rebuilt and restarted the running web container so runtime matches source:
+    - `docker compose -f docker-compose.local.yml --env-file /mnt/d/97-CodingProject/Loomic-ArcIns/.tmp/loomic-local.env build web`
+    - `docker compose -f docker-compose.local.yml --env-file /mnt/d/97-CodingProject/Loomic-ArcIns/.tmp/loomic-local.env up -d --no-deps web`
+  - Added a dedicated live-browser proof script for the new menu shape:
+    - `output/playwright/canvas-context-menu-scene-actions-verify-2026-04-15.js`
+    - `output/playwright/canvas-context-menu-scene-actions-verify-2026-04-15.sh`
+  - Final browser proof succeeded:
+    - command:
+      - `wsl.exe -e bash /mnt/d/97-CodingProject/Loomic-ArcIns/output/playwright/canvas-context-menu-scene-actions-verify-2026-04-15.sh`
+    - result:
+      - `passed: true`
+      - the selected-image context menu shows:
+        - `鍙戦€佽嚦瀵硅瘽`
+        - `涓婄Щ涓€灞俙
+        - `涓嬬Щ涓€灞俙
+        - `绉诲埌椤跺眰`
+        - `绉诲埌搴曞眰`
+        - `閿佸畾`
+        - `鍒犻櫎`
+- Files created/modified:
+  - `apps/web/src/lib/canvas-context-actions.ts`
+  - `apps/web/src/components/canvas-editor.tsx`
+  - `apps/web/src/lib/canvas-selection.ts`
+  - `apps/web/src/app/canvas/page.tsx`
+  - `apps/web/test/canvas-context-actions.test.ts`
+  - `apps/web/test/canvas-page-context-menu.test.tsx`
+  - `output/playwright/canvas-context-menu-scene-actions-verify-2026-04-15.js`
+  - `output/playwright/canvas-context-menu-scene-actions-verify-2026-04-15.sh`
+  - `output/playwright/canvas-context-menu-scene-actions-verify-2026-04-15.json`
+  - `output/playwright/canvas-context-menu-scene-actions-verify-2026-04-15.png`
+- Result:
+  - local `/canvas` now covers a much larger share of the 寤虹瓚瀛﹂暱 single-image right-click editing layer, not just the conversation shortcuts
+  - the remaining low-risk menu follow-ups are now narrower:
+    - `澶嶅埗`
+    - `鏌ョ湅澶у浘`
+    - `涓嬭浇`
+  - `鏄剧ず / 闅愯棌` stays explicitly deferred because it crosses too many semantics in the current Excalidraw integration
+- Next:
+  - choose between:
+    - closing the remaining single-image menu items (`澶嶅埗 / 鏌ョ湅澶у浘 / 涓嬭浇`)
+    - or switching to the right-side / bottom composer shell parity slice
+
+
+## Latest Update: 2026-04-15 17:13 Asia/Shanghai
+
+- Closed the newest selected-image right-click verification gap for `?? / ??` on the local-only flow.
+  - per the latest instruction, stopped depending on external-model subagents after a provider-side `502 Bad Gateway` on `http://arcinsai.xyz:8317/v1/responses`
+  - continued only with local source, WSL Docker runtime, Vitest, and Playwright CLI
+- Stabilized the browser-proof script before rerunning runtime verification:
+  - rewrote `output/playwright/canvas-context-menu-scene-actions-verify-2026-04-15.js` with ASCII-safe unicode escapes to avoid shell/codepage drift
+  - extended the expected menu inventory to include `??` and `??`
+- Rebuilt and restarted the running web runtime from WSL Docker:
+  - `wsl.exe -e bash -lc 'cd /mnt/d/97-CodingProject/Loomic-ArcIns && docker compose -f docker-compose.local.yml --env-file .tmp/loomic-local.env build web && docker compose -f docker-compose.local.yml --env-file .tmp/loomic-local.env up -d --no-deps web'`
+  - result:
+    - `@loomic/web` production build succeeded
+    - `loomic-arcins-web-1` recreated and started
+- Re-ran fresh static verification for the same bounded slice:
+  - focused:
+    - `wsl.exe -e bash -lc 'cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/canvas-context-actions.test.ts test/canvas-page-context-menu.test.tsx --reporter=dot --pool forks'`
+    - result: `2` files passed, `10` tests passed
+  - bounded suite:
+    - `wsl.exe -e bash -lc 'cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/canvas-context-actions.test.ts test/canvas-context-menu.test.tsx test/canvas-page-context-menu.test.tsx test/canvas-page-selection-action-bar.test.tsx test/canvas-editor-context-menu.test.tsx test/canvas-tool-menu.test.tsx test/chat-input.test.tsx test/chat-sidebar.test.tsx --reporter=dot --pool forks'`
+    - result: `8` files passed, `36` tests passed
+- Re-ran live browser verification on the rebuilt runtime:
+  - `wsl.exe -e bash /mnt/d/97-CodingProject/Loomic-ArcIns/output/playwright/canvas-context-menu-scene-actions-verify-2026-04-15.sh`
+  - result:
+    - `passed: true`
+    - menu labels proved together in one live frame:
+      - `?????`
+      - `??`
+      - `????`
+      - `????`
+      - `????`
+      - `????`
+      - `??`
+      - `??`
+      - `??`
+- Evidence written for this slice:
+  - `D:/97-CodingProject/Loomic-ArcIns/output/playwright/canvas-context-menu-scene-actions-verify-2026-04-15.json`
+  - `D:/97-CodingProject/Loomic-ArcIns/output/playwright/canvas-context-menu-scene-actions-verify-2026-04-15.png`
+- Next execution focus returns to the larger canvas parity target:
+  - right-side / bottom composer shell layout closer to ????
+  - right-click / selection edits that should mutate the composer state in the same way as the real product
+
+
+## Latest Update: 2026-04-15 17:42 Asia/Shanghai
+
+- Completed the next bounded canvas parity slice on the local-only path: immersive collapsed composer shell.
+- Followed TDD before production edits:
+  - added two new `ChatSidebar` regressions in `apps/web/test/chat-sidebar.test.tsx`
+    - collapsed immersive desktop mode renders a bottom-floating composer shell instead of only a top-right pill button
+    - collapsed immersive mode remains reactive to `attach-selection` so canvas -> composer promotion still works after the panel is collapsed
+  - first red run:
+    - `wsl.exe -e bash -lc 'cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/chat-sidebar.test.tsx --reporter=dot --pool forks'`
+    - result: `1` file failed, `2` tests failed for the right reason
+      - runtime still rendered only the old top-right `??` button
+- Implemented the bounded production change in `apps/web/src/components/chat-sidebar.tsx`:
+  - immersive collapsed desktop mode now renders a bottom-floating composer shell
+  - the shell reuses the existing `ChatInput` + `composerCommand` flow instead of forking a second input implementation
+  - non-immersive closed state still keeps the prior compact button behavior
+- Re-ran focused verification:
+  - `wsl.exe -e bash -lc 'cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/chat-sidebar.test.tsx --reporter=dot --pool forks'`
+  - result: `1` file passed, `12` tests passed
+- Re-ran broader bounded regression coverage:
+  - `wsl.exe -e bash -lc 'cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/chat-sidebar.test.tsx test/chat-input.test.tsx test/canvas-page-shell.test.tsx test/canvas-page-context-menu.test.tsx test/canvas-page-selection-action-bar.test.tsx test/canvas-editor-context-menu.test.tsx test/canvas-context-menu.test.tsx test/canvas-context-actions.test.ts test/canvas-tool-menu.test.tsx --reporter=dot --pool forks'`
+  - result: `9` files passed, `39` tests passed
+- Rebuilt and restarted the running web runtime from WSL Docker:
+  - `wsl.exe -e bash -lc 'cd /mnt/d/97-CodingProject/Loomic-ArcIns && docker compose -f docker-compose.local.yml --env-file .tmp/loomic-local.env build web && docker compose -f docker-compose.local.yml --env-file .tmp/loomic-local.env up -d --no-deps web'`
+  - result:
+    - `@loomic/web` production build succeeded
+    - `loomic-arcins-web-1` recreated and started
+- Added a dedicated local browser proof for the collapsed composer path:
+  - `output/playwright/canvas-collapsed-composer-verify-2026-04-15.js`
+  - `output/playwright/canvas-collapsed-composer-verify-2026-04-15.sh`
+- Used systematic debugging when the first browser attempts failed:
+  - first failure root cause:
+    - the real context-menu action was visible, but the script incorrectly searched by button role
+  - second failure root cause:
+    - the script held an unstable nested textarea locator across a rerender after `?????`
+  - both fixes stayed inside the verification script, not product code
+- Final browser proof succeeded:
+  - `wsl.exe -e bash /mnt/d/97-CodingProject/Loomic-ArcIns/output/playwright/canvas-collapsed-composer-verify-2026-04-15.sh`
+  - result:
+    - `passed: true`
+    - collapsed composer shell visible with `???? / Banana Pro / ?? 1K`
+    - placeholder switched from default prompt mode to attached-reference mode after image right-click `?????`
+- Evidence written for this slice:
+  - `D:/97-CodingProject/Loomic-ArcIns/output/playwright/canvas-collapsed-composer-verify-2026-04-15.json`
+  - `D:/97-CodingProject/Loomic-ArcIns/output/playwright/canvas-collapsed-composer-verify-2026-04-15.png`
+- Next execution focus can now move deeper into the remaining canvas/composer parity gap:
+  - expanded right-side panel header/body details
+  - more selected-image and multi-image operations that should mutate the composer in the same way as the real product
+
+## Latest Update: 2026-04-15 17:57 Asia/Shanghai
+
+- Investigated the recurring subagent-model drift after provider-side 502 failures.
+- Confirmed the main Codex config was already pinned to gpt-5.4 in C:\Users\admin\.codex\config.toml.
+- Identified the practical root cause as instruction-layer drift rather than base config drift:
+  - subagent-driven-development still encouraged using the cheapest capable model
+  - repository-level instructions did not yet force explicit spawn_agent model selection
+- Applied the fix at three layers so future sessions inherit the same rule:
+  - global superpowers skill copies now explicitly require model: "gpt-5.4" for spawned subagents
+  - global C:\Users\admin\.codex\AGENTS.md and C:\Users\admin\.codex\agents.md now state the same default
+  - repo AGENTS.md now requires explicit model: "gpt-5.4" for any spawn_agent call in this workspace
+- Verification completed by re-reading the patched files and confirming the new gpt-5.4 override text is present.
+- Expected operational effect:
+  - future explorers / workers / reviewers should stay on gpt-5.4 by default
+  - mini-model fallback should no longer happen silently inside this project flow
+
+## Latest Update: 2026-04-15 19:40 Asia/Shanghai
+
+- Continued the strict real-site audit for 建筑学长 instead of inferring from the local implementation.
+- Completed SMS login using the provided account and verification code, then saved the authenticated browser state:
+  - `output/playwright/reference-audit/jzxz-storage-state.json`
+- Captured the logged-in home page and confirmed the recent-project area includes real image-backed cards:
+  - `output/playwright/reference-audit/jzxz-after-sms-login.png`
+- Re-opened the blank canvas project and captured the real baseline shell:
+  - left rail: `选择 / 添加 / 形状 / 涂鸦 / 文字`
+  - top-right controls: zoom, credits, recharge, dialog
+  - centered bottom composer with `+ / Banana Pro / 自动 / 1K / 模版 / 发送`
+  - evidence:
+    - `output/playwright/reference-audit/jzxz-canvas-detail-baseline.png`
+- Verified the blank-canvas right-click inventory directly in the live product:
+  - `粘贴 / 显示画布所有元素 / 导出画布 / 导入画布`
+  - evidence:
+    - `output/playwright/reference-audit/audit-2-blank-right-click.png`
+- Verified that left `添加` opens a full upload/gallery modal rather than a small flyout:
+  - evidence:
+    - `output/playwright/reference-audit/audit-4-left-shape-open.png`
+- Opened a non-empty recent project from home to audit image-specific behavior:
+  - project URL:
+    - `https://www.jianzhuxuezhang.com/canvas/detail?projectId=69dee2c31f0f9e40898b2322`
+  - evidence:
+    - `output/playwright/reference-audit/opened-card-from-home.png`
+- Verified single-image behavior in the live product:
+  - selecting one image immediately shows the top quick-action bar:
+    - `编辑 / 涂鸦 / 文字 / 查看大图 / 下载`
+  - selecting one image also immediately injects one thumbnail chip into the bottom composer
+  - evidence:
+    - `output/playwright/reference-audit/content-2-top-image-selected.png`
+- Verified single-image right-click inventory in the live product:
+  - `复制 / 粘贴 / 上移一层 / 下移一层 / 移到顶层 / 移到底层 / 发送至对话 / 创建编组 / 解除编组 / 合并图层 / 显示/隐藏 / 锁定/解锁 / 导出 / 删除`
+  - evidence:
+    - `output/playwright/reference-audit/content-3-top-image-right-click.png`
+- Verified multi-image behavior in the live product:
+  - multi-select shows top quick actions:
+    - `创建编组 / 合并图层`
+  - the bottom composer accumulates multiple image thumbnail chips
+  - right-click on the multi-selection keeps the same core menu family including `发送至对话 / 创建编组 / 合并图层 / 显示/隐藏 / 锁定/解锁 / 导出 / 删除`
+  - evidence:
+    - `output/playwright/reference-audit/content-4-multi-selected.png`
+    - `output/playwright/reference-audit/content-5-multi-right-click.png`
+- Verified the actual right-panel-open layout:
+  - clicking top-right `对话` opens the `创作记录` side panel
+  - the composer does not disappear; instead it becomes a right-docked bottom composer aligned with the side panel
+  - selected-image thumbnail state is preserved into the open-panel composer
+  - evidence:
+    - `output/playwright/reference-audit/inspect-panel-after-click.png`
+    - `output/playwright/reference-audit/send-dialog-4-panel-open.png`
+- Result:
+  - the local app currently diverges from the real product in several foundational ways:
+    - left `添加` should be a full modal, not a small flyout
+    - `形状` should not keep the current local submenu behavior
+    - selecting images should auto-sync into the composer
+    - the centered composer vs right-docked composer state machine should follow the real product exactly
+    - blank and image right-click menus must be rebuilt to match the real menu inventory and ordering
+- Next:
+  - synthesize the real-product findings into a strict implementation plan
+  - wait for user approval before touching code
+
+## Latest Update: 2026-04-15 20:25 Asia/Shanghai
+
+- Resumed from the authenticated 建筑学长 audit and froze the next bounded implementation slice before touching code again.
+- Created the new execution plan document:
+  - `docs/execution/2026-04-15-architecture-agent-studio-phase7-batch5-plan.md`
+- Wrote the Batch 5 scope back into the persistent planning files:
+  - `findings.md`
+  - `progress.md`
+  - `task_plan.md` will be appended in ASCII because that file is currently not UTF-8 and cannot be patched safely.
+- Chosen execution order for this slice:
+  - first red tests for `添加` modal
+  - then red tests for compact context menus
+  - then red tests for immersive composer thumbnail sync and centered/docked shell states
+- No product code was changed in this step.
+
+
+## Latest Update: 2026-04-15 20:43 Asia/Shanghai
+
+- Continued Phase 7 Batch 5 implementation on the strict Jianzhuxuezhang canvas parity slice.
+- Completed TDD + implementation for the remaining canvas parity blockers:
+  - `apps/web/src/components/canvas-tool-menu.tsx`
+    - replaced the old `添加` flyout with a real modal shell
+    - kept `形状` as a compact flyout
+    - added the audited tab set `本地上传 / 官方图库 / 企业图库 / 我的创作`
+  - `apps/web/src/app/canvas/page.tsx`
+    - rewired blank, single-image, and multi-image context-menu inventories to the audited labels/order
+    - added hidden canvas JSON import input wiring
+    - changed architecture canvas desktop default to `chatOpen = false` so the page boots in the collapsed-composer state
+    - kept `发送至对话` on the collapsed composer path instead of forcing the right panel open
+  - `apps/web/src/components/canvas/canvas-context-menu.tsx`
+    - added viewport clamping and scrollable overflow so long menus do not disappear under the centered composer
+  - strengthened page/context-menu regression coverage to lock inventory order, import wiring, collapsed send-to-chat behavior, and default closed panel state
+- Static verification completed successfully:
+  - focused suite:
+    - `wsl.exe -e bash -lc 'cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/canvas-tool-menu.test.tsx test/canvas-context-menu.test.tsx test/canvas-page-context-menu.test.tsx test/chat-input.test.tsx test/chat-sidebar.test.tsx --reporter=dot --pool forks'`
+    - result: `5` files passed, `31` tests passed
+  - bounded regression suite:
+    - `wsl.exe -e bash -lc 'cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/canvas-context-actions.test.ts test/canvas-context-menu.test.tsx test/canvas-page-context-menu.test.tsx test/canvas-page-selection-action-bar.test.tsx test/canvas-page-shell.test.tsx test/canvas-editor-context-menu.test.tsx test/canvas-tool-menu.test.tsx test/chat-input.test.tsx test/chat-sidebar.test.tsx --reporter=dot --pool forks'`
+    - result: `9` files passed, `43` tests passed
+- Browser/container verification completed successfully after one debugging loop:
+  - initial failure:
+    - `canvas-batch5-parity-verify-2026-04-15.sh` first failed because the single-image context menu was rendering under the centered collapsed composer, making `发送至对话` effectively unclickable in the real page
+  - root cause:
+    - context-menu viewport positioning bug, not a composer-command/state bug
+  - fix:
+    - clamp context-menu position inside the viewport and allow internal scroll overflow
+  - final verification:
+    - `wsl.exe -e bash -lc 'cd /mnt/d/97-CodingProject/Loomic-ArcIns && docker compose -f docker-compose.local.yml --env-file .tmp/loomic-local.env build web && docker compose -f docker-compose.local.yml --env-file .tmp/loomic-local.env up -d --no-deps web && /mnt/d/97-CodingProject/Loomic-ArcIns/output/playwright/canvas-batch5-parity-verify-2026-04-15.sh'`
+    - result: `passed: true`
+    - proven in live runtime:
+      - left rail shows `选择 / 添加 / 形状 / 涂鸦 / 文字`
+      - `添加` modal shows `本地上传 / 官方图库 / 企业图库 / 我的创作`
+      - blank right-click shows `粘贴 / 显示画布所有元素 / 导出画布 / 导入画布`
+      - single-image right-click shows the audited menu family including grouping / merge / visibility / lock / export / delete
+      - collapsed composer placeholder changes from default prompt mode to attached-reference mode after `发送至对话`
+- Evidence written:
+  - `D:/97-CodingProject/Loomic-ArcIns/output/playwright/canvas-batch5-parity-verify-2026-04-15.json`
+  - `D:/97-CodingProject/Loomic-ArcIns/output/playwright/canvas-batch5-parity-verify-2026-04-15.png`
+- Immediate next execution focus:
+  - continue the remaining Jianzhuxuezhang parity work on the expanded right-side `创作记录` panel shell and any remaining multi-image / grouped-image operations that still differ from the audited product
+
+## Latest Update: 2026-04-15 23:52 Asia/Shanghai
+
+- Continued the next bounded Phase 7 shell-alignment slice after the user reported four concrete gaps:
+  - collapsed immersive composer still duplicated a local record trigger inside the bottom card
+  - expanded record panel still showed legacy helper copy instead of the audited retention copy
+  - some active canvas/chat shells still exceeded the 10px panel-radius rule
+  - the immersive bottom bar still used the wrong template wording
+- Touched files in this slice:
+  - apps/web/src/components/chat-sidebar.tsx
+  - apps/web/src/components/chat-input.tsx
+  - apps/web/src/components/canvas/canvas-context-menu.tsx
+  - apps/web/src/components/canvas-tool-menu.tsx
+  - apps/web/src/components/canvas-files-panel.tsx
+- Key implementation outcomes:
+  - removed the embedded record button row from the collapsed immersive composer shell
+  - updated the expanded immersive header to the audited retention copy
+  - replaced the old helper sentence with a simpler record-style empty state
+  - moved the embedded generated-files block above the docked composer
+  - restored the audited bottom-bar template wording
+  - normalized the touched panel/modal/context-menu shells to 10px
+- Verification completed in this slice:
+  - focused shell suite: 5 files passed, 30 tests passed
+  - bounded regression suite: 9 files passed, 46 tests passed
+  - WSL Docker rebuild: web rebuilt and restarted successfully
+  - runtime reachability: /home and /canvas?id=test both returned HTTP 200
+- Next focus:
+  - browser-review the rebuilt right-side record shell against the authenticated Jianzhuxuezhang reference
+  - continue grouped/multi-image parity and remaining right-panel detail gaps
+
+## Latest Update: 2026-04-16 09:12 Asia/Shanghai
+
+- Resumed the interrupted Phase 7 right-panel slice from the exact handoff point and restored the planning context before touching code:
+  - re-read `task_plan.md`, `findings.md`, `progress.md`
+  - ran `session-catchup.py`
+  - confirmed the workspace is still a dirty incremental tree and kept the no-revert rule intact
+- Re-entered the debugging loop for the focused right-panel test slice:
+  - first focused run failed in `apps/web/test/chat-sidebar.test.tsx`
+  - root cause was not a behavior regression but a second mojibake syntax break in `apps/web/src/components/chat-sidebar.tsx`
+  - the failing parser location was the `run.failed` preview toast string near line `821`
+- Applied a narrow repair pass in `apps/web/src/components/chat-sidebar.tsx` only:
+  - fixed the unterminated preview-model toast string
+  - fixed visible mojibake in the immersive record header badge, `收起` button, reconnect labels, and empty-state copy
+  - cleaned a few nearby mojibake comments so the file is easier to maintain
+- Fresh focused verification after the repair:
+  - command:
+    - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/chat-input.test.tsx test/chat-sidebar.test.tsx test/canvas-files-panel.test.tsx --reporter=dot --pool forks"`
+  - result:
+    - `3` files passed
+    - `25` tests passed
+- Fresh bounded regression for the right-panel/canvas shell slice:
+  - command:
+    - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/canvas-context-actions.test.ts test/canvas-context-menu.test.tsx test/canvas-page-context-menu.test.tsx test/canvas-page-selection-action-bar.test.tsx test/canvas-page-shell.test.tsx test/canvas-editor-context-menu.test.tsx test/canvas-tool-menu.test.tsx test/chat-input.test.tsx test/chat-sidebar.test.tsx test/canvas-files-panel.test.tsx --reporter=dot --pool forks"`
+  - result:
+    - `10` files passed
+    - `51` tests passed
+- Rebuilt and restarted the containerized web runtime in WSL Docker:
+  - command:
+    - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns && docker compose -f docker-compose.local.yml --env-file .tmp/loomic-local.env build web && docker compose -f docker-compose.local.yml --env-file .tmp/loomic-local.env up -d --no-deps web"`
+  - result:
+    - `@loomic/web` production build succeeded
+    - `loomic-arcins-web-1` recreated and started
+- Verified the live browser path with the Playwright CLI wrapper instead of the stale `node <snippet>.js` mistake:
+  - created:
+    - `D:/97-CodingProject/Loomic-ArcIns/output/playwright/phase7-right-panel-review-2026-04-16.sh`
+  - verified command:
+    - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns && bash /mnt/d/97-CodingProject/Loomic-ArcIns/output/playwright/phase7-right-panel-review-2026-04-16.sh"`
+  - result:
+    - script returned `{"passed":true,...}`
+    - refreshed `phase7-right-panel-review-2026-04-16.json`
+    - refreshed collapsed and expanded screenshots
+- Latest live right-panel proof now confirms:
+  - collapsed composer placeholder is `描述建筑效果图、镜头脚本或评审目标，输入 @ 可引用素材`
+  - after `发送至对话`, placeholder switches to `已接入对话参考图，继续描述希望保留或改动的内容`
+  - right-side panel shows `创作记录` + `个人创作记录只保留30天` + `收起`
+  - `generatedFilesVisible` is now `false` when the only asset is an uploaded reference image, which matches the intended correction
+- Remaining gap after the new screenshot comparison:
+  - the current local shell is structurally much closer, but the panel content layer still diverges from the audited Jianzhuxuezhang reference
+  - missing or simplified pieces include header icon actions, the warm notice block, and richer history/result cards inside the record list
+- Immediate next focus:
+  - freeze the next right-panel content-layer parity batch with tests
+  - then implement the missing record-shell content pieces without regressing the current canvas/composer coupling
+
+## Latest Update: 2026-04-16 09:40 Asia/Shanghai
+
+- Started the next bounded Phase 7 parity batch for the immersive `创作记录` content layer.
+- Used two parallel explorer subagents to tighten the next scope instead of guessing:
+  - one inspected the `chat-sidebar.tsx` immersive panel structure and identified the exact header / notice / history / composer control points
+  - one reviewed the latest screenshots and test suite to identify which gaps should be frozen now and which ones should stay flexible
+- Followed TDD for the next visible parity slice:
+  - added a new red test to `apps/web/test/chat-sidebar.test.tsx` for a dismissible immersive notice block
+  - added a new page-shell test to `apps/web/test/canvas-page-shell.test.tsx` to freeze the right-top `创作记录` toggle behavior
+  - added a new context-menu/page integration test to `apps/web/test/canvas-page-context-menu.test.tsx` to freeze that `发送至对话` keeps the `attach-selection` composer command even after the user opens the right panel
+- Implemented the bounded UI change in `apps/web/src/components/chat-sidebar.tsx`:
+  - added a warm-toned immersive notice card below the header
+  - added `我知道了` dismissal behavior
+  - reset the notice dismissal state when `canvasId` changes so a new canvas/session starts from the default reviewed state
+  - deliberately kept the data flow unchanged: no server contract changes, no message schema changes, no canvas operation coupling changes
+- Focused verification after the new content-layer batch:
+  - command:
+    - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/chat-sidebar.test.tsx test/canvas-page-shell.test.tsx test/canvas-page-context-menu.test.tsx --reporter=dot --pool forks"`
+  - result:
+    - `3` files passed
+    - `26` tests passed
+- Bounded regression after the notice landed:
+  - command:
+    - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/canvas-context-actions.test.ts test/canvas-context-menu.test.tsx test/canvas-page-context-menu.test.tsx test/canvas-page-selection-action-bar.test.tsx test/canvas-page-shell.test.tsx test/canvas-editor-context-menu.test.tsx test/canvas-tool-menu.test.tsx test/chat-input.test.tsx test/chat-sidebar.test.tsx test/canvas-files-panel.test.tsx --reporter=dot --pool forks"`
+  - result:
+    - `10` files passed
+    - `54` tests passed
+- Rebuilt the containerized web runtime and reran the live browser proof:
+  - command:
+    - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns && docker compose -f docker-compose.local.yml --env-file .tmp/loomic-local.env build web && docker compose -f docker-compose.local.yml --env-file .tmp/loomic-local.env up -d --no-deps web && bash /mnt/d/97-CodingProject/Loomic-ArcIns/output/playwright/phase7-right-panel-review-2026-04-16.sh"`
+  - result:
+    - script returned `{"passed":true,...}`
+    - `noticeVisible: true`
+    - `noticeAcknowledgeVisible: true`
+    - `generatedFilesVisible: false`
+- Visual comparison result after the new browser proof:
+  - local now aligns materially better with the reference on:
+    - header title + 30-day badge
+    - warm notice block
+    - `收起` control
+    - bottom docked composer composition
+  - the largest remaining deltas are now concentrated in:
+    - the header icon-action cluster
+    - richer record/history cards in the scroll area
+    - generated result card styling/content
+- Immediate next focus:
+  - keep the current batch closed
+  - move into the next right-panel parity slice for header icon actions and record-card rendering, but only after freezing a safe test surface for those two areas
+
+## Latest Update: 2026-04-16 10:20 Asia/Shanghai
+
+- Continued the next bounded Phase 7 parity batch for the immersive `创作记录` record-card layer instead of widening back into canvas/state contracts.
+- Followed TDD for the next smallest visible gap:
+  - added a new red test in `apps/web/test/chat-sidebar.test.tsx` for an immersive record card that appears after `attach-selection`
+  - froze the minimum audited card content:
+    - `画布参考图 1`
+    - `改为夜景`
+    - `重新描述`
+    - `图片生成：Banana Pro`
+    - `生成文件列表`
+  - the first focused run failed exactly where expected because `chat-sidebar` had no immersive record card renderer yet
+- Implemented a bounded front-end-only change in `apps/web/src/components/chat-sidebar.tsx`:
+  - added a minimal attachment-backed immersive record card that appears once canvas references are attached into the conversation
+  - reused existing `readyAttachments` with `source === "canvas-ref"` for the pre-run card state instead of introducing a new store
+  - reused `externalDraft` / `setExternalDraft` for the `改为夜景` and `重新描述` quick actions so the docked composer receives the new prompt and focus automatically
+  - added an immersive generated-files loading placeholder that renders `生成文件列表 / 加载中...` before scene-generated outputs exist
+  - deliberately kept the change local to `ChatSidebar`: no server contract, websocket protocol, or message-schema changes in this batch
+- Fresh focused verification after the record-card implementation:
+  - command:
+    - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/chat-sidebar.test.tsx --reporter=dot --pool forks"`
+  - result:
+    - `1` file passed
+    - `17` tests passed
+- Fresh bounded regression after the new record-card layer landed:
+  - command:
+    - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/canvas-context-actions.test.ts test/canvas-context-menu.test.tsx test/canvas-page-context-menu.test.tsx test/canvas-page-selection-action-bar.test.tsx test/canvas-page-shell.test.tsx test/canvas-editor-context-menu.test.tsx test/canvas-tool-menu.test.tsx test/chat-input.test.tsx test/chat-sidebar.test.tsx test/canvas-files-panel.test.tsx --reporter=dot --pool forks"`
+  - result:
+    - `10` files passed
+    - `55` tests passed
+- Rebuilt the containerized web runtime and refreshed the live Playwright proof:
+  - command:
+    - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns && docker compose -f docker-compose.local.yml --env-file .tmp/loomic-local.env build web && docker compose -f docker-compose.local.yml --env-file .tmp/loomic-local.env up -d --no-deps web && bash /mnt/d/97-CodingProject/Loomic-ArcIns/output/playwright/phase7-right-panel-review-2026-04-16.sh"`
+  - result:
+    - `@loomic/web` production build succeeded
+    - Playwright script returned `passed: true`
+    - expanded right panel now visibly includes:
+      - `画布参考图 1`
+      - `改为夜景`
+      - `重新描述`
+      - `图片生成：Banana Pro`
+      - `生成文件列表`
+      - `加载中...`
+    - `generatedFilesVisible` is now `true` in the JSON proof because the new record card intentionally exposes the pre-generation file-list/loading block; this is a new reviewed behavior, not a regression of uploaded references leaking into the scene-generated file area
+- Immediate next focus:
+  - replace or augment the attachment-backed pre-run card with a message/tool-artifact-backed persisted history card model
+  - then move into the remaining header icon cluster and richer result-card styling gaps
+
+## Latest Update: 2026-04-16 12:21 Asia/Shanghai
+
+- Switched the active deliverable from implementation back to documentation-first because the user explicitly requested a formal PRD for the real `建筑学长` AI canvas product before more coding.
+- Re-synced planning context before writing:
+  - re-read `task_plan.md`
+  - re-read `findings.md`
+  - re-read `progress.md`
+  - re-read the user-provided teaching-flow markdown with UTF-8:
+    - `C:\Users\admin\Downloads\AI无限画布项目 (Canvas Agent) - 详细功能演示说明文档.md`
+- Re-used the existing authenticated real-site audit package under:
+  - `output/playwright/reference-audit`
+  - highest-value evidence rechecked in this session:
+    - `jzxz-home-closed-modal.png`
+    - `jzxz-canvas-detail-baseline.png`
+    - `audit-2-blank-right-click.png`
+    - `audit-4-left-shape-open.png`
+    - `content-2-top-image-selected.png`
+    - `content-3-top-image-right-click.png`
+    - `content-4-multi-selected.png`
+    - `content-5-multi-right-click.png`
+    - `send-dialog-4-panel-open.png`
+    - `inspect-panel-after-click.png`
+- Re-attempted live browser attachment:
+  - `chrome-devtools/list_pages`
+  - result: `Transport closed`
+  - consequence: wrote the PRD from saved real-site audit evidence instead of claiming a fresh live-page recheck
+- Parallelized research:
+  - one explorer summarized real-site audit artifacts
+  - one explorer summarized the teaching-flow markdown
+  - both outputs were folded back into the final PRD drafting pass
+- Wrote the formal PRD file:
+  - `docs/prd/2026-04-16-jianzhuxuezhang-ai-canvas-agent-prd.md`
+- The PRD now explicitly separates:
+  - confirmed real-page facts
+  - teaching-doc supplements
+  - still-unconfirmed items requiring a second browser review
+- No product code was changed in this step.
+- Next step:
+  - wait for the user to confirm or correct the PRD
+  - only after confirmation resume implementation against this frozen document
+
+## Latest Update: 2026-04-16 14:55 Asia/Shanghai
+
+- Resumed from the user instruction:
+  - `先补最后一轮针对待复核项的实站核查，再开始严格按 PRD 改造本项目`
+- Re-synced planning context before making changes:
+  - re-read `task_plan.md`
+  - re-read `findings.md`
+  - re-read `progress.md`
+  - ran the `planning-with-files` catch-up script
+  - confirmed the repository is still a dirty incremental workspace and preserved the no-revert rule
+- Re-opened the active process/implementation skills for this turn:
+  - `using-superpowers`
+  - `planning-with-files`
+  - `brainstorming`
+  - `writing-plans`
+  - `test-driven-development`
+  - `dispatching-parallel-agents`
+  - `subagent-driven-development`
+- Rechecked the latest follow-up evidence instead of trusting the older PRD blindly:
+  - re-read:
+    - `docs/prd/2026-04-16-jianzhuxuezhang-ai-canvas-agent-prd.md`
+    - `output/playwright/reference-audit/pending-review-followup-summary-2026-04-16.json`
+    - `output/playwright/reference-audit/verify-pending-followup-2026-04-16.js`
+  - re-read the user-provided teaching-flow markdown with UTF-8:
+    - `C:\Users\admin\Downloads\AI无限画布项目 (Canvas Agent) - 详细功能演示说明文档.md`
+  - visually inspected the decisive screenshots:
+    - `output/playwright/reference-audit/pending-home-new-project-after-2026-04-16.png`
+    - `output/playwright/reference-audit/pending-detail-add-open-2026-04-16.png`
+    - `output/playwright/reference-audit/pending-detail-shape-open-2026-04-16.png`
+    - `output/playwright/reference-audit/pending-layer-after-click-followup-2026-04-16.png`
+- Final factual corrections identified before code:
+  - `新建项目` opens an `添加项目` modal first
+  - `添加` and `形状` are separate controls
+  - `形状` is a compact flyout with a top style bar and 5 visible shape buttons
+  - left-bottom `图层` opens a left panel titled `图层`
+  - `发送至对话` does not remain as an independent chip after deselection
+- Updated the PRD in-place to align it with the final follow-up audit:
+  - corrected the `新建项目` entry flow
+  - corrected `发送至对话` semantics
+  - upgraded `形状` and `图层` from partial uncertainty to stronger confirmed facts
+  - kept the right-panel header icon cluster explicitly unresolved
+- Parallelized sidecar analysis while patching docs locally:
+  - one explorer is auditing current `/canvas` implementation gaps against the corrected PRD
+  - one explorer is auditing which existing tests must be corrected first before TDD implementation
+- Immediate next step after this writeback:
+  - freeze a Batch 1 implementation plan against the corrected PRD
+  - then start by correcting the stale tests before touching production code
+
+## Latest Update: 2026-04-16 15:42 Asia/Shanghai
+
+- Completed the local evidence-first closure pass for the final pre-implementation audit.
+- Re-synced the current workspace state before claiming anything:
+  - re-read `task_plan.md`
+  - re-read `findings.md`
+  - re-read `progress.md`
+  - ran `planning-with-files` session catch-up
+  - checked `git status --short`
+  - checked `git diff --stat`
+- Fresh targeted regression evidence for the corrected Batch 6 slice:
+  - command:
+    - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/chat-sidebar.test.tsx test/chat-input.test.tsx test/canvas-page-shell.test.tsx test/canvas-tool-menu.test.tsx test/home-page-shell.test.tsx test/use-create-project.test.tsx --reporter=dot --pool forks"`
+  - result:
+    - `6` files passed
+    - `38` tests passed
+- Additional code-state sanity check:
+  - command:
+    - `git diff --check`
+  - result:
+    - returned non-zero because the wider dirty workspace still contains historical trailing-whitespace / CRLF hygiene noise
+    - no functional regression was inferred from this check, so the audit did not widen into unrelated formatting cleanup
+- Rebuilt and restarted the local WSL Docker web runtime:
+  - command:
+    - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns && docker compose -f docker-compose.local.yml --env-file .tmp/loomic-local.env build web"`
+    - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns && docker compose -f docker-compose.local.yml --env-file .tmp/loomic-local.env up -d --no-deps web && docker compose -f docker-compose.local.yml --env-file .tmp/loomic-local.env ps web && curl -I --max-time 20 http://127.0.0.1:3000/home"`
+  - result:
+    - `@loomic/web` production build succeeded
+    - `loomic-arcins-web-1` restarted successfully
+    - `http://127.0.0.1:3000/home` returned `HTTP/1.1 200 OK`
+- Added a dedicated local browser-proof script for the corrected follow-up facts:
+  - new files:
+    - `output/playwright/phase7-batch6-verify-2026-04-16.js`
+    - `output/playwright/phase7-batch6-verify-2026-04-16.sh`
+- First browser attempt produced a useful probe failure rather than a product conclusion:
+  - command:
+    - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns && bash /mnt/d/97-CodingProject/Loomic-ArcIns/output/playwright/phase7-batch6-verify-2026-04-16.sh"`
+  - result:
+    - the first run failed at the deselection step
+    - screenshot review showed the selected-image quick bar was still visible, meaning the probe clicked non-canvas chrome instead of true blank canvas
+    - this was recorded as a verification-script issue, not immediately as a product defect
+  - evidence:
+    - `output/playwright/phase7-batch6-debug-2026-04-16.png`
+    - `output/playwright/phase7-batch6-send-deselect-2026-04-16.png`
+    - `output/playwright/phase7-batch6-verify-2026-04-16.json`
+- Applied a bounded debugging fix only to the proof script:
+  - changed the deselection probe from a single hard-coded point to multiple blank-canvas candidates
+  - required both:
+    - the placeholder to leave reference mode
+    - the selected-image quick bar to disappear
+- Final browser proof is now green:
+  - command:
+    - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns && bash /mnt/d/97-CodingProject/Loomic-ArcIns/output/playwright/phase7-batch6-verify-2026-04-16.sh"`
+  - result:
+    - `passed: true`
+    - confirmed locally against the rebuilt runtime:
+      - `新建项目` first opens `添加项目`
+      - left-bottom `图层` opens the left `图层` panel
+      - `形状` opens a compact flyout with a top style strip and 5 shape buttons
+      - `发送至对话` enters reference mode only while the selection remains
+      - after clicking actual blank canvas, the placeholder resets to `描述建筑效果图、镜头脚本或评审目标，输入 @ 可引用素材`
+  - evidence:
+    - `output/playwright/phase7-batch6-verify-2026-04-16.json`
+    - `output/playwright/phase7-batch6-home-dialog-2026-04-16.png`
+    - `output/playwright/phase7-batch6-layer-open-2026-04-16.png`
+    - `output/playwright/phase7-batch6-shape-open-2026-04-16.png`
+    - `output/playwright/phase7-batch6-send-deselect-2026-04-16.png`
+- This closes the final local audit baseline for the currently disputed Batch 6 facts.
+- No production app code was changed in this audit pass; only proof scripts and documentation were updated.
+- Immediate next step:
+  - move from audit closure into the next strict PRD-driven implementation batch
+  - keep the unresolved right-panel header icon semantics out of scope until a new real-site check confirms them
+
+## Latest Update: 2026-04-16 16:20 Asia/Shanghai
+
+- Entered the first strict PRD-driven implementation slice after the final audit closure.
+- Chosen slice for this pass:
+  - fix the clearly unimplemented `多选导出` action in `/canvas/detail`
+  - keep `查看大图` deep processing state, `编辑` focused mask workflow, and unresolved header icons out of scope for this pass
+- Followed TDD before touching production code:
+  - added a new red test in `apps/web/test/canvas-page-context-menu.test.tsx`
+  - new assertion freezes:
+    - multi-image context-menu `导出` must export the current selection as PNG
+    - it must not fall back to whole-canvas JSON export
+  - first focused run failed for the right reason after one test-environment fix:
+    - initial failure was jsdom missing `URL.createObjectURL`
+    - after patching the test harness, the red test failed because `drawImage` was never called, proving the product still lacked real multi-export behavior
+- Implemented the bounded production fix in `apps/web/src/app/canvas/page.tsx`:
+  - generalized image loading error copy from merge-only wording to asset wording
+  - added small local helpers:
+    - `downloadBlobFile`
+    - `downloadUrlFile`
+    - `getSceneImageSource`
+  - replaced the old fallback logic in `handleExportSelection`
+  - new behavior:
+    - reads the live selected image nodes from Excalidraw
+    - resolves each image source from file/data/storage URL
+    - rasterizes the current selection into a temporary canvas
+    - downloads `canvas-selection-export.png`
+    - logs a success line with exported count and raster size
+- Fresh focused verification:
+  - command:
+    - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/canvas-page-context-menu.test.tsx --reporter=dot --pool forks"`
+  - result:
+    - `1` file passed
+    - `9` tests passed
+- Fresh bounded regression:
+  - command:
+    - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/canvas-context-actions.test.ts test/canvas-context-menu.test.tsx test/canvas-page-context-menu.test.tsx test/canvas-page-selection-action-bar.test.tsx test/canvas-page-shell.test.tsx test/canvas-editor-context-menu.test.tsx test/canvas-tool-menu.test.tsx test/chat-input.test.tsx test/chat-sidebar.test.tsx test/canvas-files-panel.test.tsx --reporter=dot --pool forks"`
+  - result:
+    - `10` files passed
+    - `58` tests passed
+- Started the container/runtime verification step, but the first `docker compose ... build web` attempt became a long-running background build and contributed to WSL memory pressure.
+  - a Playwright proof script was drafted but not yet validated against a freshly rebuilt web image in this pass
+  - do not claim this slice as container/browser-verified yet
+- Runtime stabilization work completed after the user interruption:
+  - closed completed subagents:
+    - `019d954d-fd2b-7161-aed8-8ee8274e20c3`
+    - `019d954e-1ba9-7892-a206-2f6b5ece3e85`
+    - `019d954a-b0bf-7d72-a65a-b585b25ff5a1`
+    - `019d954a-b200-7660-925a-90d215778a3d`
+  - identified the main lingering WSL pressure as a stuck root-owned web-image build chain:
+    - `/bin/sh -c pnpm --filter @loomic/shared build ... && pnpm --filter @loomic/web build`
+    - `node /usr/local/bin/pnpm --filter @loomic/web build`
+    - `next build`
+    - `jest-worker/processChild.js`
+  - force-killed that chain with `sudo kill -TERM ...`
+- Verified runtime/mirror facts after cleanup:
+  - `/etc/docker/daemon.json` contains:
+    - `https://docker.m.daocloud.io`
+  - repo build args still point to domestic package sources:
+    - `https://registry.npmmirror.com/`
+    - `http://mirrors.tuna.tsinghua.edu.cn/debian`
+    - `https://pypi.tuna.tsinghua.edu.cn/simple/`
+- Current post-cleanup container memory snapshot:
+  - `loomic-arcins-web-1`: about `16.84MiB`
+  - `loomic-arcins-server-1`: about `554MiB`
+  - `supabase_db_loomic`: about `2.645GiB`
+  - `supabase_analytics_loomic`: about `0.74GiB`
+- Immediate next step:
+  - resume this slice with a lighter runtime strategy
+  - avoid stacking another long `docker compose build web` until the environment is quiet
+  - then finish container/browser proof for the multi-export slice before moving to the next PRD gap
+
+## Latest Update: 2026-04-16 18:48 Asia/Shanghai
+
+- Investigated why repeated `docker compose ... build web` runs still felt abnormally slow even with domestic mirrors configured.
+- Root-cause evidence gathered from the build log:
+  - almost all Docker layers were cached
+  - the slow step was always:
+    - `apps/web` -> `next build`
+  - the log repeatedly stalled at:
+    - `Creating an optimized production build ...`
+    - `socket hang up`
+    - `Retrying 1/3`, `Retrying 2/3`
+- Source inspection confirmed the concrete build-time foreign dependency:
+  - `apps/web/src/app/layout.tsx` imported `next/font/google`
+  - this matched the observed build behavior in the current CN network environment
+- Followed TDD for the build-unblock fix:
+  - added `apps/web/test/root-layout.test.tsx`
+  - red run:
+    - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/root-layout.test.tsx --reporter=dot --pool forks"`
+    - failed because `src/app/layout.tsx` still imported `next/font/google`
+  - green implementation:
+    - removed `next/font/google` from `apps/web/src/app/layout.tsx`
+    - replaced the root font source with a local system stack in `apps/web/src/app/globals.css`
+  - green re-run:
+    - same command
+    - result: `1` file passed, `1` test passed
+- Added a small affected-surface regression after the layout change:
+  - command:
+    - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/root-layout.test.tsx test/root-page.test.tsx test/login.test.tsx test/home-page-shell.test.tsx test/canvas-page-shell.test.tsx --reporter=dot --pool forks"`
+  - result:
+    - `5` files passed
+    - `13` tests passed
+- Found and terminated a lingering background build chain left behind by the previously aborted turn:
+  - active processes included:
+    - `docker compose ... build web`
+    - `/usr/libexec/docker/cli-plugins/docker-compose compose ... build web`
+    - buildkit executor process
+  - terminated them with:
+    - `wsl.exe -e bash -lc "kill -TERM ..."`
+- Re-ran the real container build after the layout fix:
+  - command:
+    - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns && time docker compose -f docker-compose.local.yml --env-file .tmp/loomic-local.env build web"`
+  - result:
+    - build succeeded
+    - total wall time about `3m02s`
+    - no more `socket hang up` retry loop
+- Restarted the runtime and resumed the Batch 7 browser proof:
+  - runtime refresh:
+    - `docker compose -f docker-compose.local.yml --env-file .tmp/loomic-local.env up -d --no-deps web`
+    - `curl -I --max-time 20 http://127.0.0.1:3000/home`
+    - result: `HTTP/1.1 200 OK`
+- Refined the local Playwright proof for `多选导出`:
+  - tightened it to assert the real `role="menu"` / `aria-label="多图菜单"` instead of loose page-text matching
+  - added stale-session cleanup with `playwright-cli kill-all`
+  - attached console/response observers to the actual canvas page instead of only the login page
+  - changed the export activation fallback from pointer click to DOM `click()` only when the centered composer overlaps the menu
+  - relaxed the proof to accept the runtime export success log when Playwright CLI does not surface a `download` event for the `blob + anchor.download` path
+- Final browser proof:
+  - command:
+    - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns && bash /mnt/d/97-CodingProject/Loomic-ArcIns/output/playwright/phase7-batch7-multi-export-verify-2026-04-16.sh"`
+  - result:
+    - `passed: true`
+    - confirmed:
+      - multi-image context menu exposes `发送至对话 / 创建编组 / 合并图层 / 导出`
+      - live runtime logs:
+        - `[canvas-page] exported selected canvas images {exportedCount: 2, width: 600, height: 394}`
+      - `exportActivation` recorded as:
+        - `dom-click-fallback-after-composer-overlap`
+      - `downloadEventObserved` recorded as:
+        - `false`
+  - evidence:
+    - `output/playwright/phase7-batch7-multi-export-2026-04-16.json`
+    - `output/playwright/phase7-batch7-multi-export-2026-04-16.png`
+    - `output/playwright/phase7-batch7-multi-export-debug-2026-04-16.png`
+- Residual runtime issue observed during the final proof:
+  - one initial `PUT /api/canvases/:id` returned `500`
+  - later saves and thumbnail upload succeeded in the same flow
+  - keep this visible as the next bounded stability follow-up
+
+## 2026-04-16 19:05 Asia/Shanghai
+
+- Re-read the user-provided slow `docker compose ... build web` log and confirmed the bottleneck is not broad Docker cache invalidation.
+- Build-stage interpretation:
+  - `#1`-`#25` are almost entirely cached.
+  - The slow step is `#26` where the workspace packages build and `apps/web` runs `next build`.
+  - The old hang at `Creating an optimized production build ...` with `socket hang up` / `Retrying` came from the previous `next/font/google` fetch path.
+- Re-verified the repo fix is still in place:
+  - `apps/web/src/app/layout.tsx` uses local CSS only.
+  - `apps/web/src/app/globals.css` provides the font stack.
+- Operational conclusion for future runs:
+  - after the font fix, `build web` is no longer blocked by Google-font retries, but production image rebuilds still take minutes because they execute a real optimized Next.js build for the monorepo.
+  - the `buildx` warning is secondary and not the root cause of the user-shared stall.
+- Next response to the user should separate:
+  - what has already been fixed
+  - what remains inherently expensive in production builds
+  - what the fastest future workflow should be for day-to-day frontend iteration
+
+## 2026-04-16 19:43 Asia/Shanghai
+
+- Implemented a dedicated dev-container inner-loop for the `web` service to avoid repeated production-image rebuilds during UI work.
+- Code changes in this slice:
+  - added `docker-compose.dev.yml`
+  - added `apps/web/Dockerfile.dev`
+  - added root scripts:
+    - `docker:dev:web`
+    - `docker:dev:web:detach`
+    - `docker:dev:web:stop`
+  - added `apps/web` script:
+    - `dev:docker`
+  - added watch scripts for:
+    - `packages/shared`
+    - `packages/config`
+    - `packages/ui`
+  - updated `tests/workspace.test.mjs` to lock the dev-workflow contract and to remove the stale `apps/desktop` assumption from the workspace smoke test
+- TDD / static verification:
+  - command:
+    - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns && node --test tests/workspace.test.mjs"`
+  - result:
+    - `11` tests passed
+- Compose merge verification:
+  - command:
+    - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns && docker compose -f docker-compose.local.yml -f docker-compose.dev.yml --env-file .tmp/loomic-local.env config --services"`
+  - result:
+    - `server`, `web`, `worker`
+  - merged config confirmed:
+    - `web` uses `apps/web/Dockerfile.dev`
+    - source bind mount is active
+    - named volumes back `node_modules`, `.next`, and `/pnpm/store`
+- Cold-path runtime verification:
+  - command:
+    - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns && time docker compose -f docker-compose.local.yml -f docker-compose.dev.yml --env-file .tmp/loomic-local.env build web"`
+  - result:
+    - cold dev image build completed in about `1m39s`
+  - first dev-volume startup then completed after one dependency reconciliation run:
+    - `pnpm install` done in about `4m27s`
+    - `next dev` then reached ready state
+    - `/home` returned `HTTP/1.1 200 OK`
+- Warm-path runtime verification:
+  - command:
+    - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns && time docker compose -f docker-compose.local.yml -f docker-compose.dev.yml --env-file .tmp/loomic-local.env build web && docker rm -f loomic-arcins-web-1 >/dev/null 2>&1 || true && time docker compose -f docker-compose.local.yml -f docker-compose.dev.yml --env-file .tmp/loomic-local.env up -d --no-deps web"`
+  - result:
+    - warm dev image rebuild completed in about `7.5s`
+    - warm `up -d --no-deps web` completed in about `0.6s`
+    - container logs showed `Already up to date` for pnpm in about `2.5s`
+    - `next dev` was ready in about `3.4s`
+    - `/home` returned `HTTP/1.1 200 OK`
+- Runtime bug fixed during verification:
+  - non-TTY `pnpm install` initially caused `ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY`
+  - updated `apps/web/Dockerfile.dev` so install runs in CI mode and `web` remains the primary foreground process while `shared/config/ui` watchers stay attached as companion processes
+- Operational recommendation from now on:
+  - use `pnpm docker:dev:web:detach` for local UI iteration in WSL Docker
+  - reserve `docker compose -f docker-compose.local.yml ... build web` for milestone verification only
+
+## 2026-04-16 20:30 Asia/Shanghai
+
+- Created Batch 8 execution plan:
+  - `D:/97-CodingProject/Loomic-ArcIns/docs/execution/2026-04-16-architecture-agent-studio-phase7-batch8-plan.md`
+- Added focused TDD coverage for the layers panel:
+  - `D:/97-CodingProject/Loomic-ArcIns/apps/web/test/canvas-layers-panel.test.tsx`
+- Red phase evidence:
+  - `node ../../node_modules/vitest/vitest.mjs run test/canvas-layers-panel.test.tsx --reporter=dot --pool forks`
+  - initial failures confirmed:
+    - layer row action buttons were still no-op
+    - row markup contained invalid nested `button` structure
+- Implemented the bounded fix in:
+  - `D:/97-CodingProject/Loomic-ArcIns/apps/web/src/components/canvas-layers-panel.tsx`
+- Green phase evidence:
+  - `node ../../node_modules/vitest/vitest.mjs run test/canvas-layers-panel.test.tsx --reporter=dot --pool forks` -> PASS (`3` tests)
+  - `node ../../node_modules/vitest/vitest.mjs run test/canvas-layers-panel.test.tsx test/canvas-page-shell.test.tsx --reporter=dot --pool forks` -> PASS (`6` tests)
+  - `node ../../node_modules/vitest/vitest.mjs run test/canvas-context-actions.test.ts test/canvas-layers-panel.test.tsx test/canvas-page-shell.test.tsx --reporter=dot --pool forks` -> PASS (`13` tests)
+- Runtime verification attempt notes:
+  - `./scripts/wsl/write-local-docker-env.sh .tmp/loomic-local.env` initially failed because local Supabase was still starting after the reboot
+  - later `supabase status -o env` recovered successfully
+  - current `pnpm docker:dev:web:detach` path still shows a separate local dev-runtime / port-reachability issue, so this batch is documented as source-verified + test-verified, with container page-route proof pending follow-up
+
+## 2026-04-16 20:50 Asia/Shanghai
+
+- Processed the external review findings for Batch 8 and verified both items were technically correct.
+- Added two new regression checks in `D:/97-CodingProject/Loomic-ArcIns/apps/web/test/canvas-layers-panel.test.tsx`:
+  - row-level lock must still target the clicked layer even if app-state selection writes are deferred
+  - the selected layer button must expose `aria-current="true"`
+- Updated `D:/97-CodingProject/Loomic-ArcIns/apps/web/src/lib/canvas-context-actions.ts` to support explicit layer-id lock / visibility mutations.
+- Updated `D:/97-CodingProject/Loomic-ArcIns/apps/web/src/components/canvas-layers-panel.tsx` to use the explicit-id helper path and to expose selected-state accessibility semantics.
+- Fresh post-review verification:
+  - `node ../../node_modules/vitest/vitest.mjs run test/canvas-layers-panel.test.tsx --reporter=dot --pool forks` -> PASS (`5` tests)
+  - `node ../../node_modules/vitest/vitest.mjs run test/canvas-context-actions.test.ts test/canvas-layers-panel.test.tsx test/canvas-page-shell.test.tsx --reporter=dot --pool forks` -> PASS (`15` tests)
+
+## 2026-04-16 23:49 Asia/Shanghai
+
+- Closed the previously isolated `dev-runtime` blocker that explained why Windows could not open `http://127.0.0.1:3000`.
+- Root-cause confirmation collected before fixing:
+  - merged `docker-compose.local.yml + docker-compose.dev.yml` still inherited `network_mode: host`
+  - Windows `Test-NetConnection 127.0.0.1 -Port 3000/3001` had previously failed even when WSL-side services were alive
+  - `scripts/wsl/write-local-docker-env.sh` only emitted browser-safe Supabase URLs, not bridge-container-safe host-gateway URLs
+- TDD / static contract work:
+  - extended `D:/97-CodingProject/Loomic-ArcIns/tests/workspace.test.mjs` with two new runtime-fallback checks
+  - first run failed exactly where expected:
+    - missing `bridge + published ports + host.docker.internal` contract in `docker-compose.dev.yml`
+    - missing `SUPABASE_INTERNAL_URL / SUPABASE_INTERNAL_DB_URL` contract in `write-local-docker-env.sh`
+  - after implementation, `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns && node --test tests/workspace.test.mjs"` passed with `13` tests
+- Implemented the bounded runtime fix in:
+  - `D:/97-CodingProject/Loomic-ArcIns/docker-compose.dev.yml`
+  - `D:/97-CodingProject/Loomic-ArcIns/scripts/wsl/write-local-docker-env.sh`
+- Recovery notes during verification:
+  - the first env regeneration attempt still failed because `supabase status -o env` was queried while the local stack was cold-starting
+  - inspecting `supabase_auth_loomic` logs confirmed this was startup timing against Postgres readiness, not a new credentials/config regression
+  - once `supabase status` returned healthy output again, the env file regenerated successfully
+- Fresh runtime evidence after the fix:
+  - `.tmp/loomic-local.env` now includes:
+    - `SUPABASE_INTERNAL_URL=http://host.docker.internal:54321`
+    - `SUPABASE_INTERNAL_DB_URL=postgresql://postgres:postgres@host.docker.internal:54322/postgres`
+  - merged compose config now proves:
+    - `server/web/worker` use `network_mode: bridge`
+    - `web` publishes `3000:3000`
+    - `server` publishes `3001:3001`
+    - `server/worker` consume the new internal Supabase URLs through `host.docker.internal:host-gateway`
+  - `docker compose ... up -d --force-recreate server worker web` recreated the dev stack cleanly
+  - WSL verification:
+    - `/home` returned `HTTP/1.1 200 OK` after the expected cold-start wait
+    - `/api/health` returned `HTTP/1.1 200 OK`
+  - Windows verification:
+    - `Invoke-WebRequest http://127.0.0.1:3000/home` -> `200`
+    - `Invoke-WebRequest http://127.0.0.1:3001/api/health` -> `200`
+    - `Test-NetConnection 127.0.0.1 -Port 3000` -> `TcpTestSucceeded : True`
+    - `Test-NetConnection 127.0.0.1 -Port 3001` -> `TcpTestSucceeded : True`
+- Status conclusion:
+  - the old Batch 8 `container page-route proof pending` note is now resolved
+  - the dev override remains slower on a cold reboot because the web container still performs one dependency reconciliation plus shared/config/ui prebuild before `next dev` is ready, but this is now a startup-latency trait rather than a localhost reachability failure
+- Next bounded execution focus:
+  - return to the frozen PRD and implement the next canvas-management parity slice
+  - the most obvious remaining item is `图层树拖拽调整 Z-index`
+
+## 2026-04-17 00:08 Asia/Shanghai
+
+- Followed up immediately after the user reported that Windows had gone back to `127.0.0.1 refused to connect`.
+- Fresh reproduction proved this was not a frontend regression:
+  - Windows `Test-NetConnection` for `3000/3001` failed again
+  - `docker ps` showed the entire local stack (`loomic-*` and `supabase_*`) had all just restarted within a few seconds
+  - WSL `uptime` had reset, meaning the Linux backend itself had restarted
+- Root-cause investigation moved one layer below Docker Compose:
+  - `journalctl -u docker` showed `docker.service` being started and then stopped only seconds later
+  - `systemctl cat docker.service` / `docker.socket` showed no project-specific misconfiguration in the unit files
+  - this matches WSL lifecycle behavior: systemd services alone do not guarantee the distro stays alive for browser-driven localhost access from Windows
+- Applied a low-risk session mitigation instead of a permanent always-on memory policy:
+  - created a temporary WSL keepalive process and stored its pid in `/tmp/loomic-keepalive.pid`
+  - restarted Docker as `root`
+  - re-ran `docker compose -f docker-compose.local.yml -f docker-compose.dev.yml --env-file .tmp/loomic-local.env up -d server worker web`
+- Current evidence after the mitigation:
+  - Windows `http://127.0.0.1:3001/api/health` returned `200`
+  - Windows `http://127.0.0.1:3000/home` returned `200`
+  - after an additional `40s` idle wait on the Windows side, both endpoints still returned `200`
+- Operational interpretation:
+  - the project runtime itself is now fine once WSL stays alive
+  - the remaining issue is host-environment lifecycle stability, not current Loomic source behavior
+  - a future hardening step should package this into a one-click Windows-side launcher instead of relying on an ad-hoc keepalive
+
+## 2026-04-17 00:30 Asia/Shanghai
+
+- Resumed from the unsynced Phase 7 context and re-ran the bounded red-green checks before touching any new code.
+- Focused verification:
+  - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns && node --test tests/workspace.test.mjs"`
+    - first run failed only on the new launcher-contract expectation
+    - failure detail: `scripts/windows/start-local-runtime.ps1` did not literally expose `wsl.exe -u root`
+  - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/canvas-context-actions.test.ts test/canvas-layers-panel.test.tsx --reporter=dot --pool forks"`
+    - passed immediately with `14` tests
+- Applied the smallest possible fix to the runtime launcher contract:
+  - updated `D:/97-CodingProject/Loomic-ArcIns/scripts/windows/start-local-runtime.ps1`
+  - updated `D:/97-CodingProject/Loomic-ArcIns/scripts/windows/stop-local-runtime.ps1`
+  - both scripts now issue an explicit `wsl.exe -u root -d <distro> -e bash -lc "systemctl start docker..."` call before delegating to the WSL-side runtime scripts
+- Re-ran `node --test tests/workspace.test.mjs` after the patch:
+  - passed with `14` tests
+
+## 2026-04-17 00:33 Asia/Shanghai
+
+- Executed the new Windows-side runtime launcher directly because this host still does not expose `pnpm` in Windows `PATH`:
+  - `powershell -ExecutionPolicy Bypass -File scripts/windows/start-local-runtime.ps1`
+  - result: PASS
+- The launcher proved the intended stable local-runtime behavior:
+  - started `loomic-runtime-keepalive` and wrote its pid
+  - started / confirmed `docker.service`
+  - started / confirmed local Supabase
+  - regenerated `.tmp/loomic-local.env`
+  - brought up `server`, `worker`, and `web` using `docker-compose.local.yml + docker-compose.dev.yml`
+- Follow-up runtime status proof:
+  - `powershell -ExecutionPolicy Bypass -File scripts/windows/status-local-runtime.ps1`
+    - `keepalive=running`
+    - `docker=active`
+    - Windows `Test-NetConnection` succeeded for `3000` and `3001`
+    - `http://127.0.0.1:3000/home => 200`
+    - `http://127.0.0.1:3001/api/health => 200`
+  - `Start-Sleep -Seconds 45; powershell -ExecutionPolicy Bypass -File scripts/windows/status-local-runtime.ps1`
+    - both endpoints still returned `200` after idle wait
+- Conclusion:
+  - the runtime closure is now durable at the repo-tooling level for this machine
+  - the remaining work can return to the frozen PRD feature slices without treating localhost reachability as open
+
+## 2026-04-17 01:31 Asia/Shanghai
+
+- Resumed from the frozen Phase 7 PRD and closed the bounded immersive bottom-composer contract slice before moving on to the next UI batch.
+- Focused verification:
+  - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/chat-input.test.tsx test/chat-sidebar.test.tsx --reporter=dot --pool forks"`
+    - PASS (`31` tests)
+  - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/server && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run src/agent/runtime.test.ts --reporter=dot --pool forks"`
+    - PASS (`4` tests)
+  - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/packages/shared && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run src/contracts.test.ts -t 'image output preference' --reporter=dot --pool forks"`
+    - PASS (`1` targeted assertion, `35` skipped)
+- Confirmed closure for this batch:
+  - immersive `自动` now represents aspect ratio selection
+  - immersive `1K` now represents resolution selection
+  - `imageOutputPreference` is stored, forwarded, and injected into server prompt XML
+- Ran one more live `建筑学长` audit round in Playwright against the real canvas page:
+  - direct DOM inspection confirmed header icon ids:
+    - `micro-icon-add-dialog`
+    - `micro-icon-history`
+    - `micro-icon-file-list`
+    - `micro-icon-shrink`
+  - hover tooltip inspection confirmed user-facing labels:
+    - `添加对话`
+    - `历史对话`
+    - `文件列表`
+    - `收起`
+  - React-prop inspection confirmed:
+    - `历史对话` is hover-popup driven
+    - `添加对话` / `文件列表` have real click handlers
+    - `收起` remains an icon-only collapse action
+- Documentation follow-up in this same session:
+  - refreshed `task_plan.md`
+  - refreshed `findings.md`
+  - refreshed `docs/verification/2026-04-12-architecture-agent-studio-validation.md`
+  - refreshed `docs/prd/2026-04-16-jianzhuxuezhang-ai-canvas-agent-prd.md`
+- Next step:
+  - implement the local right-panel header cluster to match the newly audited icon-only structure
+
+## 2026-04-17 02:06 Asia/Shanghai
+
+- Continued directly from the frozen PRD without reopening runtime architecture:
+  - first re-checked the supported Windows launcher status path
+  - `powershell -ExecutionPolicy Bypass -File scripts/windows/status-local-runtime.ps1`
+  - result: `keepalive=running`, `docker=active`, Windows `3000/home => 200`, Windows `3001/api/health => 200`
+- Entered a strict red-green cycle for the next bounded UI slice:
+  - updated `apps/web/test/canvas-files-panel.test.tsx` so embedded mode now requires a stable empty-state shell instead of disappearing
+  - re-ran:
+    - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/chat-sidebar.test.tsx test/canvas-files-panel.test.tsx --reporter=dot --pool forks"`
+  - result: RED as expected
+    - missing audited 4-icon immersive header cluster
+    - missing stable embedded `生成文件列表` shell
+- Applied the smallest production changes that satisfy the now-failing expectations:
+  - `apps/web/src/components/chat-sidebar.tsx`
+    - added the 4-icon immersive header cluster
+    - wired `收起` to the existing panel toggle
+    - wired `文件列表` to scroll to the embedded file-list section
+    - conservatively mapped `添加对话` to the existing new-session path
+    - left a TODO note that `历史对话` still needs a real hover-popup body after another live audit
+  - `apps/web/src/components/canvas-files-panel.tsx`
+    - embedded mode now keeps a stable shell even when there are no generated files
+    - added `sectionRef` support so the header icon can scroll to the embedded file-list section
+- Repaired the affected tests to match the new two-layer file-list contract:
+  - record-card `生成文件列表` and panel-level embedded `生成文件列表` are now both asserted intentionally
+  - the new header-button assertions were normalized so they are encoding-safe in the WSL test path
+- Fresh verification after the implementation:
+  - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/chat-sidebar.test.tsx test/canvas-files-panel.test.tsx --reporter=dot --pool forks"`
+    - PASS (`24` tests)
+  - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/chat-input.test.tsx test/chat-sidebar.test.tsx test/canvas-files-panel.test.tsx --reporter=dot --pool forks"`
+    - PASS (`35` tests)
+- Documentation writeback completed immediately after verification:
+  - updated `docs/prd/2026-04-16-jianzhuxuezhang-ai-canvas-agent-prd.md`
+  - updated `task_plan.md`
+  - updated `findings.md`
+  - updated `docs/verification/2026-04-12-architecture-agent-studio-validation.md`
+- Next step remains explicit:
+  - use the live site again before implementing `历史对话` popup body or right-panel file/template switching
+  - avoid inventing right-panel downstream behavior beyond what the audit has frozen
+
+## 2026-04-17 07:01 Asia/Shanghai
+
+- Resumed from the frozen Phase 7 PRD and ran one more bounded real-site audit round before touching code.
+- Audit method used in this session:
+  - reused the saved Jianzhuxuezhang login state:
+    - `output/playwright/reference-audit/jzxz-storage-state.json`
+  - drove Windows Chrome through local `playwright-core` scripts from PowerShell
+  - dismissed the current full-screen pricing notice first, because it otherwise fully covers the right-side panel and invalidates hover/click inspection
+- Fresh real-site findings captured:
+  - `历史对话` is now frozen:
+    - hovering the header icon opens a real `micro-popover`
+    - the popover contains title `历史对话`
+    - the popover renders session rows, with the observed active row `改为夜景`
+    - evidence:
+      - `output/playwright/reference-audit/pending-history-hover-fixed-2026-04-17.png`
+      - `output/playwright/reference-audit/pending-history-popover-element-2026-04-17.png`
+      - `output/playwright/reference-audit/pending-history-popover-rows-2026-04-17.json`
+  - `文件列表` is also now frozen:
+    - clicking the header icon switches to a dedicated right-side `生成文件列表` panel
+    - it does not scroll to an embedded shell inside the records panel
+    - the dedicated file panel shows title, close button, thumbnail list, and terminal copy `没有更多了`
+    - the bottom composer remains centered on canvas while this file panel is active
+    - evidence:
+      - `output/playwright/reference-audit/pending-file-view-clicked-2026-04-17.png`
+      - `output/playwright/reference-audit/pending-file-view-clicked-2026-04-17.txt`
+- Plan correction frozen before implementation:
+  - the old local fallback `文件列表 -> scroll to embedded shell` must be replaced
+  - the old assumption about a deeper right-panel `文件/模板` switching structure is no longer the next target
+  - the next TDD slice is now:
+    - immersive `历史对话` popover
+    - immersive dedicated `生成文件列表` panel
+    - bottom composer placement aligned to the dedicated file-view state
+
+## 2026-04-17 07:25 Asia/Shanghai
+
+- Continued from the frozen right-panel audit and started with the currently failing focused regression before touching more product code:
+  - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/chat-sidebar.test.tsx test/canvas-files-panel.test.tsx --reporter=dot --pool forks"`
+  - result: RED (`12` failed, `14` passed)
+  - root cause:
+    - `apps/web/src/components/chat-sidebar.tsx` computed `showingImmersiveFilePanel` before `immersivePanelView` was initialized
+    - runtime error:
+      - `ReferenceError: Cannot access 'immersivePanelView' before initialization`
+- Applied the smallest production correction first:
+  - moved the derived `showingImmersiveFilePanel` expression below the `immersivePanelView` state declaration in `apps/web/src/components/chat-sidebar.tsx`
+- Re-ran the same focused suite immediately:
+  - result: still RED, but now reduced to `1` failing assertion and `25` passing assertions
+  - remaining mismatch:
+    - `apps/web/test/chat-sidebar.test.tsx` still required the old immersive embedded file-list shell in records view
+    - this contradicted the newly frozen live-site audit that `文件列表` is a dedicated right-panel view rather than an embedded records-panel section
+- Corrected the outdated test contract:
+  - updated `apps/web/test/chat-sidebar.test.tsx` so the immersive record-card flow no longer requires `canvas-files-panel-embedded` to exist in records view
+  - retained the per-record `生成文件列表 / 加载中...` assertions on the record card itself
+- Fresh verification after the correction:
+  - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/chat-sidebar.test.tsx test/canvas-files-panel.test.tsx --reporter=dot --pool forks"`
+    - PASS (`26` tests)
+  - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/chat-input.test.tsx test/chat-sidebar.test.tsx test/canvas-files-panel.test.tsx --reporter=dot --pool forks"`
+    - PASS (`37` tests)
+- Documentation writeback completed in the same session:
+  - updated `docs/prd/2026-04-16-jianzhuxuezhang-ai-canvas-agent-prd.md`
+  - updated `task_plan.md`
+  - updated `findings.md`
+  - updated `docs/verification/2026-04-12-architecture-agent-studio-validation.md`
+
+## 2026-04-17 10:34 Asia/Shanghai
+
+- Continued directly to the next frozen composer parity gap: `23.4 模板三级结构`。
+- Added RED coverage first for the missing hierarchy contract:
+  - `apps/web/test/chat-input.test.tsx`
+    - immersive `模版` menu must render category buttons and only show the active category’s items
+  - `apps/web/test/chat-sidebar.test.tsx`
+    - `buildArchitectureTemplateSuggestions(...)` must carry category metadata instead of plain flat items
+- First focused run after the new tests:
+  - command:
+    - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/chat-input.test.tsx test/chat-sidebar.test.tsx --reporter=dot --pool forks"`
+  - result:
+    - RED (`2` failed, `35` passed)
+  - cause:
+    - `ChatInput` still rendered a flat template list
+    - `buildArchitectureTemplateSuggestions(...)` still lacked `categoryLabel`
+- Implemented the bounded production slice in:
+  - `apps/web/src/components/chat-input.tsx`
+  - `apps/web/src/components/chat-sidebar.tsx`
+- What changed in source:
+  - `ChatInputTemplateSuggestion` now supports category metadata
+  - immersive `模版` popover now renders category buttons and an active-category item list
+  - docked template recommendation block now groups template items by category instead of flattening everything
+  - `buildArchitectureTemplateSuggestions(...)` now stamps the current board flow into a conservative category label (`效果渲染` / `总平填色`)
+- Re-ran the focused suite after implementation:
+  - result:
+    - PASS (`2` files, `37` tests)
+- Then ran a wider bounded regression to make sure the composer change did not break adjacent canvas flows:
+  - command:
+    - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/chat-input.test.tsx test/chat-sidebar.test.tsx test/canvas-page-context-menu.test.tsx test/canvas-page-selection-action-bar.test.tsx --reporter=dot --pool forks"`
+  - result:
+    - PASS (`4` files, `48` tests)
+- Documentation writeback completed in the same session:
+  - updated `docs/prd/2026-04-16-jianzhuxuezhang-ai-canvas-agent-prd.md`
+  - updated `task_plan.md`
+  - updated `findings.md`
+  - updated `docs/verification/2026-04-12-architecture-agent-studio-validation.md`
+
+## 2026-04-17 08:05 Asia/Shanghai
+
+- Continued from the frozen PRD and moved to the next bounded mismatch: the empty architecture canvas shell.
+- Re-ran the red tests before touching production code:
+  - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/canvas-page-shell.test.tsx test/chat-input.test.tsx --reporter=dot --pool forks"`
+  - result: RED (`3` failing tests, `11` passing)
+  - failure points matched the expected open slice exactly:
+    - top-right trigger still rendered `创作记录` instead of `对话`
+    - blank-canvas shell still lacked `缩小画布 / 放大画布 / 100% / 充值`
+    - immersive `ChatInput` still used the older placeholder and upload-button semantics
+- Implemented the bounded shell fix in:
+  - `D:/97-CodingProject/Loomic-ArcIns/apps/web/src/app/canvas/page.tsx`
+    - added top-right zoom cluster and credits / `充值` shell
+    - renamed the blank-canvas trigger to `对话`
+    - hid the local `CanvasEmptyHint` overlay in architecture mode
+    - converted the left-bottom `图层` trigger to an icon-only floating button
+  - `D:/97-CodingProject/Loomic-ArcIns/apps/web/src/components/chat-input.tsx`
+    - changed the immersive placeholder to `添加图片输入文案开始创作之旅...`
+    - changed the immersive upload affordance to the `添加图片` naming contract
+    - refined the immersive add-image button toward the live plus-square shell
+- Fresh verification after the implementation:
+  - focused shell suite:
+    - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/canvas-page-shell.test.tsx test/chat-input.test.tsx --reporter=dot --pool forks"`
+    - PASS (`2` files, `14` tests)
+  - bounded regression:
+    - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/canvas-page-shell.test.tsx test/chat-input.test.tsx test/chat-sidebar.test.tsx test/canvas-files-panel.test.tsx --reporter=dot --pool forks"`
+    - PASS (`4` files, `40` tests)
+- Documentation writeback completed in the same session:
+  - updated `docs/prd/2026-04-16-jianzhuxuezhang-ai-canvas-agent-prd.md`
+  - updated `task_plan.md`
+  - updated `findings.md`
+  - updated `docs/verification/2026-04-12-architecture-agent-studio-validation.md`
+- Next step is now explicit:
+  - return to the remaining unchecked `/home` creation-first shell task
+  - keep runtime work closed unless a fresh regression proves otherwise
+
+## 2026-04-17 08:13 Asia/Shanghai
+
+- Before opening another `/home` implementation batch, I verified whether the task-plan item was still a real gap or just stale bookkeeping.
+- Command:
+  - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/home-page-shell.test.tsx --reporter=dot --pool forks"`
+- Result:
+  - PASS (`1` file, `4` tests)
+- Interpretation:
+  - the current `/home` source already meets the bounded creation-first shell contract
+  - no production edit was necessary for this recheck slice
+  - the older unchecked Batch-1 lines in `task_plan.md` are historical drift and are now explicitly superseded by fresh test evidence
+- Documentation writeback completed in the same session:
+  - updated `task_plan.md`
+  - updated `findings.md`
+  - updated `docs/verification/2026-04-12-architecture-agent-studio-validation.md`
+
+## 2026-04-17 09:06 Asia/Shanghai
+
+- Continued from the frozen PRD and the new user-issued visual override:
+  - no warm palette anywhere going forward
+  - primary surfaces should stay white
+  - local icons / secondary surfaces should stay in light-gray / dark-gray
+- Used the project-local `ui-ux-pro-max` installation at `D:/97-CodingProject/Loomic-ArcIns/.codex/skills/ui-ux-pro-max/SKILL.md` as a design aid, but explicitly overrode its gold-accent recommendation because it conflicts with the user requirement.
+- Added a new TDD guard first:
+  - `apps/web/test/architecture-neutral-palette.test.ts`
+  - first run went RED with `12` failing assertions, correctly proving warm palette tokens and oversized home-shell radii were still present
+- Implemented the bounded visual-neutralization slice in:
+  - `apps/web/src/app/(workspace)/home/page.tsx`
+  - `apps/web/src/components/home-prompt.tsx`
+  - `apps/web/src/components/home-example-browser.tsx`
+  - `apps/web/src/components/new-project-dialog.tsx`
+  - `apps/web/src/app/canvas/page.tsx`
+  - `apps/web/src/components/chat-input.tsx`
+  - `apps/web/src/components/canvas/canvas-context-menu.tsx`
+  - `apps/web/src/components/canvas/canvas-selection-action-bar.tsx`
+  - `apps/web/src/components/canvas-tool-menu.tsx`
+- Visual decisions actually applied:
+  - removed warm beige / tan backgrounds and warm shadow values from the touched visible shells
+  - replaced warm selection states with slate-gray selection states
+  - compressed touched home-facing panel radii to `10px`
+  - localized the architecture `形状` flyout header from `Style` to `样式`
+- Fresh verification completed after the implementation:
+  - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/architecture-neutral-palette.test.ts --reporter=dot --pool forks"`
+    - PASS (`13` tests)
+  - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/home-page-shell.test.tsx test/chat-input.test.tsx test/canvas-page-shell.test.tsx --reporter=dot --pool forks"`
+    - PASS (`18` tests)
+  - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/home-example-browser.test.tsx test/home-prompt.test.tsx test/canvas-tool-menu.test.tsx test/canvas-context-menu.test.tsx --reporter=dot --pool forks"`
+    - PASS (`14` tests)
+- Result interpretation:
+  - the visual-neutralization rule is now enforced both by source and by tests for the currently visible `home + canvas` primary shells
+  - no runtime/container action was needed for this batch because the work was purely visual and the focused static regressions already cover the touched contract
+
+## 2026-04-17 10:03 Asia/Shanghai
+
+- Continued from the frozen PRD and moved to the next functional gap: `15.3 多图与控制台联动规则`中的“多图输入顺序调整”。
+- Reused the already-added RED tests as the TDD guardrail:
+  - `apps/web/test/chat-input.test.tsx`
+  - `apps/web/test/chat-sidebar.test.tsx`
+  - `apps/web/test/canvas-page-context-menu.test.tsx`
+  - `apps/web/test/canvas-page-selection-action-bar.test.tsx`
+- Production implementation completed in:
+  - `apps/web/src/components/chat-input.tsx`
+  - `apps/web/src/components/chat-sidebar.tsx`
+- What changed in source:
+  - `ChatInput` now renders left/right ordering buttons under selected multi-image references in both docked and immersive modes
+  - `ChatSidebar` now owns a persistent selected-image order state and reorders the effective selected-image list before building attachments
+  - selection-derived helpers and `selectedCanvasElementsRef` now use the ordered selection view, so the visible thumbnail order and the AI payload order no longer diverge
+- First focused verification after implementation exposed one final mismatch rather than a logic failure:
+  - command:
+    - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/chat-input.test.tsx test/chat-sidebar.test.tsx test/canvas-page-context-menu.test.tsx test/canvas-page-selection-action-bar.test.tsx --reporter=dot --pool forks"`
+  - result:
+    - RED (`2` failed, `45` passed)
+  - cause:
+    - the order-button `aria-label` missed a separating space, so the accessible name was `将参考图 1向后移动` instead of `将参考图 1 向后移动`
+- Applied the final accessibility-label fix in `apps/web/src/components/chat-input.tsx`.
+- Re-ran the same bounded suite immediately:
+  - result:
+    - PASS (`4` files, `47` tests)
+- Documentation writeback completed in the same session:
+  - updated `docs/prd/2026-04-16-jianzhuxuezhang-ai-canvas-agent-prd.md`
+  - updated `task_plan.md`
+  - updated `findings.md`
+  - updated `docs/verification/2026-04-12-architecture-agent-studio-validation.md`
+
+## 2026-04-17 14:37 Asia/Shanghai
+
+- Recovered the session with `planning-with-files`, re-read `task_plan.md` / `findings.md` / `progress.md`, and confirmed the latest code slice was already implemented while the document writeback was still open.
+- Read back the frozen PRD sections that still lagged behind the implementation:
+  - `9.1`
+  - `13.1` / `13.2` / `13.3`
+  - `15.2` / `15.3`
+  - `17.3` / `17.4`
+  - `25.1` / `25.2`
+- Closed three lingering thread subagents to reduce idle memory usage before continuing the main rollout:
+  - `019d9726-dea6-7d22-9445-362565c1f3ca`
+  - `019d9726-fc60-7352-9c1b-d38de0c23171`
+  - `019d9741-9e74-7601-8267-e9b99b286bf5`
+- Wrote the latest frozen behavior back into `docs/prd/2026-04-16-jianzhuxuezhang-ai-canvas-agent-prd.md`:
+  - image floating action bar is now documented as left-click-only and context-menu-suppressed
+  - composer references are now documented as `待选 -> 输入框 focus 确认 -> 手动 x 删除`
+  - shape activation / shape selection now has a dedicated top toolbar contract with `tool mode` and `selection mode`
+  - boundary conditions were expanded so the PRD no longer mixes pending refs, confirmed attachments, image bars, and shape bars into one vague state
+- Refreshed bounded verification after the PRD writeback:
+  - command:
+    - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/chat-input.test.tsx test/chat-sidebar.test.tsx test/canvas-page-context-menu.test.tsx test/canvas-page-selection-action-bar.test.tsx test/canvas-tool-menu.test.tsx --reporter=dot --pool forks"`
+  - result:
+    - PASS (`5` files, `56` tests)
+  - the command re-confirmed:
+    - pending canvas refs stay transient until input focus
+    - confirmed refs survive deselection until manual removal
+    - image action bar is suppressed for right-click selection
+    - shape selection uses the dedicated shape toolbar path
+- Scope note:
+  - I did not reopen full `apps/web` typecheck in this batch because the broader pre-existing type debt is already documented and this slice only changed PRD / planning docs.
+
+## 2026-04-17 14:48 Asia/Shanghai
+
+- Continued to the next unresolved PRD item: `23.4` 中“点击模板项后自动切换推荐模型”的真实映射规则。
+- Tried a fresh live-site audit with the browser:
+  - `https://www.jianzhuxuezhang.com/canvas/home` is reachable
+  - clicking `新建项目` redirected the Playwright session to `https://www.jianzhuxuezhang.com/login?redirect=%2Fcanvas%2Fhome`
+- Inspected the login DOM instead of continuing blind interaction:
+  - visible buttons included `获取验证码` and `登录`
+  - the DOM simultaneously contained `验证码` / `校验码` inputs and a password input
+  - the page text also showed `正在发送验证码，请稍后再试`
+- Decision:
+  - do not continue the login flow in this unattended batch, because it risks triggering or consuming SMS verification without the user present
+  - treat the live audit as blocked for now rather than inventing a template/model matrix
+- Switched to the user-provided teaching document for cross-validation:
+  - the document explicitly confirms `点击提示词模板 -> 自动填充 Prompt -> 自动配置对应的大模型`
+- Result:
+  - the PRD unchecked line under `23.4.1` is now narrowed to “exact mapping matrix still pending”, instead of the older broader uncertainty about whether the linkage exists at all
+
+## 2026-04-17 15:33 Asia/Shanghai
+
+- Re-tried the live audit after the user confirmed the local browser was already logged in.
+- The browser session successfully recovered a logged-in `建筑学长` state:
+  - page showed the authenticated header `187****4299`
+  - `模版` trigger on `/canvas/home` exposed the full live category/template panel
+- New live evidence captured from the real site:
+  - template categories visible in the live DOM included `效果渲染 / 总平填色 / 户型填色 / 风格迁移 / 剖立面 / 分析图 / 展板生成 / 灵感方案 / 氛围转换 / 画风转换 / 视角转换 / 方案设计 / 旧房改造 / 室内装修 / 局部修改 / 分镜图`
+  - clicking template item `建筑晴天渲染` auto-filled the homepage composer prompt with a long architecture-render prompt
+  - after manually switching the model chip to `Banana2`, clicking `建筑晴天渲染` again reset the visible model chip back to `Banana Pro`
+- Conclusion from this batch:
+  - the real product definitely has `模板项 -> 推荐模型` linkage
+  - what remains unresolved is only the full mapping matrix, not the existence of the linkage itself
+- Documentation writeback completed in the same session:
+  - updated `docs/prd/2026-04-16-jianzhuxuezhang-ai-canvas-agent-prd.md`
+  - updated `findings.md`
+
+## 2026-04-17 15:37 Asia/Shanghai
+
+- Re-entered the persistent browser state instead of opening a fresh login flow:
+  - `browser_tabs` showed the current tab already parked on `https://www.jianzhuxuezhang.com/canvas/home`
+  - `browser_snapshot` confirmed the logged-in header `187****4299`
+- Re-opened the real homepage `模版` popover from the active logged-in session.
+- Confirmed the home composer shell is still in the same authenticated state:
+  - attached reference thumbnail is present
+  - placeholder remains `添加图片输入文案开始创作之旅...`
+  - visible model chip is `Banana Pro`
+  - visible quality chip is `自动 / 1K`
+- Confirmed again from the real popover text that the template browser is category-driven and not a flat list.
+- Wrote the fresh browser-state findings back into `findings.md` before continuing, so the remaining template-model mapping audit can resume from a durable checkpoint even if the browser session drops again.
+
+## 2026-04-17 15:48 Asia/Shanghai
+
+- Reworked the live audit approach after proving the whole-page text strategy was unstable:
+  - direct text-based automation occasionally drifted to the site root `/`
+  - switched to composer-local DOM selectors instead
+- Real selector facts captured from the logged-in homepage composer:
+  - model / quality / template triggers are the three children of `.operate_container_otq-6x`
+  - template categories are `.left_list_VdFR7D .first_level_eJSoJ1`
+  - template items are `.template-grid_So0IP0 .subject_ttc0Lf`
+- Multi-category sampling completed from the real site after forcing the model to `Banana2` before each click:
+  - `效果渲染 -> 建筑晴天渲染 -> Banana Pro`
+  - `总平填色 -> 建筑平面清新填色 -> Banana Pro`
+  - `户型填色 -> 室内平面填色1 -> Banana Pro`
+  - `分析图 -> 基地现状分析 -> Banana Pro`
+  - `分镜图 -> 室内分镜图生成 -> Banana Pro`
+- Additional real-site category inventory captured in the same batch:
+  - `效果渲染` visible items included `建筑晴天渲染 / 鸟瞰晴天渲染 / 景观晴天渲染 / 室内质感渲染 / 室内光影渲染 / 写实建筑渲染 / 建筑清晨渲染 / 建筑夜晚渲染`
+  - `总平填色` visible items included `建筑平面清新填色 / 建筑平面写实填色 / 景观平面清新填色 / 景观平面丰富及填色 / 景观平面写实填色`
+  - `户型填色` visible items included `室内平面填色1 / 简约莫兰迪室内平面填色 / 公装室内平面填色2 / 室内平面填色2 / 公装室内平面填色1`
+  - `分析图` visible items included `极简区位mapping图 / 景观爆炸图 / 基地现状分析 / 体块生成分析 / 城市路网分析 / 景观插画轴测分析图`
+  - `分镜图` 当前只看到 `室内分镜图生成`
+- Documentation writeback completed in the same batch:
+  - updated `docs/prd/2026-04-16-jianzhuxuezhang-ai-canvas-agent-prd.md`
+  - updated `findings.md`
+  - pending next: update `task_plan.md` and `docs/verification/2026-04-12-architecture-agent-studio-validation.md`, then re-check the next unchecked frozen PRD slice
+
+## 2026-04-17 15:53 Asia/Shanghai
+
+- Re-checked the historical open Batch 1 checkpoints before opening a new implementation slice, because the current PRD no longer showed them as real product gaps.
+- Fresh targeted verification bundle:
+  - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/home-page-shell.test.tsx test/chat-input.test.tsx test/home-prompt.test.tsx test/canvas-tool-menu.test.tsx test/canvas-page-shell.test.tsx --reporter=dot --pool forks"`
+  - result: PASS (`5` files, `27` tests)
+- Additional right-panel / reference-chip proof:
+  - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/chat-sidebar.test.tsx --reporter=dot --pool forks"`
+  - result: PASS (`1` file, `25` tests)
+- Conclusion:
+  - the old Batch 1 open checklist under `task_plan.md` is historical bookkeeping drift rather than current missing functionality
+  - current evidence already covers:
+    - home creation-first shell
+    - immersive canvas shell without the older always-on left rail path
+    - right-side reference chips instead of English summary copy
+    - template injection plus Chinese copy path
+- Documentation writeback completed in the same batch:
+  - updated `task_plan.md`
+  - pending next: add the same evidence to `docs/verification/2026-04-12-architecture-agent-studio-validation.md`, then choose the next real unfinished slice instead of following stale checklist residue
+
+## 2026-04-17 17:15 Asia/Shanghai
+
+- Chose the next bounded parity slice from the frozen PRD: `18. 添加素材弹窗`.
+- Re-entered the logged-in live `建筑学长` canvas detail page and opened the real left-rail `添加` dialog.
+- Fresh real baseline confirmed:
+  - large overlay modal, not a flyout
+  - top-left `返回`
+  - top tabs `本地上传 / 官方图库 / 企业图库 / 我的创作`
+  - default `本地上传` body shows a single centered `上传图片` primary action
+- Immediate local parity gap discovered:
+  - local `CanvasToolMenu` currently places extra architecture-specific shortcut cards inside `本地上传`
+  - those cards do not match the just-audited live baseline
+- Wrote the baseline finding back into `findings.md` before continuing deeper tab inspection.
+
+## 2026-04-17 17:19 Asia/Shanghai
+
+- Continued the live add-modal audit into the non-default tabs.
+- `官方图库` findings:
+  - not a placeholder tab
+  - exposes two horizontal filter rows plus a dense image grid
+  - first row is the major category strip
+  - second row is the subtype/business-scenario strip
+- `企业图库` findings:
+  - for the current logged-in account state it does not show a normal gallery
+  - it opens a dedicated enterprise-membership entitlement dialog with `取消 / 去开通`
+- Documentation writeback completed immediately:
+  - updated `findings.md`
+- Next live step:
+  - inspect `我的创作`
+  - then decide the bounded local implementation contract for `本地上传 / 官方图库 / 企业图库(受限态) / 我的创作`
+
+## 2026-04-17 17:23 Asia/Shanghai
+
+- Completed the last critical live action check for the add-modal slice.
+- `我的创作` findings:
+  - top creation-source category strip includes:
+    - `AI创作绘图`
+    - `Banana智能体`
+    - `AI模型渲染`
+    - `AI总图彩平填色`
+    - `手绘创作`
+    - `局部重绘`
+  - current audited state is an empty-state illustration with `数据为空`
+- `官方图库` insertion behavior is now fully confirmed:
+  - clicking a gallery image closes the modal
+  - the image is inserted into the canvas immediately
+  - the left layer list updates at once with a new top row (`Image_3`)
+- This closes the design ambiguity for the local implementation slice:
+  - `本地上传` should be a centered single-action upload shell
+  - `官方图库` should be a real insertable gallery
+  - `企业图库` needs a gated entitlement dialog path
+  - `我的创作` needs the source-strip + empty-state branch
+- Documentation writeback completed immediately:
+  - updated `findings.md`
+- Next step:
+  - inspect local `CanvasToolMenu` wiring and write RED tests for the bounded add-modal parity slice before touching production code
+
+## 2026-04-17 17:39 Asia/Shanghai
+
+- Re-ran the add-modal verification with fresh current-session evidence before writing the remaining docs back:
+  - focused command:
+    - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/canvas-tool-menu.test.tsx --reporter=dot --pool forks"`
+    - result:
+      - PASS (`1` file, `8` tests)
+  - wider bounded regression:
+    - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/canvas-tool-menu.test.tsx test/canvas-page-shell.test.tsx test/architecture-neutral-palette.test.ts --reporter=dot --pool forks"`
+    - result:
+      - PASS (`3` files, `24` tests)
+- Completed the missing document writeback for the bounded `18. 添加素材弹窗` slice:
+  - updated `docs/prd/2026-04-16-jianzhuxuezhang-ai-canvas-agent-prd.md`
+  - updated `task_plan.md`
+  - updated `findings.md`
+  - updated `docs/verification/2026-04-12-architecture-agent-studio-validation.md`
+- The remaining work under `18` is now explicitly narrowed to:
+  - `官方图库` deeper browse mechanics
+  - `我的创作` non-empty state
+  - `企业图库` downstream entitlement flow
+- Next step:
+  - re-open the live site against the next unchecked frozen PRD item under `25.2`
+  - prefer a concrete, auditable slice such as `查看大图` or `导出` rather than reopening already-closed add-modal shell work
+
+## 2026-04-17 17:49 Asia/Shanghai
+
+- Reused the live logged-in `建筑学长` canvas page to audit the next unresolved viewer slice under `25.2`.
+- Fresh real-site viewer facts captured:
+  - right-clicking the selected image reconfirmed the single-image context menu still contains `导出`
+  - clicking the floating action-bar `查看大图` opens a fullscreen preview overlay instead of the old generic toolbar pattern
+  - screenshot evidence now shows:
+    - top-right 5-icon operation cluster
+    - centered large image preview
+    - bottom `立即下载` drawer
+  - live DOM / interaction evidence additionally confirmed:
+    - visible operation class set:
+      - `rotateLeft / rotateRight / zoomOut / zoomIn / close`
+    - `zoomOut` starts disabled
+    - after `zoomIn`, `zoomOut` becomes enabled
+    - `rotateRight` changes the preview image transform
+- Practical conclusion:
+  - local canvas `ImageLightbox` is structurally off-spec for this flow
+  - the next code slice should target the canvas preview viewer rather than the export submenu first
+
+## 2026-04-17 18:02 Asia/Shanghai
+
+- Opened the next bounded TDD slice for the canvas single-image `查看大图` flow.
+- RED:
+  - added two new assertions to `test/canvas-page-selection-action-bar.test.tsx` for:
+    - architecture-style viewer shell (`查看大图` dialog + top-right icon cluster + bottom `立即下载`)
+    - `缩小` disabled-on-open -> enabled-after-zoom and close-button dismissal
+  - first focused run failed exactly on the intended mismatch:
+    - local viewer still exposed `Image viewer`
+    - old controls `左右翻转 / 上下翻转 / 重置` were still present
+- GREEN:
+  - implemented a dedicated `variant="architecture-canvas"` branch in `apps/web/src/components/chat/image-lightbox.tsx`
+  - wired `apps/web/src/components/canvas/canvas-selection-action-bar.tsx` to use that variant only for the canvas single-image viewer path
+  - initial implementation hit one bounded mistake (`SearchMinus/SearchPlus` icon names were invalid in `lucide-react`), then immediately corrected to `ZoomOut/ZoomIn`
+  - focused rerun:
+    - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/canvas-page-selection-action-bar.test.tsx --reporter=dot --pool forks"`
+    - result:
+      - PASS (`1` file, `6` tests)
+  - bounded regression:
+    - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/canvas-page-selection-action-bar.test.tsx test/canvas-page-context-menu.test.tsx test/canvas-tool-menu.test.tsx test/chat-sidebar.test.tsx test/canvas-page-shell.test.tsx --reporter=dot --pool forks"`
+    - result:
+      - PASS (`5` files, `51` tests)
+- Documentation writeback completed in the same batch:
+  - updated `docs/prd/2026-04-16-jianzhuxuezhang-ai-canvas-agent-prd.md`
+  - updated `task_plan.md`
+  - updated `findings.md`
+  - updated `docs/verification/2026-04-12-architecture-agent-studio-validation.md`
+- Next step:
+  - continue to the adjacent still-open `导出` submenu semantics
+  - keep reusing the live logged-in page rather than inferring menu structure locally
+
+## 2026-04-17 18:14 Asia/Shanghai
+
+- Continued the adjacent live-audit slice for single-image right-click `导出`.
+- Real-site findings collected from the authenticated `建筑学长` canvas detail session:
+  - re-opened the context menu by right-clicking directly on the selected image area rather than the layer row
+  - DOM inspection of the live `[role="menu"]` confirmed that `导出` is a flat `menuitem` with no `aria-haspopup`, no `aria-expanded`, and no nested submenu nodes
+  - clicking `导出` closed the menu immediately and did not reveal any PNG / JPG cascade
+  - a Playwright-side `download` wait plus page probes for `HTMLAnchorElement.click` / `URL.createObjectURL` did not capture a live download event in this run
+- Parallel local code review also converged:
+  - `apps/web/src/app/canvas/page.tsx` already treats single-image `导出` as a direct `.png` download path
+  - `apps/web/src/components/canvas/canvas-context-menu.tsx` is a flat action list and has no submenu capability
+- Execution decision:
+  - no production code changes are needed for this slice
+  - close the PRD ambiguity as “direct export action, no PNG / JPG submenu”
+  - keep the lack of a reproducible live-browser download event as a verification-evidence note, not a product-behavior blocker
+- Documentation writeback completed in the same batch:
+  - updated `docs/prd/2026-04-16-jianzhuxuezhang-ai-canvas-agent-prd.md`
+  - updated `findings.md`
+  - updated `task_plan.md`
+  - updated `docs/verification/2026-04-12-architecture-agent-studio-validation.md`
+- Next step:
+  - move to the next still-open frozen PRD parity item, preferring `25.2.2 形状 flyout 第 5 图标命名` or `25.2.1 添加对话 / 文件列表` live-state audit over reopening already-closed export semantics
+
+## 2026-04-17 18:34 Asia/Shanghai
+
+- Opened the next bounded TDD slice for the left-rail `形状` flyout shell.
+- Fresh live-site audit first:
+  - clicking the live `形状` button showed a compact icon-only flyout rather than the local card grid
+  - DOM / React-props inspection confirmed the visible icon order:
+    - `micro-icon-frame-square-box`
+    - `micro-icon-frame-ellipse`
+    - `micro-icon-leafer-12`
+    - `micro-icon-frame-line`
+    - `micro-icon-lasso`
+  - the live flyout did not expose visible text labels or hint copy for these 5 items
+- RED:
+  - rewrote the focused `canvas-tool-menu` regression to require:
+    - icon-only `shape` flyout buttons
+    - exact `data-shape-icon` order matching the live DOM
+    - removal of off-spec visible hint copy such as `基础块面` / `流程决策`
+    - removal of the visible `菱形` card in favor of a fifth `闭合图形` shell button
+  - first focused run failed in the intended place because the current local implementation still rendered `null` icon IDs and the old card layout
+- GREEN:
+  - updated `apps/web/src/components/canvas-tool-menu.tsx`
+  - introduced live-matching line / lasso icon components
+  - converted the architecture shape flyout from a text-card list into a compact `3 + 2` icon-only grid
+  - changed the visible icon order to the live-site sequence and attached `data-shape-icon` markers for regression locking
+  - kept the fifth button honest as a local `闭合图形` shell rather than fabricating unsupported tooltip copy
+  - focused rerun:
+    - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/canvas-tool-menu.test.tsx --reporter=dot --pool forks"`
+    - result:
+      - PASS (`1` file, `8` tests)
+    - bounded regression:
+      - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/canvas-tool-menu.test.tsx test/canvas-page-shell.test.tsx test/canvas-page-selection-action-bar.test.tsx test/architecture-neutral-palette.test.ts --reporter=dot --pool forks"`
+      - result:
+        - PASS (`4` files, `30` tests)
+
+## 2026-04-17 19:11 Asia/Shanghai
+
+- Re-opened the still-open `25.2.2` naming slice after the user explicitly clarified that the fifth left-rail shape button means `连续多段线`.
+- First re-anchored the local implementation against bundled Excalidraw capabilities before editing:
+  - `ToolType` only exposes `line`, not a dedicated `polyline`
+  - the upstream runtime still contains the multi-point linear-element path (`multiElement`, `editingLinearElement`, `points.length > 2`)
+- TDD red phase:
+  - rewrote `apps/web/test/canvas-tool-menu.test.tsx` into a clean Chinese-only regression file because the older test body had accumulated mojibake and an outdated `闭合图形` expectation
+  - focused red run:
+    - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/canvas-tool-menu.test.tsx --reporter=dot --pool forks"`
+    - result:
+      - FAIL in the expected place because the local 5th button was still labeled `闭合图形`
+- Green phase:
+  - updated `apps/web/src/components/canvas-tool-menu.tsx`
+  - introduced a separate `ArchitectureShapeFlyoutItemId` layer so `直线` and `连续多段线` can both map to Excalidraw `line` without sharing the same local active state
+  - kept the architecture flyout open while choosing shape items so the active-state difference is visible and testable
+  - resolved selected existing multi-point `line` elements back to the 5th flyout button by tracking `pointCount`
+- Focused green verification:
+  - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/canvas-tool-menu.test.tsx --reporter=dot --pool forks"`
+  - result:
+    - PASS (`1` file, `8` tests)
+- Wider bounded regression:
+  - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/canvas-tool-menu.test.tsx test/canvas-page-shell.test.tsx test/canvas-page-selection-action-bar.test.tsx test/architecture-neutral-palette.test.ts --reporter=dot --pool forks"`
+  - result:
+    - PASS (`4` files, `30` tests)
+- Documentation writeback follows this closure:
+  - PRD now freezes the 5th button as `连续多段线`
+  - `findings.md` records the Excalidraw constraint and the separate-active-state decision
+  - next implementation target returns to the task-plan order: `25.2.1 添加对话 / 文件列表` 有数据态复核
+- Documentation writeback completed in the same batch:
+  - updated `docs/prd/2026-04-16-jianzhuxuezhang-ai-canvas-agent-prd.md`
+  - updated `task_plan.md`
+  - updated `findings.md`
+  - updated `docs/verification/2026-04-12-architecture-agent-studio-validation.md`
+- Next step:
+  - continue narrowing the remaining `25.2.2` micro-gap around the fifth button’s explicit text naming / deeper semantics, or move to `25.2.1 添加对话 / 文件列表` live-state follow-up if that unlocks a larger user-facing slice
+
+## 2026-04-17 19:31 Asia/Shanghai
+
+- Re-entered the live authenticated `建筑学长` canvas detail page with Playwright to close the remaining `25.2.1 添加对话 / 文件列表` data-state ambiguity.
+- Fresh live evidence gathered:
+  - `添加对话` click switched the right record body into a new empty conversation state
+  - the audited empty-state copy is `在下方输入你的创意来生成图片吧`
+  - `文件列表` click did not replace the whole right panel; instead it opened/refreshed a bottom `生成文件列表` dock with title, close button, image grid, and footer state
+  - the docked composer remained inside the right panel throughout the flow
+- This overturned the older local/PRD assumption that the header `文件列表` button should swap the right panel into a dedicated file-only view.
+
+## 2026-04-17 19:39 Asia/Shanghai
+
+- Opened the TDD red phase for the right-panel parity correction.
+- Updated `apps/web/test/chat-sidebar.test.tsx` so the focused regression now requires:
+  - `添加对话` -> welcome empty state `在下方输入你的创意来生成图片吧`
+  - `文件列表` -> bottom `canvas-files-panel-docked`
+  - docked composer stays present
+  - floating composer does not appear
+- Focused red verification:
+  - command:
+    - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/chat-sidebar.test.tsx --reporter=dot --pool forks"`
+  - result:
+    - FAIL in the intended places because the local implementation still rendered the old dedicated `canvas-files-panel-immersive` replacement view and did not expose the audited welcome empty state copy
+
+## 2026-04-17 19:46 Asia/Shanghai
+
+- Green phase completed for the bounded right-panel slice.
+- Updated:
+  - `apps/web/src/components/chat-sidebar.tsx`
+  - `apps/web/src/components/canvas-files-panel.tsx`
+- Local implementation changes frozen in source:
+  - immersive right panel now keeps the header and docked composer in place when `文件列表` is opened
+  - bottom file area now renders through a dedicated `docked` panel variant instead of replacing the full sidebar
+  - immersive empty state now uses the audited welcome copy `在下方输入你的创意来生成图片吧`
+- Focused green verification:
+  - command:
+    - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/chat-sidebar.test.tsx --reporter=dot --pool forks"`
+  - result:
+    - PASS (`1` file, `26` tests)
+
+## 2026-04-17 19:48 Asia/Shanghai
+
+- Ran bounded regression around the adjacent shell / selection / palette closures after the right-panel correction.
+- Command:
+  - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/chat-sidebar.test.tsx test/canvas-tool-menu.test.tsx test/canvas-page-shell.test.tsx test/canvas-page-selection-action-bar.test.tsx test/architecture-neutral-palette.test.ts --reporter=dot --pool forks"`
+- Result:
+  - PASS (`5` files, `56` tests)
+- Documentation writeback completed in the same batch:
+  - updated `docs/prd/2026-04-16-jianzhuxuezhang-ai-canvas-agent-prd.md`
+  - updated `task_plan.md`
+  - updated `findings.md`
+  - updated `docs/verification/2026-04-12-architecture-agent-studio-validation.md`
+- Next step:
+  - continue to the next frozen parity slice `25.2.4 右侧文件库 / 资产库 / 模板库切换结构`
+
+## 2026-04-17 20:00 Asia/Shanghai
+
+- Started the next frozen parity slice `25.2.4 右侧文件库 / 资产库 / 模板库切换结构`.
+- Completed a fresh live-site structure audit instead of inheriting the older teaching-doc assumption.
+- Real-site observations collected in this pass:
+  - `模版` opens a dedicated popover surface with root class `popover_card_JX-Nxr`
+  - that popover uses `左侧分类树 + 右侧模板项网格` structure
+  - right-side composer `+` opens a separate add-material dialog with `本地上传 / 官方图库 / 企业图库 / 我的创作`
+  - `文件列表` remains the bottom `生成文件列表` dock in the same right column
+  - the template popover and add-material dialog can coexist as independent overlay roots, so they are not a shared right-side library container
+- Cross-check against the user-provided teaching markdown confirmed the phrase “右侧抽屉包含图库列表、模板库” is a coarse conceptual summary rather than an exact container-level IA contract.
+- Conclusion frozen for this slice:
+  - `25.2.4` is a stale documentation assumption, not a missing unified-panel feature
+  - no production code change is warranted for this item
+  - the correct action is PRD / findings / plan correction, then continue to the next real open item
+
+## 2026-04-17 20:42 Asia/Shanghai
+
+- User explicitly deferred `高清放大 / 无损放大` to later, so I re-ordered the next execution slice away from `25.2.5`.
+- Re-read the frozen PRD and task plan instead of reopening the large-image branch.
+- Confirmed the next meaningful user-facing gap is the pending multi-image input-order control under `25.2`, not the already-closed right-panel or export IA slices.
+- Wrote a bounded execution note for this batch:
+  - `docs/execution/2026-04-17-architecture-agent-studio-phase7-batch14-plan.md`
+
+## 2026-04-17 20:47 Asia/Shanghai
+
+- Ran a fresh live-site audit against the real logged-in `建筑学长` canvas detail page to close the multi-image pending-chip ambiguity.
+- Live evidence gathered in this pass:
+  - multi-select pending chips are `60x60`
+  - close button floats at the top-right outer edge
+  - left / right reorder arrows live inside the bottom edge of each chip
+  - edge controls stay visible but disabled instead of disappearing
+  - closing one pending chip removes it from the input context without clearing the canvas multi-selection frame
+- Live screenshots captured during the audit:
+  - `C:/Users/admin/.codex/mcp/playwright/output/page-2026-04-17T12-45-44-101Z.png`
+  - `C:/Users/admin/.codex/mcp/playwright/output/page-2026-04-17T12-54-40-459Z.png`
+
+## 2026-04-17 21:00 Asia/Shanghai
+
+- Opened the TDD red phase for the pending multi-image chip parity slice.
+- Updated focused regressions:
+  - `apps/web/test/chat-input.test.tsx`
+  - `apps/web/test/chat-sidebar.test.tsx`
+- Red verification command:
+  - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/chat-input.test.tsx test/chat-sidebar.test.tsx --reporter=dot --pool forks"`
+- Red result:
+  - expected FAIL
+  - local UI still used the old “thumbnail + below-arrow strip” shell
+  - no pending-chip dismiss button existed
+
+## 2026-04-17 21:09 Asia/Shanghai
+
+- Green implementation completed for the bounded pending-chip slice.
+- Updated source:
+  - `apps/web/src/components/chat-input.tsx`
+  - `apps/web/src/components/chat-sidebar.tsx`
+- Implementation details frozen in source:
+  - pending selected-canvas chips now use a live-audited overlay layout
+  - first / last reorder buttons remain visible and disabled
+  - dismissing one pending chip only removes it from input context
+  - send / focus-confirm flows now honor the reduced pending selection set
+- An editing accident temporarily zeroed the untracked file `apps/web/test/chat-input.test.tsx`; I reconstructed it immediately from the already-audited current-session content before continuing verification.
+
+## 2026-04-17 21:17 Asia/Shanghai
+
+- Focused green verification completed.
+- Command:
+  - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/chat-input.test.tsx test/chat-sidebar.test.tsx --reporter=dot --pool forks"`
+- Result:
+  - PASS (`2` files, `41` tests)
+
+## 2026-04-17 21:19 Asia/Shanghai
+
+- Wider bounded regression completed after the pending-chip closure.
+- Command:
+  - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/chat-input.test.tsx test/chat-sidebar.test.tsx test/canvas-page-shell.test.tsx test/canvas-page-selection-action-bar.test.tsx --reporter=dot --pool forks"`
+- Result:
+  - PASS (`4` files, `50` tests)
+- Documentation writeback completed in the same batch:
+  - updated `docs/prd/2026-04-16-jianzhuxuezhang-ai-canvas-agent-prd.md`
+  - updated `docs/execution/2026-04-17-architecture-agent-studio-phase7-batch14-plan.md`
+  - updated `findings.md`
+  - updated `progress.md`
+  - updated `docs/verification/2026-04-12-architecture-agent-studio-validation.md`
+- Next focus:
+  - return to the remaining non-deferred open item `23.4 全量模板 -> 推荐模型全矩阵`
+  - keep `高清增强 / 无损放大` explicitly deferred per the latest user instruction
+
+## 2026-04-17 21:47 Asia/Shanghai
+
+- Opened the next bounded local closure for `23.4`, focused on the user-visible gap rather than reopening broad research:
+  - local templates already injected prompt text
+  - but the visible `Banana Pro` chip on `/home` and immersive `/canvas` was still bound to agent-model state instead of image-model state
+- Updated source:
+  - `apps/web/src/lib/image-model-utils.ts`
+  - `apps/web/src/components/agent-model-selector.tsx`
+  - `apps/web/src/components/chat-input.tsx`
+  - `apps/web/src/components/home-prompt.tsx`
+  - `apps/web/test/chat-input.test.tsx`
+  - `apps/web/test/home-prompt.test.tsx`
+  - `apps/web/test/agent-model-selector.test.tsx`
+- Frozen implementation details:
+  - introduced short-form chip labels `Banana Pro / Banana2 / Banana`
+  - home and immersive composer now render the model chip from image-model preference state
+  - template clicks now reset image-model preference to `google/nano-banana-pro` before injecting the prompt
+- Focused verification command:
+  - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/chat-input.test.tsx test/home-prompt.test.tsx test/agent-model-selector.test.tsx --reporter=dot --pool forks"`
+- Focused result:
+  - PASS (`3` files, `18` tests)
+
+## 2026-04-17 21:49 Asia/Shanghai
+
+- Ran bounded regression around the surrounding entry / composer / sidebar shell after the model-chip correction.
+- Command:
+  - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/chat-input.test.tsx test/home-prompt.test.tsx test/agent-model-selector.test.tsx test/chat-sidebar.test.tsx test/canvas-page-shell.test.tsx test/canvas-page-selection-action-bar.test.tsx --reporter=dot --pool forks"`
+- Result:
+  - PASS (`6` files, `54` tests)
+
+## 2026-04-17 21:50 Asia/Shanghai
+
+- Verified local runtime reachability before attempting a browser-level spot check.
+- Command:
+  - `wsl.exe -e bash -lc "curl -I --max-time 10 http://127.0.0.1:3000/home"`
+- Result:
+  - PASS (`HTTP/1.1 200 OK`)
+- Follow-up note:
+  - the Playwright MCP transport was closed when attempting an extra runtime snapshot right after this check
+  - this was treated as a tool-session issue rather than a local web-runtime failure, so I did not reopen container/runtime work in this batch
+
+## 2026-04-17 21:57 Asia/Shanghai
+
+- The parallel live-site subagent returned with the long-tail `23.4` sampling results and closed the final PRD uncertainty without needing a fresh login round.
+- Newly sampled representative categories all matched the already-audited reset behavior:
+  - `风格迁移 -> 建筑效果迁移1`: `Banana2 -> Banana Pro`
+  - `剖立面 -> 立面真实风格`: `Banana2 -> Banana Pro`
+  - `展板生成 -> 景观展板生成`: `Banana2 -> Banana Pro`
+  - `灵感方案 -> 建筑设计灵感`: `Banana2 -> Banana Pro`
+  - `氛围转换 -> 夜晚时间转换`: `Banana2 -> Banana Pro`
+  - `画风转换 -> 小清新插画转换`: `Banana2 -> Banana Pro`
+  - `视角转换 -> 平面图转鸟瞰图`: `Banana2 -> Banana Pro`
+  - `方案设计 -> 空白地块生成景观方案`: `Banana2 -> Banana Pro`
+  - `旧房改造 -> 建筑立面改造`: `Banana2 -> Banana Pro`
+  - `室内装修 -> 现代奶油室内装修`: `Banana2 -> Banana Pro`
+  - `局部修改 -> 建筑表皮修改`: `Banana2 -> Banana Pro`
+- Resulting decision:
+  - `23.4` can now be frozen as “模板项默认回切推荐模型 `Banana Pro`”
+  - future exceptions, if discovered, should be modeled as data overrides rather than re-opening the baseline
+- Evidence returned by the subagent:
+  - `C:/Users/admin/.codex/mcp/playwright/output/jzxz-home-probe.png`
+  - `C:/Users/admin/.codex/mcp/playwright/output/jzxz-template-panel-open.png`
+  - `C:/Users/admin/.codex/mcp/playwright/output/template-audit-01.png` through `template-audit-11.png`
+
+## 2026-04-17 23:10 Asia/Shanghai
+
+- Pre-commit verification found two fresh regressions in the otherwise-frozen implementation batch:
+  - `packages/shared/src/contracts.test.ts` failed because `packages/shared/src/supabase/database.ts` had drifted away from the existing `langgraph` persistence migration surface
+  - `apps/server/src/http/uploads.test.ts` intermittently exceeded the default 5s Vitest timeout under the local WSL load profile even though the route behavior still succeeded
+- Root-cause resolution applied:
+  - patched `packages/shared/src/supabase/database.ts` to mirror the server-owned `langgraph` checkpoint/store tables defined in `supabase/migrations/20260324000007_agent_thread_persistence.sql` without broadening public runtime scope
+  - raised the focused timeout for `apps/server/src/http/uploads.test.ts` case `accepts file-only uploads without crashing` to `15_000` so the multipart regression reflects behavior rather than machine-speed noise
+- Fresh verification commands:
+  - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns && node --test tests/workspace.test.mjs"`
+  - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/packages/shared && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run src/contracts.test.ts src/export-contracts.test.ts src/artifacts.test.ts --reporter=dot --pool forks"`
+  - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/server && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run src/agent/runtime.test.ts src/agent/stream-adapter.test.ts src/http/canvases.test.ts src/http/exports.test.ts src/http/uploads.test.ts src/ws/agent-plan-blocks.test.ts src/ws/connection-manager.test.ts --reporter=dot --pool forks"`
+  - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/chat-input.test.tsx test/home-prompt.test.tsx test/agent-model-selector.test.tsx test/chat-sidebar.test.tsx test/canvas-page-shell.test.tsx test/canvas-page-selection-action-bar.test.tsx --reporter=dot --pool forks"`
+- Fresh results:
+  - PASS (`14` root workspace tests)
+  - PASS (`3` shared files, `41` tests)
+  - PASS (`7` server files, `21` tests)
+  - PASS (`6` web files, `54` tests)

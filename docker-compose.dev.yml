@@ -1,0 +1,59 @@
+services:
+  server:
+    network_mode: bridge
+    ports:
+      - "3001:3001"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      SUPABASE_URL: ${SUPABASE_INTERNAL_URL:-http://host.docker.internal:54321}
+      SUPABASE_DB_URL: ${SUPABASE_INTERNAL_DB_URL:-postgresql://postgres:postgres@host.docker.internal:54322/postgres}
+
+  worker:
+    network_mode: bridge
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      SUPABASE_URL: ${SUPABASE_INTERNAL_URL:-http://host.docker.internal:54321}
+      SUPABASE_DB_URL: ${SUPABASE_INTERNAL_DB_URL:-postgresql://postgres:postgres@host.docker.internal:54322/postgres}
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile.dev
+      args:
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmmirror.com/}
+    network_mode: bridge
+    ports:
+      - "3000:3000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      NODE_ENV: development
+      HOST: 0.0.0.0
+      CHOKIDAR_USEPOLLING: "true"
+      WATCHPACK_POLLING: "true"
+      NEXT_PUBLIC_SERVER_BASE_URL: ${NEXT_PUBLIC_SERVER_BASE_URL:-http://127.0.0.1:3001}
+      NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:-http://127.0.0.1:54321}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY:-<SECRET>}
+      PNPM_STORE_DIR: /pnpm/store
+    volumes:
+      - .:/app
+      - loomic-root-node-modules:/app/node_modules
+      - loomic-web-node-modules:/app/apps/web/node_modules
+      - loomic-server-node-modules:/app/apps/server/node_modules
+      - loomic-shared-node-modules:/app/packages/shared/node_modules
+      - loomic-config-node-modules:/app/packages/config/node_modules
+      - loomic-ui-node-modules:/app/packages/ui/node_modules
+      - loomic-web-next-cache:/app/apps/web/.next
+      - loomic-pnpm-store:/pnpm/store
+
+volumes:
+  loomic-root-node-modules:
+  loomic-web-node-modules:
+  loomic-server-node-modules:
+  loomic-shared-node-modules:
+  loomic-config-node-modules:
+  loomic-ui-node-modules:
+  loomic-web-next-cache:
+  loomic-pnpm-store:

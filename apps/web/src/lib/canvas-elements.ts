@@ -114,15 +114,38 @@ export function createExcalidrawImageElement(opts: {
 
 /**
  * Fetch an image URL and convert it to a data URL string.
- * Routes through the server proxy to bypass browser CORS restrictions.
+ * Prefer a direct browser fetch for local/public assets so WSL-hosted
+ * containers do not have to round-trip through a proxy that may not be able
+ * to resolve localhost-bound storage endpoints. Fall back to the proxy for
+ * third-party assets or stricter CORS cases.
  */
 export async function fetchAsDataURL(url: string): Promise<string> {
-  const proxyUrl = `${getServerBaseUrl()}/api/proxy-image?url=${encodeURIComponent(url)}`;
+  let response: Response | null = null;
 
-  const response = await fetch(proxyUrl);
-  if (!response.ok) {
-    throw new Error(`Failed to fetch image: ${response.status}`);
+  try {
+    response = await fetch(url);
+    if (!response.ok) {
+      console.warn("[canvas-elements] direct fetch failed, retrying via proxy", {
+        status: response.status,
+        url,
+      });
+      response = null;
+    }
+  } catch (error) {
+    console.warn("[canvas-elements] direct fetch threw, retrying via proxy", {
+      error,
+      url,
+    });
   }
+
+  if (!response) {
+  const proxyUrl = `${getServerBaseUrl()}/api/proxy-image?url=${encodeURIComponent(url)}`;
+    response = await fetch(proxyUrl);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch image: ${response.status}`);
+    }
+  }
+
   const blob = await response.blob();
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader();

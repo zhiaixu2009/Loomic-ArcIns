@@ -13,15 +13,21 @@ export function ImageAttachmentBar({ attachments, onRemove, onRetry }: ImageAtta
 
   return (
     <div className="flex items-center gap-2 overflow-x-auto px-2 py-1.5">
-      {attachments.map((att) => (
+      {attachments.map((att, index) => (
         <div
           key={att.id}
           className="group relative h-14 w-14 shrink-0 overflow-hidden rounded-lg border border-border bg-muted"
+          data-source={att.source}
         >
           {att.preview ? (
             <img
               src={att.preview}
-              alt="Attachment"
+              alt={
+                att.name ??
+                (att.source === "canvas-ref"
+                  ? "\u753b\u5e03\u53c2\u8003\u56fe"
+                  : "\u5df2\u4e0a\u4f20\u56fe\u7247")
+              }
               className="h-full w-full object-cover"
             />
           ) : (
@@ -50,7 +56,9 @@ export function ImageAttachmentBar({ attachments, onRemove, onRetry }: ImageAtta
                 <path fillRule="evenodd" d="M4 2a1 1 0 0 1 1 1v2.101a7.002 7.002 0 0 1 11.601 2.566 1 1 0 1 1-1.885.666A5.002 5.002 0 0 0 5.999 7H9a1 1 0 0 1 0 2H4a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1Zm.008 9.057a1 1 0 0 1 1.276.61A5.002 5.002 0 0 0 14.001 13H11a1 1 0 1 1 0-2h5a1 1 0 0 1 1 1v5a1 1 0 1 1-2 0v-2.101a7.002 7.002 0 0 1-11.601-2.566 1 1 0 0 1 .61-1.276Z" clipRule="evenodd" />
               </svg>
               {onRetry && att.file && (
-                <span className="text-[9px] font-medium text-red-600">Retry</span>
+                <span className="text-[9px] font-medium text-red-600">
+                  {"\u91cd\u8bd5"}
+                </span>
               )}
             </div>
           )}
@@ -58,6 +66,7 @@ export function ImageAttachmentBar({ attachments, onRemove, onRetry }: ImageAtta
           {/* Remove button */}
           <button
             type="button"
+            aria-label={`移除附件 ${index + 1}`}
             onClick={() => onRemove(att.id)}
             className="absolute -right-1 -top-1 hidden h-4 w-4 items-center justify-center rounded-full bg-primary text-primary-foreground group-hover:flex"
           >

@@ -124,19 +124,32 @@ export function useImageAttachments(accessToken: string, projectId?: string) {
 
   const addCanvasRef = useCallback((ref: CanvasImageRef) => {
     const id = crypto.randomUUID();
-    setAttachments((prev) => [
-      ...prev,
-      {
-        id,
-        preview: ref.url,
-        uploading: false,
-        assetId: ref.assetId,
-        url: ref.url,
-        mimeType: ref.mimeType,
-        source: "canvas-ref",
-        ...(ref.name ? { name: ref.name } : {}),
-      },
-    ]);
+    setAttachments((prev) => {
+      const alreadyExists = prev.some(
+        (attachment) =>
+          attachment.source === "canvas-ref" &&
+          attachment.assetId === ref.assetId &&
+          attachment.url === ref.url,
+      );
+
+      if (alreadyExists) {
+        return prev;
+      }
+
+      return [
+        ...prev,
+        {
+          id,
+          preview: ref.url,
+          uploading: false,
+          assetId: ref.assetId,
+          url: ref.url,
+          mimeType: ref.mimeType,
+          source: "canvas-ref",
+          ...(ref.name ? { name: ref.name } : {}),
+        },
+      ];
+    });
   }, []);
 
   const retryUpload = useCallback(
@@ -201,6 +214,17 @@ export function useImageAttachments(accessToken: string, projectId?: string) {
     });
   }, []);
 
+  const clearUploads = useCallback(() => {
+    setAttachments((prev) => {
+      for (const att of prev) {
+        if (att.preview && att.source === "upload") {
+          URL.revokeObjectURL(att.preview);
+        }
+      }
+      return prev.filter((att) => att.source !== "upload");
+    });
+  }, []);
+
   const isUploading = attachments.some((a) => a.uploading);
 
   const readyAttachments = attachments
@@ -220,6 +244,7 @@ export function useImageAttachments(accessToken: string, projectId?: string) {
     retryUpload,
     removeAttachment,
     clearAll,
+    clearUploads,
     isUploading,
     readyAttachments,
   };

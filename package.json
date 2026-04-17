@@ -10,6 +10,12 @@
     "test:workspace": "node --test tests/workspace.test.mjs",
     "test:packages": "turbo run test",
     "test": "pnpm run test:workspace && pnpm run test:packages",
+    "docker:dev:web": "docker compose -f docker-compose.local.yml -f docker-compose.dev.yml --env-file .tmp/loomic-local.env up web",
+    "docker:dev:web:detach": "docker compose -f docker-compose.local.yml -f docker-compose.dev.yml --env-file .tmp/loomic-local.env up -d web",
+    "docker:dev:web:stop": "docker compose -f docker-compose.local.yml -f docker-compose.dev.yml --env-file .tmp/loomic-local.env stop web",
+    "runtime:start": "powershell -ExecutionPolicy Bypass -File scripts/windows/start-local-runtime.ps1",
+    "runtime:stop": "powershell -ExecutionPolicy Bypass -File scripts/windows/stop-local-runtime.ps1",
+    "runtime:status": "powershell -ExecutionPolicy Bypass -File scripts/windows/status-local-runtime.ps1",
     "seed": "node scripts/seed-test-accounts.mjs",
     "typecheck": "turbo run typecheck"
   },

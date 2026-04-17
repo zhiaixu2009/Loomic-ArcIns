@@ -14,6 +14,12 @@ import {
   workspaceSettingsSchema,
   workspaceSummarySchema,
 } from "./contracts.js";
+import {
+  exportManifestSchema,
+  reviewPackageSchema,
+  shareSnapshotRequestSchema as baseShareSnapshotRequestSchema,
+  shareSnapshotSchema,
+} from "./export-contracts.js";
 
 export const healthResponseSchema = z.object({
   ok: z.literal(true),
@@ -140,6 +146,20 @@ export const canvasSaveResponseSchema = z.object({
   ok: z.literal(true),
 });
 
+export const shareSnapshotRequestSchema = baseShareSnapshotRequestSchema;
+
+export const shareSnapshotResponseSchema = z.object({
+  snapshot: shareSnapshotSchema,
+});
+
+export const reviewPackageResponseSchema = z.object({
+  reviewPackage: reviewPackageSchema,
+});
+
+export const exportManifestResponseSchema = z.object({
+  manifest: exportManifestSchema,
+});
+
 export type HealthResponse = z.infer<typeof healthResponseSchema>;
 export type RunCancelResponse = z.infer<typeof runCancelResponseSchema>;
 export type ViewerCredits = z.infer<typeof viewerCreditsSchema>;
@@ -191,6 +211,10 @@ export type MessageCreateResponse = z.infer<typeof messageCreateResponseSchema>;
 export type CanvasGetResponse = z.infer<typeof canvasGetResponseSchema>;
 export type CanvasSaveRequest = z.infer<typeof canvasSaveRequestSchema>;
 export type CanvasSaveResponse = z.infer<typeof canvasSaveResponseSchema>;
+export type ShareSnapshotRequest = z.infer<typeof shareSnapshotRequestSchema>;
+export type ShareSnapshotResponse = z.infer<typeof shareSnapshotResponseSchema>;
+export type ReviewPackageResponse = z.infer<typeof reviewPackageResponseSchema>;
+export type ExportManifestResponse = z.infer<typeof exportManifestResponseSchema>;
 export type ProfileUpdateResponse = z.infer<typeof profileUpdateResponseSchema>;
 export type WorkspaceSettingsResponse = z.infer<typeof workspaceSettingsResponseSchema>;
 export type WorkspaceSettingsUpdateRequest = z.infer<typeof workspaceSettingsUpdateRequestSchema>;

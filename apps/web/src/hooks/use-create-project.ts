@@ -8,6 +8,8 @@ import type { ReadyAttachment } from "@/hooks/use-image-attachments";
 import { useAuth } from "@/lib/auth-context";
 import { useToast } from "@/components/toast";
 import { ApiAuthError, createProject } from "@/lib/server-api";
+import { buildCanvasUrl, type StudioMode } from "@/lib/studio-routes";
+import { UNTITLED_PROJECT_NAME } from "@/lib/canvas-localization";
 
 /** sessionStorage key used to pass attachments from Home → Canvas auto-send. */
 export const INITIAL_ATTACHMENTS_KEY = "loomic:initial-attachments";
@@ -18,7 +20,7 @@ export const INITIAL_VIDEO_GENERATION_PREFERENCE_KEY =
 export const INITIAL_AGENT_MODEL_KEY = "loomic:initial-agent-model";
 
 /**
- * Shared hook for creating an Untitled project and navigating to its canvas.
+ * Shared hook for creating a default project and navigating to its canvas.
  * Used by Home page, Projects page, and Canvas logo menu.
  */
 export function useCreateProject() {
@@ -34,14 +36,22 @@ export function useCreateProject() {
 
   const create = useCallback(
     async (opts?: {
+      name?: string;
       prompt?: string;
       attachments?: ReadyAttachment[];
       imageGenerationPreference?: ImageGenerationPreference;
       videoGenerationPreference?: VideoGenerationPreference;
       model?: string;
+      studioMode?: StudioMode;
     }) => {
       const token = session?.access_token;
       if (!token || creating) return;
+      const projectName = opts?.name?.trim() || UNTITLED_PROJECT_NAME;
+
+      console.info("[create-project] preparing project creation", {
+        hasCustomName: projectName !== UNTITLED_PROJECT_NAME,
+        studioMode: opts?.studioMode ?? "architecture",
+      });
 
       // Persist attachments in sessionStorage BEFORE window.open so the
       // new tab's cloned sessionStorage already contains them.
@@ -102,12 +112,18 @@ export function useCreateProject() {
 
       setCreating(true);
       try {
-        const result = await createProject(token, { name: "Untitled" });
+        const result = await createProject(token, { name: projectName });
         const canvasId = result.project.primaryCanvas.id;
+        const studioMode = opts?.studioMode ?? "architecture";
+        const url = buildCanvasUrl(canvasId, {
+          ...(opts?.prompt ? { prompt: opts.prompt } : {}),
+          studio: studioMode,
+        });
 
-        const url = opts?.prompt
-          ? `/canvas?id=${canvasId}&prompt=${encodeURIComponent(opts.prompt)}`
-          : `/canvas?id=${canvasId}`;
+        console.info("[create-project] routing project to studio", {
+          canvasId,
+          studioMode,
+        });
 
         if (newTab) {
           newTab.location.href = url;

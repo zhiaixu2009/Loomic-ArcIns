@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+POWERSHELL_BIN="${POWERSHELL_BIN:-/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+if [[ ! -x "$POWERSHELL_BIN" ]]; then
+  echo "powershell.exe not found at $POWERSHELL_BIN" >&2
+  exit 1
+fi
+
+CODEX_WIN_PATH="${CODEX_WIN_PATH:-}"
+CODEX_WIN_CMD_PATH="${CODEX_WIN_CMD_PATH:-}"
+
+if [[ -z "$CODEX_WIN_CMD_PATH" ]]; then
+  CODEX_WIN_CMD_PATH="$(
+    "$POWERSHELL_BIN" -NoProfile -Command "
+      \$cmd = Get-Command codex.cmd -ErrorAction SilentlyContinue
+      if (\$cmd) {
+        \$cmd.Source
+        return
+      }
+
+      \$fallback = Join-Path \$env:APPDATA 'npm\codex.cmd'
+      if (Test-Path \$fallback) {
+        \$fallback
+      }
+    " | tr -d '\r' | tail -n 1
+  )"
+fi
+
+if [[ -z "$CODEX_WIN_PATH" ]]; then
+  CODEX_WIN_PATH="$(
+    "$POWERSHELL_BIN" -NoProfile -Command "
+      \$cmd = Get-Command codex -ErrorAction SilentlyContinue
+      if (\$cmd) {
+        \$cmd.Source
+      }
+    " | tr -d '\r' | tail -n 1
+  )"
+fi
+
+if [[ -z "$CODEX_WIN_CMD_PATH" && -z "$CODEX_WIN_PATH" ]]; then
+  echo "Unable to resolve Windows codex path. Set CODEX_WIN_CMD_PATH or CODEX_WIN_PATH explicitly." >&2
+  exit 1
+fi
+
+# Prefer the .cmd shim because it preserves multi-line prompt arguments better
+# than the PowerShell npm shim when Ralph passes a full prompt as one argument.
+if [[ -n "$CODEX_WIN_CMD_PATH" ]]; then
+  POWERSHELL_HELPER="$(wslpath -w "$SCRIPT_DIR/codex-win.ps1")"
+  ARGS_FILE="$(mktemp)"
+  trap 'rm -f "$ARGS_FILE"' EXIT
+  node -e 'require("fs").writeFileSync(process.argv[1], JSON.stringify(process.argv.slice(2)), "utf8")' \
+    "$ARGS_FILE" \
+    "$@"
+  ARGS_FILE_WIN="$(wslpath -w "$ARGS_FILE")"
+  "$POWERSHELL_BIN" \
+    -NoProfile \
+    -ExecutionPolicy Bypass \
+    -File "$POWERSHELL_HELPER" \
+    "$CODEX_WIN_CMD_PATH" \
+    "$ARGS_FILE_WIN"
+  exit $?
+fi
+
+exec "$POWERSHELL_BIN" -NoProfile -ExecutionPolicy Bypass -File "$CODEX_WIN_PATH" "$@"

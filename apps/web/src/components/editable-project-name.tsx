@@ -1,6 +1,7 @@
 "use client";
 
 import { updateProject } from "@/lib/server-api";
+import { normalizeProjectDisplayName } from "@/lib/canvas-localization";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 interface EditableProjectNameProps {
@@ -14,20 +15,21 @@ export function EditableProjectName({
   projectId,
   initialName,
 }: EditableProjectNameProps) {
-  const [name, setName] = useState(initialName);
+  const [name, setName] = useState(() => normalizeProjectDisplayName(initialName));
   const [editing, setEditing] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-  const prevName = useRef(initialName);
+  const prevName = useRef(normalizeProjectDisplayName(initialName));
 
   // Sync if initialName changes externally
   useEffect(() => {
-    setName(initialName);
-    prevName.current = initialName;
+    const normalizedName = normalizeProjectDisplayName(initialName);
+    setName(normalizedName);
+    prevName.current = normalizedName;
   }, [initialName]);
 
   const save = useCallback(
     async (newName: string) => {
-      const trimmed = newName.trim() || "Untitled";
+      const trimmed = normalizeProjectDisplayName(newName);
       setName(trimmed);
       setEditing(false);
       if (trimmed !== prevName.current) {

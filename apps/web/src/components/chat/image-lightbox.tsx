@@ -1,5 +1,14 @@
 "use client";
 
+import {
+  ChevronRight,
+  Download,
+  RotateCcw,
+  RotateCw,
+  X,
+  ZoomIn,
+  ZoomOut,
+} from "lucide-react";
 import { motion } from "framer-motion";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -47,10 +56,12 @@ export function ImageLightbox({
   src,
   alt,
   onClose,
+  variant = "default",
 }: {
   src: string;
   alt: string;
   onClose: () => void;
+  variant?: "default" | "architecture-canvas";
 }) {
   const [scale, setScale] = useState(1);
   const [rotate, setRotate] = useState(0);
@@ -164,6 +175,116 @@ export function ImageLightbox({
     dragRef.current.dragging = false;
   }, []);
 
+  const defaultImageTransform = `translate3d(${translate.x}px, ${translate.y}px, 0) scale3d(${scale * flipX}, ${scale * flipY}, 1) rotate(${rotate}deg)`;
+  const architectureImageTransform = `translate3d(${translate.x}px, ${translate.y}px, 0) scale(${scale}) rotate(${rotate}deg)`;
+
+  if (variant === "architecture-canvas") {
+    const architectureOperationButtonClass =
+      "inline-flex h-[46px] w-[54px] items-center justify-center text-white/88 transition-colors hover:bg-black/10 hover:text-white disabled:cursor-not-allowed disabled:text-white/35 disabled:hover:bg-transparent";
+
+    return createPortal(
+      <motion.div
+        ref={overlayRef}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.15 }}
+        className="fixed inset-0 z-[2000] overflow-hidden bg-black/48 backdrop-blur-[2px]"
+        role="dialog"
+        aria-modal="true"
+        aria-label="查看大图"
+      >
+        <div className="relative flex h-full w-full items-center justify-center px-16 pt-16 pb-[110px]">
+          <img
+            draggable
+            src={src}
+            alt={alt}
+            className="select-none object-contain"
+            style={{
+              maxWidth: "min(72vw, 920px)",
+              maxHeight: "calc(100vh - 160px)",
+              transform: architectureImageTransform,
+              transition: dragRef.current.dragging
+                ? "none"
+                : "transform 0.2s ease",
+              cursor: scale > 1 ? "grab" : "default",
+            }}
+            onClick={(event) => event.stopPropagation()}
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerUp}
+          />
+        </div>
+
+        <ul className="absolute right-0 top-0 flex h-[46px] items-stretch">
+          <li className="list-none">
+            <button
+              type="button"
+              aria-label="逆时针旋转"
+              className={architectureOperationButtonClass}
+              onClick={handleRotateCCW}
+            >
+              <RotateCcw className="h-[18px] w-[18px]" />
+            </button>
+          </li>
+          <li className="list-none">
+            <button
+              type="button"
+              aria-label="顺时针旋转"
+              className={architectureOperationButtonClass}
+              onClick={handleRotateCW}
+            >
+              <RotateCw className="h-[18px] w-[18px]" />
+            </button>
+          </li>
+          <li className="list-none">
+            <button
+              type="button"
+              aria-label="缩小"
+              className={architectureOperationButtonClass}
+              onClick={handleZoomOut}
+              disabled={scale <= 1}
+            >
+              <ZoomOut className="h-[18px] w-[18px]" />
+            </button>
+          </li>
+          <li className="list-none">
+            <button
+              type="button"
+              aria-label="放大"
+              className={architectureOperationButtonClass}
+              onClick={handleZoomIn}
+            >
+              <ZoomIn className="h-[18px] w-[18px]" />
+            </button>
+          </li>
+          <li className="list-none">
+            <button
+              type="button"
+              aria-label="关闭查看大图"
+              className={architectureOperationButtonClass}
+              onClick={onClose}
+            >
+              <X className="h-[18px] w-[18px]" />
+            </button>
+          </li>
+        </ul>
+
+        <div className="pointer-events-none absolute bottom-0 left-0 right-0 flex h-[82px] items-center justify-center bg-white/96 backdrop-blur-md">
+          <button
+            type="button"
+            aria-label="立即下载"
+            className="pointer-events-auto inline-flex h-[52px] min-w-[238px] items-center justify-center gap-2 rounded-[10px] bg-white px-8 text-base font-semibold text-slate-900 shadow-[0_10px_30px_rgba(15,23,42,0.12)] transition-colors hover:bg-slate-50"
+            onClick={handleDownload}
+          >
+            <span>立即下载</span>
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        </div>
+      </motion.div>,
+      document.body,
+    );
+  }
+
   return createPortal(
     <motion.div
       ref={overlayRef}
@@ -187,7 +308,7 @@ export function ImageLightbox({
           alt={alt}
           className="max-h-[85vh] max-w-[90vw] object-contain select-none"
           style={{
-            transform: `translate3d(${translate.x}px, ${translate.y}px, 0) scale3d(${scale * flipX}, ${scale * flipY}, 1) rotate(${rotate}deg)`,
+            transform: defaultImageTransform,
             transition: dragRef.current.dragging
               ? "none"
               : "transform 0.2s ease",

@@ -25,6 +25,12 @@ import type {
   JobResponse,
   MarketplaceSearchResponse,
   MarketplaceDetail,
+  ArchitectureContext,
+  ExportSelection,
+  ShareSnapshotRequest,
+  ShareSnapshotResponse,
+  ReviewPackageResponse,
+  ExportManifestResponse,
 } from "@loomic/shared";
 
 import { getServerBaseUrl } from "./env";
@@ -86,6 +92,11 @@ function authJsonHeaders(accessToken: string): Record<string, string> {
     "content-type": "application/json",
   };
 }
+
+const TRANSIENT_ARCHITECTURE_EXPORT_ERROR_CODES = new Set([
+  "chat_error",
+  "project_query_failed",
+]);
 
 async function handleErrorResponse(response: Response): Promise<never> {
   if (response.status === 401) {
@@ -220,6 +231,56 @@ export async function uploadThumbnail(
   if (!response.ok) return handleErrorResponse(response);
 }
 
+// --- Architecture Share/Export API ---
+
+export async function shareArchitectureSnapshot(
+  accessToken: string,
+  payload: ShareSnapshotRequest,
+): Promise<ShareSnapshotResponse> {
+  const response = await fetch(
+    `${getServerBaseUrl()}/api/exports/share-snapshot`,
+    {
+      method: "POST",
+      headers: authJsonHeaders(accessToken),
+      body: JSON.stringify(payload),
+    },
+  );
+  if (!response.ok) return handleErrorResponse(response);
+  return (await response.json()) as ShareSnapshotResponse;
+}
+
+export async function fetchArchitectureReviewPackage(
+  accessToken: string,
+  payload: {
+    projectId: string;
+    canvasId: string;
+    selection?: ExportSelection;
+    architectureContext?: ArchitectureContext;
+  },
+): Promise<ReviewPackageResponse> {
+  return requestArchitectureExport<ReviewPackageResponse>(
+    `${getServerBaseUrl()}/api/exports/review-package`,
+    accessToken,
+    payload,
+  );
+}
+
+export async function fetchArchitectureExportManifest(
+  accessToken: string,
+  payload: {
+    projectId: string;
+    canvasId: string;
+    selection?: ExportSelection;
+    architectureContext?: ArchitectureContext;
+  },
+): Promise<ExportManifestResponse> {
+  return requestArchitectureExport<ExportManifestResponse>(
+    `${getServerBaseUrl()}/api/exports/manifest`,
+    accessToken,
+    payload,
+  );
+}
+
 // --- Settings API ---
 
 export async function updateProfile(
@@ -343,6 +404,104 @@ export async function fetchMessages(
   );
   if (!response.ok) return handleErrorResponse(response);
   return (await response.json()) as MessageListResponse;
+}
+
+async function requestArchitectureExport<TResponse>(
+  url: string,
+  accessToken: string,
+  payload: Record<string, unknown>,
+): Promise<TResponse> {
+  const maxAttempts = 2;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        method: "POST",
+        headers: authJsonHeaders(accessToken),
+        body: JSON.stringify(payload),
+      });
+    } catch (error) {
+      if (
+        attempt < maxAttempts &&
+        isTransientArchitectureExportNetworkError(error)
+      ) {
+        await delay(250 * attempt);
+        continue;
+      }
+
+      throw error;
+    }
+
+    if (response.ok) {
+      return (await response.json()) as TResponse;
+    }
+
+    const error = await parseApiErrorResponse(response);
+    if (error.kind === "auth") {
+      throw new ApiAuthError();
+    }
+
+    if (
+      attempt < maxAttempts &&
+      TRANSIENT_ARCHITECTURE_EXPORT_ERROR_CODES.has(error.code)
+    ) {
+      await delay(250 * attempt);
+      continue;
+    }
+
+    throw new ApiApplicationError(error.code, error.message);
+  }
+
+  throw new ApiApplicationError(
+    "application_error",
+    "Architecture export request failed.",
+  );
+}
+
+async function parseApiErrorResponse(
+  response: Response,
+): Promise<
+  | {
+      kind: "auth";
+    }
+  | {
+      kind: "application";
+      code: string;
+      message: string;
+    }
+> {
+  if (response.status === 401) {
+    return { kind: "auth" };
+  }
+
+  const body = await response.json().catch(() => null);
+  return {
+    kind: "application",
+    code: body?.error?.code ?? "application_error",
+    message: body?.error?.message ?? "Request failed",
+  };
+}
+
+function delay(ms: number) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+function isTransientArchitectureExportNetworkError(error: unknown) {
+  if (error instanceof DOMException && error.name === "AbortError") {
+    return false;
+  }
+
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  return (
+    error instanceof TypeError ||
+    /fetch failed|network|socket|other side closed/i.test(error.message)
+  );
 }
 
 export async function saveMessage(

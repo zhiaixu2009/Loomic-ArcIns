@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { architectureContextSchema } from "./architecture-contracts.js";
 import { toolArtifactSchema } from "./artifacts.js";
 import { brandKitAssetTypeSchema } from "./brand-kit-contracts.js";
 
@@ -22,8 +23,10 @@ export const workspaceRoleSchema = z.enum(["owner", "admin", "member"]);
 export const runStatusSchema = z.enum([
   "accepted",
   "running",
+  "interrupted",
   "completed",
   "failed",
+  "canceled",
 ]);
 
 export const imageAttachmentSchema = z.object({
@@ -71,14 +74,21 @@ export const videoGenerationPreferenceSchema = z.object({
   models: z.array(z.string().min(1)),
 });
 
+export const imageOutputPreferenceSchema = z.object({
+  aspectRatio: z.enum(["auto", "16:9", "4:3", "1:1", "3:4", "9:16", "21:9"]),
+  resolution: z.enum(["1K", "2K", "4K"]),
+});
+
 export const runCreateRequestSchema = z.object({
   sessionId: sessionIdSchema,
   conversationId: conversationIdSchema,
   prompt: z.string(),
   canvasId: canvasIdSchema.optional(),
+  architectureContext: architectureContextSchema.optional(),
   attachments: z.array(imageAttachmentSchema).optional(),
   imageGenerationPreference: imageGenerationPreferenceSchema.optional(),
   videoGenerationPreference: videoGenerationPreferenceSchema.optional(),
+  imageOutputPreference: imageOutputPreferenceSchema.optional(),
   mentions: z.array(messageMentionSchema).optional(),
   accessToken: z.string().optional(),
   model: z.string().optional(),
@@ -142,6 +152,35 @@ export const canvasDetailSchema = z.object({
   content: canvasContentSchema,
 });
 
+export const canvasCollaboratorProfileSchema = z.object({
+  displayName: z.string().trim().min(1).max(100),
+  avatarUrl: z.string().url().nullable().optional(),
+});
+
+export const canvasCollaboratorSchema = z.object({
+  connectionId: identifierSchema,
+  userId: userIdSchema,
+  displayName: z.string().trim().min(1).max(100),
+  avatarUrl: z.string().url().nullable().optional(),
+  color: z.string().min(1),
+});
+
+export const canvasCursorSchema = z.object({
+  x: z.number(),
+  y: z.number(),
+  tool: z.enum(["pointer", "laser"]),
+  button: z.enum(["down", "up"]),
+});
+
+export const canvasSelectionSchema = z.object({
+  selectedElementIds: z.array(identifierSchema).max(200),
+});
+
+export const canvasMutationSourceSchema = z.enum([
+  "human-save",
+  "agent-sync",
+]);
+
 export const profileUpdateRequestSchema = z.object({
   displayName: z.string().trim().min(1).max(100),
 });
@@ -195,6 +234,69 @@ export const toolBlockSchema = z.object({
   artifacts: z.array(toolArtifactSchema).optional(),
 });
 
+export const agentPlanActionSchema = z.enum([
+  "interrupt",
+  "resume",
+  "retry",
+]);
+
+export const agentPlanStepStatusSchema = z.enum([
+  "pending",
+  "running",
+  "completed",
+  "failed",
+  "interrupted",
+]);
+
+export const agentPlanStatusSchema = z.enum([
+  "pending",
+  "running",
+  "completed",
+  "failed",
+  "interrupted",
+]);
+
+export const agentPlanStepSchema = z.object({
+  stepId: identifierSchema,
+  title: z.string().trim().min(1),
+  description: z.string().trim().min(1).optional(),
+  status: agentPlanStepStatusSchema,
+  toolCallIds: z.array(toolCallIdSchema).default([]),
+  artifactCount: z.number().int().nonnegative().default(0),
+  lastUpdatedAt: timestampSchema,
+  errorMessage: z.string().trim().min(1).optional(),
+});
+
+export const runInterruptReasonSchema = z.enum([
+  "user",
+  "billing",
+  "system",
+]);
+
+export const runInterruptSchema = z.object({
+  runId: runIdSchema,
+  reason: runInterruptReasonSchema,
+  message: z.string().trim().min(1).optional(),
+  interruptedAt: timestampSchema,
+});
+
+export const agentPlanSchema = z.object({
+  planId: identifierSchema,
+  runId: runIdSchema,
+  goal: z.string().trim().min(1),
+  status: agentPlanStatusSchema,
+  availableActions: z.array(agentPlanActionSchema).default([]),
+  updatedAt: timestampSchema,
+  sourceRunId: runIdSchema.optional(),
+  steps: z.array(agentPlanStepSchema).min(1),
+});
+
+export const agentPlanBlockSchema = z.object({
+  type: z.literal("agent-plan"),
+  plan: agentPlanSchema,
+  interrupt: runInterruptSchema.optional(),
+});
+
 export const imageBlockSchema = z.object({
   type: z.literal("image"),
   assetId: z.string().min(1),
@@ -239,6 +341,7 @@ export const contentBlockSchema = z.union([
   textBlockSchema,
   thinkingBlockSchema,
   toolBlockSchema,
+  agentPlanBlockSchema,
   imageBlockSchema,
   mentionBlockSchema,
 ]);
@@ -278,6 +381,14 @@ export type AssetObject = z.infer<typeof assetObjectSchema>;
 export type TextBlock = z.infer<typeof textBlockSchema>;
 export type ThinkingBlock = z.infer<typeof thinkingBlockSchema>;
 export type ToolBlock = z.infer<typeof toolBlockSchema>;
+export type AgentPlanAction = z.infer<typeof agentPlanActionSchema>;
+export type AgentPlanStepStatus = z.infer<typeof agentPlanStepStatusSchema>;
+export type AgentPlanStatus = z.infer<typeof agentPlanStatusSchema>;
+export type AgentPlanStep = z.infer<typeof agentPlanStepSchema>;
+export type RunInterruptReason = z.infer<typeof runInterruptReasonSchema>;
+export type RunInterrupt = z.infer<typeof runInterruptSchema>;
+export type AgentPlan = z.infer<typeof agentPlanSchema>;
+export type AgentPlanBlock = z.infer<typeof agentPlanBlockSchema>;
 export type ImageBlock = z.infer<typeof imageBlockSchema>;
 export type MessageMention = z.infer<typeof messageMentionSchema>;
 export type MentionBlock = z.infer<typeof mentionBlockSchema>;
@@ -288,6 +399,7 @@ export type ImageGenerationPreference = z.infer<
 export type VideoGenerationPreference = z.infer<
   typeof videoGenerationPreferenceSchema
 >;
+export type ImageOutputPreference = z.infer<typeof imageOutputPreferenceSchema>;
 export type ContentBlock = z.infer<typeof contentBlockSchema>;
 export type ChatSessionSummary = z.infer<typeof chatSessionSummarySchema>;
 export type ChatMessage = z.infer<typeof chatMessageSchema>;
@@ -305,3 +417,12 @@ export type CanvasSummary = z.infer<typeof canvasSummarySchema>;
 export type ProjectSummary = z.infer<typeof projectSummarySchema>;
 export type CanvasContent = z.infer<typeof canvasContentSchema>;
 export type CanvasDetail = z.infer<typeof canvasDetailSchema>;
+export type CanvasCollaboratorProfile = z.infer<
+  typeof canvasCollaboratorProfileSchema
+>;
+export type CanvasCollaborator = z.infer<typeof canvasCollaboratorSchema>;
+export type CanvasCursor = z.infer<typeof canvasCursorSchema>;
+export type CanvasSelection = z.infer<typeof canvasSelectionSchema>;
+export type CanvasMutationSource = z.infer<
+  typeof canvasMutationSourceSchema
+>;

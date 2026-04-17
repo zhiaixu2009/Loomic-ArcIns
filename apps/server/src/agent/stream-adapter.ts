@@ -9,7 +9,12 @@ import {
   ToolMessage as ToolMessageClass,
 } from "@langchain/core/messages";
 
-import { imageArtifactSchema, videoArtifactSchema } from "@loomic/shared";
+import {
+  agentPlanSchema,
+  agentPlanStepSchema,
+  imageArtifactSchema,
+  videoArtifactSchema,
+} from "@loomic/shared";
 import type { StreamEvent, ToolArtifact } from "@loomic/shared";
 
 import { sanitizeErrorForClient } from "../utils/error-sanitizer.js";
@@ -42,6 +47,7 @@ type AdaptDeepAgentStreamOptions = {
 const SUB_AGENT_PARENT_TOOLS = new Set(["video_generate"]);
 /** Inner tools that may be suppressed when running inside a sub-agent. */
 const INNER_SUB_AGENT_TOOLS = new Set(["generate_video"]);
+const PLANNING_TOOLS = new Set(["publish_plan", "update_plan_step"]);
 
 export async function* adaptDeepAgentStream(
   options: AdaptDeepAgentStreamOptions,
@@ -190,6 +196,9 @@ export async function* adaptDeepAgentStream(
       // Tool execution started
       if (evt.event === "on_tool_start") {
         const toolName = evt.name ?? "unknown_tool";
+        if (PLANNING_TOOLS.has(toolName)) {
+          continue;
+        }
         // Use run_id as the tool call identifier for consistent start/end pairing
         const toolCallId = readString(evt.run_id) ?? `tool_${Date.now()}`;
 
@@ -229,6 +238,33 @@ export async function* adaptDeepAgentStream(
         seenCompletedToolCalls.add(toolCallId);
 
         const output = evt.data?.output;
+
+        if (toolName === "publish_plan") {
+          const plan = extractAgentPlanOutput(output, options.runId);
+          if (plan) {
+            yield {
+              type: "agent.plan.updated",
+              runId: options.runId,
+              plan,
+              timestamp: now(),
+            };
+          }
+          continue;
+        }
+
+        if (toolName === "update_plan_step") {
+          const stepUpdate = extractAgentPlanStepOutput(output);
+          if (stepUpdate) {
+            yield {
+              type: "agent.step.updated",
+              runId: options.runId,
+              planId: stepUpdate.planId,
+              step: stepUpdate.step,
+              timestamp: now(),
+            };
+          }
+          continue;
+        }
 
         // When an inner tool runs inside an active sub-agent parent,
         // suppress its artifacts because the parent will re-emit them.
@@ -298,6 +334,74 @@ function canceledEvent(runId: string, now: () => string): StreamEvent {
     runId,
     timestamp: now(),
     type: "run.canceled",
+  };
+}
+
+function extractStructuredOutput(output: unknown): Record<string, unknown> | null {
+  let text = "";
+  if (ToolMessageClass.isInstance(output)) {
+    text = extractChunkText(output);
+  } else if (typeof output === "string") {
+    text = output;
+  } else if (output && typeof output === "object") {
+    return unwrapCommandOutput(output as Record<string, unknown>);
+  }
+
+  const parsed = tryParseJson(text);
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return null;
+  }
+
+  return unwrapCommandOutput(parsed as Record<string, unknown>);
+}
+
+function extractAgentPlanOutput(
+  output: unknown,
+  runId: string,
+) {
+  const structured = extractStructuredOutput(output);
+  if (!structured) {
+    return null;
+  }
+
+  const candidate = {
+    ...structured,
+    runId,
+  };
+  const parsed = agentPlanSchema.safeParse(candidate);
+  if (!parsed.success) {
+    console.warn("[stream-adapter] publish_plan returned invalid plan output");
+    return null;
+  }
+
+  return parsed.data;
+}
+
+function extractAgentPlanStepOutput(output: unknown) {
+  const structured = extractStructuredOutput(output);
+  if (!structured) {
+    return null;
+  }
+
+  const planId = readString(structured.planId);
+  if (!planId) {
+    console.warn("[stream-adapter] update_plan_step output missing planId");
+    return null;
+  }
+
+  const stepCandidate =
+    structured.step && typeof structured.step === "object"
+      ? structured.step
+      : structured;
+  const parsed = agentPlanStepSchema.safeParse(stepCandidate);
+  if (!parsed.success) {
+    console.warn("[stream-adapter] update_plan_step returned invalid step output");
+    return null;
+  }
+
+  return {
+    planId,
+    step: parsed.data,
   };
 }
 

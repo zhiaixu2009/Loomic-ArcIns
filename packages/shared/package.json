@@ -16,6 +16,7 @@
   },
   "scripts": {
     "build": "tsc --build tsconfig.json --force",
+    "dev": "tsc --build tsconfig.json --watch --preserveWatchOutput",
     "test": "vitest run src/contracts.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   }

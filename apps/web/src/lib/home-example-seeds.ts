@@ -146,7 +146,7 @@ export const homeExampleSeedCategories: HomeExampleCategory[] = [
       ],
     ),
   ], "special"),
-  cat("design", "Design", "Poster", [
+  cat("design", "\u8bbe\u8ba1\u521b\u4f5c", "Poster", [
     ex(
       "Design a Bauhaus-inspired poster.",
       "Make a poster for a music festival in the Bauhaus style. Use a limited color palette of pink, red, and cream. Abstract geometric shapes representing sound waves. Minimalist vertical text.",
@@ -221,7 +221,7 @@ export const homeExampleSeedCategories: HomeExampleCategory[] = [
       ],
     ),
   ]),
-  cat("branding", "Branding", "Branding", [
+  cat("branding", "\u54c1\u724c\u89c6\u89c9", "Branding", [
     ex(
       "Generate logo options.",
       "Minimalist vector cartoon logo for a sushi shop. Use simple, bold, rounded lines. Very clean, modern, and well designed.",
@@ -301,7 +301,7 @@ export const homeExampleSeedCategories: HomeExampleCategory[] = [
       ],
     ),
   ]),
-  cat("illustration", "Illustration", "Illustration", [
+  cat("illustration", "\u63d2\u753b\u8868\u8fbe", "Illustration", [
     ex(
       "From sketch to endless illustration styles.",
       "Turn this sketch into a 2D illustration, try 5 different styles.",
@@ -386,7 +386,7 @@ export const homeExampleSeedCategories: HomeExampleCategory[] = [
       ],
     ),
   ]),
-  cat("e-commerce", "E-Commerce", "Character", [
+  cat("e-commerce", "\u7535\u5546\u5c55\u793a", "Character", [
     ex(
       "Show your clothing on a model.",
       "Change her top to this sweater.",
@@ -468,7 +468,7 @@ export const homeExampleSeedCategories: HomeExampleCategory[] = [
       ],
     ),
   ]),
-  cat("video", "Video", "Video", [
+  cat("video", "\u89c6\u9891\u751f\u6210", "Video", [
     ex(
       "Turn product photos into 360\u00b0 videos.",
       "Use this  as the start and end frame, generate a video of the ring rotating in slow motion.",

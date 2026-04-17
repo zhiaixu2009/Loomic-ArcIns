@@ -2,6 +2,10 @@ import type { StructuredTool } from "@langchain/core/tools";
 import type { BackendFactory, BackendProtocol } from "deepagents";
 
 import type { ConnectionManager } from "../../ws/connection-manager.js";
+import {
+  createPublishPlanTool,
+  createUpdatePlanStepTool,
+} from "./agent-plan.js";
 import { createBrandKitTool } from "./brand-kit.js";
 import { createInspectCanvasTool } from "./inspect-canvas.js";
 import { createManipulateCanvasTool } from "./manipulate-canvas.js";
@@ -22,6 +26,7 @@ export { createImageGenerateTool } from "./image-generate.js";
 export { createVideoGenerateTool } from "./video-generate.js";
 export { createInspectCanvasTool } from "./inspect-canvas.js";
 export { createManipulateCanvasTool } from "./manipulate-canvas.js";
+export { createPublishPlanTool, createUpdatePlanStepTool } from "./agent-plan.js";
 
 // ---------------------------------------------------------------------------
 // deepagents 内置工具参考 (由 FilesystemMiddleware 自动注入)
@@ -64,6 +69,8 @@ export function createMainAgentTools(
   },
 ) {
   const tools: StructuredTool[] = [
+    createPublishPlanTool(),
+    createUpdatePlanStepTool(),
     createProjectSearchTool(backend),
     createInspectCanvasTool(deps),
     createManipulateCanvasTool(deps),

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 
 import { useAuth } from "@/lib/auth-context";
@@ -17,6 +17,9 @@ export default function WorkspaceLayout({
 }) {
   const { user, loading } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
+  const immersiveChrome =
+    pathname === "/home" || pathname === "/canvas";
 
   useEffect(() => {
     if (!loading && !user) {
@@ -41,13 +44,15 @@ export default function WorkspaceLayout({
       >
         跳到主内容
       </a>
-      <AppSidebar />
+      {immersiveChrome ? null : <AppSidebar />}
       {/* pb-14 on mobile for the fixed bottom navigation bar, reset on md+ */}
       <main id="main" className="relative flex-1 overflow-auto pb-14 md:pb-0">
         {/* Top-right header credits button */}
-        <div className="absolute right-4 top-3 z-10">
-          <CreditHeaderButton />
-        </div>
+        {immersiveChrome ? null : (
+          <div className="absolute right-4 top-3 z-10">
+            <CreditHeaderButton />
+          </div>
+        )}
         <PageTransition>{children}</PageTransition>
       </main>
     </div>

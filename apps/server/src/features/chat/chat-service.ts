@@ -54,6 +54,22 @@ export type ChatService = {
   ): Promise<ChatMessage>;
 };
 
+const DEFAULT_CHAT_SESSION_TITLE = "新对话";
+const LEGACY_NEW_CHAT_TITLE = "new chat";
+
+function normalizeSessionTitle(title?: string | null) {
+  const normalized = typeof title === "string" ? title.trim() : "";
+  if (!normalized) {
+    return DEFAULT_CHAT_SESSION_TITLE;
+  }
+
+  if (normalized.toLowerCase() === LEGACY_NEW_CHAT_TITLE) {
+    return DEFAULT_CHAT_SESSION_TITLE;
+  }
+
+  return normalized;
+}
+
 /**
  * Synthesize content blocks from legacy `content` + `tool_activities` columns.
  * Produces the same ordering the old client saw: text first, then tool blocks.
@@ -93,20 +109,21 @@ export function createChatService(options: {
 
       return (data ?? []).map((row) => ({
         id: row.id,
-        title: row.title,
+        title: normalizeSessionTitle(row.title),
         updatedAt: row.updated_at,
       }));
     },
 
     async createSession(user, canvasId, title) {
       const client = options.createUserClient(user.accessToken);
+      const normalizedTitle = normalizeSessionTitle(title);
       const { data, error } = await client
         .from("chat_sessions")
         .insert({
           canvas_id: canvasId,
           created_by: user.id,
           thread_id: options.threadService.createThreadId(),
-          ...(title ? { title } : {}),
+          title: normalizedTitle,
         })
         .select("id, title, updated_at")
         .single();
@@ -117,7 +134,7 @@ export function createChatService(options: {
 
       return {
         id: data.id,
-        title: data.title,
+        title: normalizeSessionTitle(data.title),
         updatedAt: data.updated_at,
       };
     },
@@ -126,7 +143,7 @@ export function createChatService(options: {
       const client = options.createUserClient(user.accessToken);
       const { error } = await client
         .from("chat_sessions")
-        .update({ title })
+        .update({ title: normalizeSessionTitle(title) })
         .eq("id", sessionId);
 
       if (error) {

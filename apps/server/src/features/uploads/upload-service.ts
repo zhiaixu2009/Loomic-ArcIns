@@ -1,12 +1,12 @@
 import type { AssetBucket, AssetObject } from "@loomic/shared";
 
+import type { AdminSupabaseClient } from "../../supabase/admin.js";
 import type {
   AuthenticatedUser,
   UserSupabaseClient,
 } from "../../supabase/user.js";
 
 /** Buckets configured as public in Supabase — use getPublicUrl instead of signed URLs */
-const PUBLIC_BUCKETS = new Set(["project-assets"]);
 
 export class UploadServiceError extends Error {
   readonly statusCode: number;
@@ -50,28 +50,49 @@ export type UploadService = {
 };
 
 const SIGNED_URL_EXPIRY_SECONDS = 3600;
+const PUBLIC_ASSET_BUCKETS: ReadonlySet<AssetBucket> = new Set([
+  "project-assets",
+  "user-avatars",
+]);
+const TRANSIENT_UPLOAD_OPERATION_RETRY_ATTEMPTS = 3;
+const TRANSIENT_UPLOAD_OPERATION_RETRY_DELAY_MS = 100;
 
 export function createUploadService(options: {
   createUserClient: (accessToken: string) => UserSupabaseClient;
+  getAdminClient?: () => AdminSupabaseClient;
 }): UploadService {
   return {
     async uploadFile(user, input) {
       const client = options.createUserClient(user.accessToken);
+      const privilegedClient = options.getAdminClient?.() ?? client;
+      const workspaceId = input.workspaceId;
 
       const objectPath = buildObjectPath(
-        input.workspaceId,
+        workspaceId,
         input.projectId,
         input.fileName,
       );
 
-      const { error: storageError } = await client.storage
-        .from(input.bucket)
-        .upload(objectPath, input.fileBuffer, {
-          contentType: input.mimeType,
-          upsert: false,
-        });
+      const { error: storageError } = await runTransientUploadOperation(
+        "storage upload",
+        () =>
+          privilegedClient.storage
+            .from(input.bucket)
+            .upload(objectPath, input.fileBuffer, {
+              contentType: input.mimeType,
+              upsert: false,
+            }),
+        (result) => getRetryableSupabaseErrorMessage(result.error),
+      );
 
       if (storageError) {
+        console.error("[uploads] storage upload failed", {
+          bucket: input.bucket,
+          objectPath,
+          projectId: input.projectId ?? null,
+          workspaceId,
+          message: storageError.message,
+        });
         throw new UploadServiceError(
           "upload_failed",
           `Storage upload failed: ${storageError.message}`,
@@ -79,23 +100,38 @@ export function createUploadService(options: {
         );
       }
 
-      const { data: assetRow, error: insertError } = await client
-        .from("asset_objects")
-        .insert({
-          workspace_id: input.workspaceId,
-          bucket: input.bucket,
-          object_path: objectPath,
-          mime_type: input.mimeType,
-          byte_size: input.fileBuffer.length,
-          created_by: user.id,
-          ...(input.projectId ? { project_id: input.projectId } : {}),
-        })
-        .select("id, bucket, object_path, mime_type, byte_size, workspace_id, project_id, created_at")
-        .single();
+      const { data: assetRow, error: insertError } = await runTransientUploadOperation(
+        "asset metadata insert",
+        () =>
+          privilegedClient
+            .from("asset_objects")
+            .insert({
+              workspace_id: workspaceId,
+              bucket: input.bucket,
+              object_path: objectPath,
+              mime_type: input.mimeType,
+              byte_size: input.fileBuffer.length,
+              created_by: user.id,
+              ...(input.projectId ? { project_id: input.projectId } : {}),
+            })
+            .select(
+              "id, bucket, object_path, mime_type, byte_size, workspace_id, project_id, created_at",
+            )
+            .single(),
+        (result) => getRetryableSupabaseErrorMessage(result.error),
+      );
 
       if (insertError || !assetRow) {
+        console.error("[uploads] asset metadata insert failed", {
+          bucket: input.bucket,
+          objectPath,
+          projectId: input.projectId ?? null,
+          workspaceId,
+          hasAssetRow: Boolean(assetRow),
+          message: insertError?.message ?? null,
+        });
         // Clean up the uploaded file on DB insert failure
-        await client.storage.from(input.bucket).remove([objectPath]);
+        await privilegedClient.storage.from(input.bucket).remove([objectPath]);
         throw new UploadServiceError(
           "upload_failed",
           "Failed to record asset metadata.",
@@ -103,7 +139,7 @@ export function createUploadService(options: {
         );
       }
 
-      const url = await getAssetUrl(client, input.bucket, objectPath);
+      const url = await getAssetUrl(privilegedClient, input.bucket, objectPath);
 
       return {
         asset: {
@@ -122,6 +158,7 @@ export function createUploadService(options: {
 
     async getAssetUrl(user, assetId) {
       const client = options.createUserClient(user.accessToken);
+      const privilegedClient = options.getAdminClient?.() ?? client;
 
       const { data: assetRow, error } = await client
         .from("asset_objects")
@@ -137,11 +174,12 @@ export function createUploadService(options: {
         );
       }
 
-      return getAssetUrl(client, assetRow.bucket, assetRow.object_path);
+      return getAssetUrl(privilegedClient, assetRow.bucket, assetRow.object_path);
     },
 
     async deleteAsset(user, assetId) {
       const client = options.createUserClient(user.accessToken);
+      const privilegedClient = options.getAdminClient?.() ?? client;
 
       const { data: assetRow, error: fetchError } = await client
         .from("asset_objects")
@@ -157,11 +195,11 @@ export function createUploadService(options: {
         );
       }
 
-      await client.storage
+      await privilegedClient.storage
         .from(assetRow.bucket)
         .remove([assetRow.object_path]);
 
-      const { error: deleteError } = await client
+      const { error: deleteError } = await privilegedClient
         .from("asset_objects")
         .delete()
         .eq("id", assetId);
@@ -192,20 +230,39 @@ function buildObjectPath(
 
 async function getAssetUrl(
   client: UserSupabaseClient,
-  bucket: string,
+  bucket: AssetBucket,
   objectPath: string,
 ): Promise<string> {
-  if (PUBLIC_BUCKETS.has(bucket)) {
-    const { data } = client.storage.from(bucket).getPublicUrl(objectPath);
-    return data.publicUrl;
+  if (PUBLIC_ASSET_BUCKETS.has(bucket)) {
+    return createPublicUrl(client, bucket, objectPath);
   }
-  // Fallback for private buckets (e.g. user-avatars)
+
   return createSignedUrl(client, bucket, objectPath);
+}
+
+function createPublicUrl(
+  client: UserSupabaseClient,
+  bucket: AssetBucket,
+  objectPath: string,
+): string {
+  const { data } = client.storage
+    .from(bucket)
+    .getPublicUrl(objectPath);
+
+  if (!data?.publicUrl) {
+    throw new UploadServiceError(
+      "upload_failed",
+      "Failed to generate public URL.",
+      500,
+    );
+  }
+
+  return data.publicUrl;
 }
 
 async function createSignedUrl(
   client: UserSupabaseClient,
-  bucket: string,
+  bucket: AssetBucket,
   objectPath: string,
 ): Promise<string> {
   const { data, error } = await client.storage
@@ -221,4 +278,101 @@ async function createSignedUrl(
   }
 
   return data.signedUrl;
+}
+
+async function runTransientUploadOperation<T>(
+  stepName: string,
+  operation: () => Promise<T>,
+  getRetryMessage: (result: T) => string | null,
+): Promise<T> {
+  for (
+    let attempt = 1;
+    attempt <= TRANSIENT_UPLOAD_OPERATION_RETRY_ATTEMPTS;
+    attempt += 1
+  ) {
+    try {
+      const result = await operation();
+      const retryMessage = getRetryMessage(result);
+
+      if (
+        !retryMessage ||
+        attempt === TRANSIENT_UPLOAD_OPERATION_RETRY_ATTEMPTS
+      ) {
+        return result;
+      }
+
+      console.warn("[uploads] transient operation failed, retrying", {
+        attempt,
+        maxAttempts: TRANSIENT_UPLOAD_OPERATION_RETRY_ATTEMPTS,
+        message: retryMessage,
+        stepName,
+      });
+    } catch (error) {
+      const retryMessage = getRetryableSupabaseErrorMessage(error);
+
+      if (
+        !retryMessage ||
+        attempt === TRANSIENT_UPLOAD_OPERATION_RETRY_ATTEMPTS
+      ) {
+        throw error;
+      }
+
+      console.warn("[uploads] transient operation threw, retrying", {
+        attempt,
+        maxAttempts: TRANSIENT_UPLOAD_OPERATION_RETRY_ATTEMPTS,
+        message: retryMessage,
+        stepName,
+      });
+    }
+
+    await delay(TRANSIENT_UPLOAD_OPERATION_RETRY_DELAY_MS * attempt);
+  }
+
+  throw new Error(`Unreachable retry loop for ${stepName}.`);
+}
+
+function getRetryableSupabaseErrorMessage(error: unknown): string | null {
+  const message = extractSupabaseErrorMessage(error);
+  if (!message) {
+    return null;
+  }
+
+  const normalized = message.toLowerCase();
+  if (
+    normalized.includes("fetch failed") ||
+    normalized.includes("und_err_") ||
+    normalized.includes("econnreset") ||
+    normalized.includes("etimedout")
+  ) {
+    return message;
+  }
+
+  return null;
+}
+
+function extractSupabaseErrorMessage(error: unknown): string | null {
+  if (!error) {
+    return null;
+  }
+
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "message" in error &&
+    typeof error.message === "string"
+  ) {
+    return error.message;
+  }
+
+  return null;
+}
+
+function delay(ms: number) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
 }

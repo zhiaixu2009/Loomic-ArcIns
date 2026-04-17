@@ -1,6 +1,8 @@
+import { randomUUID } from "node:crypto";
 import type { FastifyInstance, FastifyReply } from "fastify";
 
 import {
+  type CanvasCollaboratorProfile,
   applicationErrorResponseSchema,
   canvasGetResponseSchema,
   canvasSaveRequestSchema,
@@ -8,17 +10,21 @@ import {
   unauthenticatedErrorResponseSchema,
 } from "@loomic/shared";
 
+import type { ViewerService } from "../features/bootstrap/ensure-user-foundation.js";
 import {
   CanvasServiceError,
   type CanvasService,
 } from "../features/canvas/canvas-service.js";
-import type { RequestAuthenticator } from "../supabase/user.js";
+import type { AuthenticatedUser, RequestAuthenticator } from "../supabase/user.js";
+import type { ConnectionManager } from "../ws/connection-manager.js";
 
 export async function registerCanvasRoutes(
   app: FastifyInstance,
   options: {
     auth: RequestAuthenticator;
     canvasService: CanvasService;
+    connectionManager?: ConnectionManager;
+    viewerService?: ViewerService;
   },
 ) {
   app.get<{ Params: { canvasId: string } }>(
@@ -53,6 +59,12 @@ export async function registerCanvasRoutes(
           request.params.canvasId,
           payload.content,
         );
+        await broadcastCanvasMutation(
+          request.params.canvasId,
+          payload.content.elements.length,
+          user,
+          options,
+        );
         const bodySize = JSON.stringify(request.body).length;
         request.log.info(
           { canvasId: request.params.canvasId, bodyBytes: bodySize },
@@ -81,6 +93,78 @@ function sendUnauthorized(reply: FastifyReply) {
       },
     }),
   );
+}
+
+async function broadcastCanvasMutation(
+  canvasId: string,
+  elementCount: number,
+  user: AuthenticatedUser,
+  options: {
+    connectionManager?: ConnectionManager;
+    viewerService?: ViewerService;
+  },
+) {
+  if (!options.connectionManager) return;
+
+  const fallbackProfile = await resolveFallbackCollaboratorProfile(
+    user,
+    options.viewerService,
+  );
+  const collaborator = options.connectionManager.getCanvasCollaboratorByUserOrFallback(
+    canvasId,
+    user.id,
+    fallbackProfile,
+  );
+
+  options.connectionManager.pushToCanvas(canvasId, {
+    type: "collab.canvas_mutation",
+    canvasId,
+    mutationId: randomUUID(),
+    collaborator,
+    source: "human-save",
+    elementCount,
+    timestamp: new Date().toISOString(),
+  });
+}
+
+async function resolveFallbackCollaboratorProfile(
+  user: AuthenticatedUser,
+  viewerService?: ViewerService,
+): Promise<CanvasCollaboratorProfile> {
+  let displayName = resolveDisplayName(user);
+  let avatarUrl: string | null = null;
+
+  if (viewerService) {
+    try {
+      const viewer = await viewerService.ensureViewer(user);
+      displayName = viewer.profile.displayName || displayName;
+      avatarUrl = viewer.profile.avatarUrl ?? null;
+    } catch {
+      // Fall back to auth token metadata when viewer bootstrap is unavailable.
+    }
+  }
+
+  return {
+    avatarUrl,
+    displayName,
+  };
+}
+
+function resolveDisplayName(user: AuthenticatedUser) {
+  const displayName =
+    readString(user.userMetadata.displayName) ??
+    readString(user.userMetadata.display_name) ??
+    readString(user.userMetadata.name);
+
+  if (displayName?.trim()) {
+    return displayName.trim();
+  }
+
+  return user.email.split("@")[0] || "Collaborator";
+}
+
+function readString(value: unknown): string | null {
+  return typeof value === "string" ? value : null;
 }
 
 function sendCanvasError(error: unknown, reply: FastifyReply) {

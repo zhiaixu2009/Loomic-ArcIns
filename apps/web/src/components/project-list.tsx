@@ -6,6 +6,7 @@ import Link from "next/link";
 
 import { DeleteProjectDialog } from "./delete-project-dialog";
 import { useDeleteProject } from "@/hooks/use-delete-project";
+import { buildCanvasUrl } from "@/lib/studio-routes";
 import { formatDate } from "@/lib/utils";
 
 interface ProjectListProps {
@@ -72,7 +73,9 @@ export function ProjectList({
         {projects.map((project) => (
           <Link
             key={project.id}
-            href={`/canvas?id=${project.primaryCanvas.id}`}
+            href={buildCanvasUrl(project.primaryCanvas.id, {
+              studio: "architecture",
+            })}
             className={`group relative block aspect-[286/208] rounded-lg bg-card p-2 cursor-pointer shadow-card transition-all duration-300 hover:shadow-md sm:p-3 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1${
               highlightId === project.id ? " ring-2 ring-border" : ""
             }`}
