@@ -1,6 +1,13 @@
-// @vitest-environment jsdom
+﻿// @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
-import { cleanup, render, screen, within } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -424,15 +431,11 @@ describe("ChatInput", () => {
       "Banana Pro",
     );
     expect(
-      screen.getByRole("button", { name: "自动" }),
+      screen.getByRole("button", { name: "自动 / 2K" }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "1K" })).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "模版" }),
     ).toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "自动 1K" }),
-    ).not.toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: "模版" }));
 
@@ -451,6 +454,92 @@ describe("ChatInput", () => {
     expect(screen.getByLabelText("输入消息")).toHaveValue(
       "请基于当前建筑参考图，保持主体视角与构图关系，进一步细化立面层次与材质细节。",
     );
+  });
+
+  it("keeps the immersive attachment rail visually tight to the text area and bottom controls", () => {
+    render(
+      <ChatInput
+        immersiveArchitecture
+        onSend={vi.fn()}
+        attachments={[
+          {
+            id: "attachment-1",
+            preview: "https://example.com/reference.png",
+            uploading: false,
+            assetId: "asset-1",
+            url: "https://example.com/reference.png",
+            mimeType: "image/png",
+            source: "upload",
+          },
+        ]}
+        onRemoveAttachment={vi.fn()}
+      />,
+    );
+
+    const inlineRail = screen.getByTestId("chat-input-immersive-inline-rail");
+    const inputBlock = inlineRail.nextElementSibling as HTMLElement | null;
+    const controlRow = screen.getByTestId("chat-input-immersive-control-row");
+
+    expect(inputBlock).not.toBeNull();
+    expect(inputBlock).toHaveClass("mt-1.5");
+    expect(inputBlock).not.toHaveClass("mt-3");
+    expect(controlRow).toHaveClass("mt-2", "pt-2");
+    expect(controlRow).not.toHaveClass("mt-3", "pt-3");
+  });
+
+  it("keeps the empty immersive composer compact instead of bottom-aligning the textarea below the add tile", () => {
+    render(
+      <ChatInput
+        immersiveArchitecture
+        onSend={vi.fn()}
+        onAddFiles={vi.fn()}
+      />,
+    );
+
+    const shell = screen.getByTestId("chat-input-immersive-shell");
+    const inlineRail = screen.getByTestId("chat-input-immersive-inline-rail");
+    const inputRow = screen.getByTestId("chat-input-immersive-input-row");
+    const inputStack = inputRow.parentElement as HTMLElement | null;
+
+    expect(shell).not.toHaveClass("h-[272px]");
+    expect(shell).toHaveClass("max-h-[272px]");
+    expect(inlineRail).toHaveClass("min-h-[60px]");
+    expect(inlineRail).not.toHaveClass("min-h-[68px]");
+    expect(inputStack).not.toBeNull();
+    expect(inputStack).not.toHaveClass("flex-1");
+    expect(inputRow).toHaveClass("items-start");
+    expect(inputRow).not.toHaveClass("flex-1");
+    expect(inputRow).not.toHaveClass("items-end");
+    expect(
+      within(inlineRail).getByRole("button", { name: "添加图片" }),
+    ).toBeInTheDocument();
+  });
+
+  it("uses a two-line immersive text baseline and only grows upward after the content exceeds it", async () => {
+    render(<ChatInput immersiveArchitecture onSend={vi.fn()} />);
+
+    const textarea = screen.getByLabelText("输入消息") as HTMLTextAreaElement;
+    let mockedScrollHeight = 44;
+
+    Object.defineProperty(textarea, "scrollHeight", {
+      configurable: true,
+      get: () => mockedScrollHeight,
+    });
+
+    fireEvent.change(textarea, { target: { value: "单行内容" } });
+
+    await waitFor(() => {
+      expect(textarea).toHaveClass("min-h-[56px]", "max-h-[112px]");
+      expect(textarea).not.toHaveClass("min-h-[80px]");
+      expect(textarea.style.height).toBe("56px");
+    });
+
+    mockedScrollHeight = 96;
+    fireEvent.change(textarea, { target: { value: "第一行\n第二行\n第三行" } });
+
+    await waitFor(() => {
+      expect(textarea.style.height).toBe("96px");
+    });
   });
 
   it("keeps the immersive composer shell fixed and places pending chips in a dedicated meta rail", () => {
@@ -486,14 +575,22 @@ describe("ChatInput", () => {
     const shell = screen.getByTestId("chat-input-immersive-shell");
     expect(shell).toHaveAttribute("data-layout", "fixed");
 
-    const metaRail = screen.getByTestId("chat-input-immersive-meta-rail");
+    const metaRail = screen.getByTestId("chat-input-immersive-inline-rail");
     expect(
       within(metaRail).getAllByTestId("chat-input-selected-canvas-chip"),
     ).toHaveLength(2);
+    expect(
+      within(metaRail).getByRole("button", { name: "添加图片" }),
+    ).toBeInTheDocument();
+    expect(
+      within(metaRail).getAllByTestId("chat-input-selected-canvas-chip")[0],
+    ).toHaveClass("h-[68px]", "w-[68px]");
 
     const inputRow = screen.getByTestId("chat-input-immersive-input-row");
-    expect(within(inputRow).getByRole("button", { name: "添加图片" })).toBeInTheDocument();
     expect(within(inputRow).getByLabelText("输入消息")).toBeInTheDocument();
+    expect(
+      within(inputRow).queryByRole("button", { name: "添加图片" }),
+    ).not.toBeInTheDocument();
 
     const controlRow = screen.getByTestId("chat-input-immersive-control-row");
     expect(
@@ -501,10 +598,10 @@ describe("ChatInput", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("opens an aspect-ratio menu from the immersive 自动 button and keeps the selected ratio label", async () => {
+  it("opens an aspect-ratio menu from the merged immersive output button and keeps the selected ratio label", async () => {
     render(<ChatInput immersiveArchitecture onSend={vi.fn()} />);
 
-    await userEvent.click(screen.getByRole("button", { name: "自动" }));
+    await userEvent.click(screen.getByRole("button", { name: "自动 / 2K" }));
 
     expect(screen.getByRole("button", { name: "16:9" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "4:3" })).toBeInTheDocument();
@@ -512,14 +609,14 @@ describe("ChatInput", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "16:9" }));
 
-    expect(screen.getByRole("button", { name: "16:9" })).toBeInTheDocument();
-    expect(screen.queryByText("画幅比例")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "16:9 / 2K" })).toBeInTheDocument();
+    expect(screen.queryByText("自动 / 2K")).not.toBeInTheDocument();
   });
 
-  it("opens a resolution menu from the immersive 1K button and keeps the selected resolution label", async () => {
+  it("opens a resolution menu from the merged immersive output button and keeps the selected resolution label", async () => {
     render(<ChatInput immersiveArchitecture onSend={vi.fn()} />);
 
-    await userEvent.click(screen.getByRole("button", { name: "1K" }));
+    await userEvent.click(screen.getByRole("button", { name: "自动 / 2K" }));
 
     expect(screen.getByRole("button", { name: "2K" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "4K" })).toBeInTheDocument();
@@ -529,8 +626,8 @@ describe("ChatInput", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "4K" }));
 
-    expect(screen.getByRole("button", { name: "4K" })).toBeInTheDocument();
-    expect(screen.queryByText("输出分辨率")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "自动 / 4K" })).toBeInTheDocument();
+    expect(screen.queryByText("自动 / 2K")).not.toBeInTheDocument();
   });
 
   it("renders the immersive template menu as category-to-item hierarchy instead of a flat list", async () => {
@@ -592,5 +689,83 @@ describe("ChatInput", () => {
     expect(screen.getByLabelText("输入消息")).toHaveValue(
       "请基于当前总平图，增强场地层次、道路辨识度与绿化填色效果。",
     );
+  });
+
+  it("anchors the immersive template browser to the template button instead of sending it far above the composer", async () => {
+    const rectSpy = vi
+      .spyOn(HTMLElement.prototype, "getBoundingClientRect")
+      .mockImplementation(function mockRect(this: HTMLElement) {
+        const ariaLabel = this.getAttribute("aria-label");
+        const testId = this.getAttribute("data-testid");
+
+        if (ariaLabel === "模版") {
+          return {
+            x: 760,
+            y: 820,
+            width: 64,
+            height: 32,
+            top: 820,
+            right: 824,
+            bottom: 852,
+            left: 760,
+            toJSON: () => ({}),
+          } as DOMRect;
+        }
+
+        if (testId === "chat-input-template-menu-portal") {
+          return {
+            x: 0,
+            y: 0,
+            width: 620,
+            height: 248,
+            top: 0,
+            right: 620,
+            bottom: 248,
+            left: 0,
+            toJSON: () => ({}),
+          } as DOMRect;
+        }
+
+        return {
+          x: 0,
+          y: 0,
+          width: 120,
+          height: 40,
+          top: 0,
+          right: 120,
+          bottom: 40,
+          left: 0,
+          toJSON: () => ({}),
+        } as DOMRect;
+      });
+
+    try {
+      render(
+        <ChatInput
+          immersiveArchitecture
+          onSend={vi.fn()}
+          templateSuggestions={[
+            {
+              id: "render-1",
+              label: "保留视角深化立面",
+              prompt:
+                "请基于当前建筑参考图，保持主体视角与构图关系，进一步细化立面层次与材质细节。",
+              categoryId: "render",
+              categoryLabel: "效果渲染",
+            },
+          ]}
+        />,
+      );
+
+      await userEvent.click(screen.getByRole("button", { name: "模版" }));
+
+      await waitFor(() => {
+        const portal = screen.getByTestId("chat-input-template-menu-portal");
+        expect(portal.style.top).toBe("808px");
+        expect(portal.style.transform).toBe("translateY(-100%)");
+      });
+    } finally {
+      rectSpy.mockRestore();
+    }
   });
 });

@@ -1,4 +1,4 @@
-// @vitest-environment jsdom
+﻿// @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -57,6 +57,11 @@ function createMockExcalidrawApi() {
       currentItemStrokeColor: "#0f172a",
       currentItemBackgroundColor: "transparent",
       currentItemStrokeWidth: 2,
+      currentItemRoughness: 1,
+      currentItemStrokeStyle: "dashed",
+      currentItemFillStyle: "hachure",
+      currentItemFontSize: 20,
+      currentItemFontFamily: 1,
     })),
     onChange: vi.fn(() => () => {}),
     setActiveTool: vi.fn(),
@@ -353,7 +358,7 @@ describe("CanvasToolMenu", () => {
     );
     expect(screen.getByTestId("architecture-canvas-shape-toolbar")).toHaveAttribute(
       "data-anchor",
-      "shape-selection",
+      "canvas-selection",
     );
     expect(screen.getByLabelText("描边颜色")).toHaveAttribute("type", "color");
     expect(screen.getByLabelText("填充颜色")).toHaveAttribute("type", "color");
@@ -404,6 +409,275 @@ describe("CanvasToolMenu", () => {
 
     expect(anchoredToolbar.style.left).not.toBe(firstLeft);
     expect(anchoredToolbar.style.top).not.toBe(firstTop);
+  });
+
+  it("applies clean non-hand-drawn defaults when activating architecture shape tools", async () => {
+    const user = userEvent.setup();
+    const excalidrawApi = createMockExcalidrawApi();
+
+    render(
+      <CanvasToolMenu
+        {...({
+          accessToken: "token-canvas",
+          excalidrawApi,
+          immersiveArchitecture: true,
+        } as const)}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "形状" }));
+    await user.click(screen.getByRole("button", { name: "矩形" }));
+
+    expect(excalidrawApi.setActiveTool).toHaveBeenLastCalledWith({ type: "rectangle" });
+    expect(excalidrawApi.updateScene).toHaveBeenCalledWith(
+      expect.objectContaining({
+        appState: expect.objectContaining({
+          currentItemRoughness: 0,
+          currentItemStrokeStyle: "solid",
+          currentItemFillStyle: "solid",
+        }),
+      }),
+    );
+  });
+
+  it("renders a compact selected-shape toolbar without the legacy right-side spacer", async () => {
+    const excalidrawApi = createMockExcalidrawApi();
+
+    render(
+      <CanvasToolMenu
+        {...({
+          accessToken: "token-canvas",
+          excalidrawApi,
+          immersiveArchitecture: true,
+        } as const)}
+      />,
+    );
+
+    const onChange = excalidrawApi.onChange.mock.calls[0]?.[0];
+
+    act(() => {
+      onChange?.(
+        [
+          {
+            id: "shape-compact",
+            type: "rectangle",
+            x: 64,
+            y: 48,
+            width: 180,
+            height: 120,
+            isDeleted: false,
+            strokeColor: "#0f172a",
+            backgroundColor: "transparent",
+            strokeWidth: 2,
+          },
+        ],
+        {
+          activeTool: { type: "selection" },
+          scrollX: 0,
+          scrollY: 0,
+          zoom: { value: 1 },
+          selectedElementIds: {
+            "shape-compact": true,
+          },
+          currentItemStrokeColor: "#0f172a",
+          currentItemBackgroundColor: "transparent",
+          currentItemStrokeWidth: 2,
+        },
+      );
+    });
+
+    const toolbar = screen.getByTestId("architecture-canvas-shape-toolbar");
+    expect(toolbar.querySelector(".ml-auto")).toBeNull();
+    expect(toolbar.className).not.toContain("w-[min(760px,calc(100vw-4rem))]");
+  });
+
+  it("shows an anchored doodle selection toolbar when an existing freedraw element is selected", async () => {
+    const excalidrawApi = createMockExcalidrawApi();
+
+    render(
+      <CanvasToolMenu
+        {...({
+          accessToken: "token-canvas",
+          excalidrawApi,
+          immersiveArchitecture: true,
+        } as const)}
+      />,
+    );
+
+    const onChange = excalidrawApi.onChange.mock.calls[0]?.[0];
+
+    act(() => {
+      onChange?.(
+        [
+          {
+            id: "freedraw-1",
+            type: "freedraw",
+            x: 88,
+            y: 64,
+            width: 240,
+            height: 120,
+            isDeleted: false,
+            strokeColor: "#334155",
+            strokeWidth: 6,
+          },
+        ],
+        {
+          activeTool: { type: "selection" },
+          scrollX: 0,
+          scrollY: 0,
+          zoom: { value: 1 },
+          selectedElementIds: {
+            "freedraw-1": true,
+          },
+          currentItemStrokeColor: "#334155",
+          currentItemStrokeWidth: 6,
+        },
+      );
+    });
+
+    const toolbar = screen.getByTestId("architecture-canvas-shape-toolbar");
+    expect(toolbar).toHaveAttribute("data-mode", "freedraw-selection");
+    expect(toolbar).toHaveAttribute("data-anchor", "canvas-selection");
+    expect(screen.getByLabelText("涂鸦颜色")).toHaveAttribute("type", "color");
+    expect(screen.getByRole("slider", { name: "涂鸦粗细" })).toHaveValue("6");
+    expect(screen.queryByLabelText("填充颜色")).not.toBeInTheDocument();
+  });
+
+  it("shows an anchored text selection toolbar when an existing text element is selected", async () => {
+    const excalidrawApi = createMockExcalidrawApi();
+
+    render(
+      <CanvasToolMenu
+        {...({
+          accessToken: "token-canvas",
+          excalidrawApi,
+          immersiveArchitecture: true,
+        } as const)}
+      />,
+    );
+
+    const onChange = excalidrawApi.onChange.mock.calls[0]?.[0];
+
+    act(() => {
+      onChange?.(
+        [
+          {
+            id: "text-1",
+            type: "text",
+            x: 120,
+            y: 96,
+            width: 180,
+            height: 56,
+            isDeleted: false,
+            strokeColor: "#dc2626",
+            fontSize: 34,
+            text: "建筑分析",
+          },
+        ],
+        {
+          activeTool: { type: "selection" },
+          scrollX: 0,
+          scrollY: 0,
+          zoom: { value: 1 },
+          selectedElementIds: {
+            "text-1": true,
+          },
+          currentItemStrokeColor: "#dc2626",
+          currentItemFontSize: 34,
+        },
+      );
+    });
+
+    const toolbar = screen.getByTestId("architecture-canvas-shape-toolbar");
+    expect(toolbar).toHaveAttribute("data-mode", "text-selection");
+    expect(toolbar).toHaveAttribute("data-anchor", "canvas-selection");
+    expect(screen.getByLabelText("文字颜色")).toHaveAttribute("type", "color");
+    expect(screen.getByRole("spinbutton", { name: "文字字号" })).toHaveValue(34);
+  });
+
+  it("shows a doodle toolbar with color and width controls", async () => {
+    const user = userEvent.setup();
+    const excalidrawApi = createMockExcalidrawApi();
+
+    render(
+      <CanvasToolMenu
+        {...({
+          accessToken: "token-canvas",
+          excalidrawApi,
+          immersiveArchitecture: true,
+        } as const)}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "涂鸦" }));
+
+    const toolbar = screen.getByTestId("architecture-canvas-shape-toolbar");
+    expect(toolbar).toHaveAttribute("data-mode", "freedraw");
+    expect(screen.getByLabelText("涂鸦颜色")).toHaveAttribute("type", "color");
+    expect(screen.getByRole("slider", { name: "涂鸦粗细" })).toHaveValue("2");
+
+    fireEvent.change(screen.getByLabelText("涂鸦颜色"), {
+      target: { value: "#475569" },
+    });
+    fireEvent.change(screen.getByRole("slider", { name: "涂鸦粗细" }), {
+      target: { value: "6" },
+    });
+
+    expect(excalidrawApi.updateScene).toHaveBeenCalledWith(
+      expect.objectContaining({
+        appState: expect.objectContaining({
+          currentItemStrokeColor: "#475569",
+          currentItemStrokeWidth: 6,
+        }),
+      }),
+    );
+  });
+
+  it("shows a text toolbar with default red text and font size controls", async () => {
+    const user = userEvent.setup();
+    const excalidrawApi = createMockExcalidrawApi();
+
+    render(
+      <CanvasToolMenu
+        {...({
+          accessToken: "token-canvas",
+          excalidrawApi,
+          immersiveArchitecture: true,
+        } as const)}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "文字" }));
+
+    const toolbar = screen.getByTestId("architecture-canvas-shape-toolbar");
+    expect(toolbar).toHaveAttribute("data-mode", "text");
+    expect(screen.getByLabelText("文字颜色")).toHaveAttribute("type", "color");
+    expect(screen.getByRole("spinbutton", { name: "文字字号" })).toHaveValue(28);
+
+    expect(excalidrawApi.updateScene).toHaveBeenCalledWith(
+      expect.objectContaining({
+        appState: expect.objectContaining({
+          currentItemStrokeColor: "#ef4444",
+          currentItemFontSize: 28,
+        }),
+      }),
+    );
+
+    fireEvent.change(screen.getByLabelText("文字颜色"), {
+      target: { value: "#dc2626" },
+    });
+    fireEvent.change(screen.getByRole("spinbutton", { name: "文字字号" }), {
+      target: { value: "36" },
+    });
+
+    expect(excalidrawApi.updateScene).toHaveBeenCalledWith(
+      expect.objectContaining({
+        appState: expect.objectContaining({
+          currentItemStrokeColor: "#dc2626",
+          currentItemFontSize: 36,
+        }),
+      }),
+    );
   });
 
   it("closes the add modal when pressing Escape", async () => {

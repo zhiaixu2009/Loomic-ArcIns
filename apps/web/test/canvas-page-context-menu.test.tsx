@@ -7,12 +7,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
   fetchCanvasMock,
+  fetchImageBlobWithFallbackMock,
   fetchProjectMock,
   replaceMock,
   resetMockCanvasApi,
   updateSceneMock,
 } = vi.hoisted(() => ({
   fetchCanvasMock: vi.fn(),
+  fetchImageBlobWithFallbackMock: vi.fn(),
   fetchProjectMock: vi.fn(),
   replaceMock: vi.fn(),
   resetMockCanvasApi: vi.fn(),
@@ -69,6 +71,7 @@ vi.mock("../src/lib/server-api", () => ({
 }));
 
 vi.mock("../src/lib/canvas-elements", () => ({
+  fetchImageBlobWithFallback: fetchImageBlobWithFallbackMock,
   insertImageOnCanvas: vi.fn(),
   insertVideoOnCanvas: vi.fn(),
 }));
@@ -88,6 +91,7 @@ vi.mock("../src/lib/architecture-canvas", () => {
   };
 
   return {
+    areArchitectureContextsEqual: vi.fn((left, right) => JSON.stringify(left) === JSON.stringify(right)),
     createEmptyArchitectureContext: vi.fn(() => defaultContext),
     deriveArchitectureContextFromScene: vi.fn(() => defaultContext),
     insertArchitectureBoardIntoScene: vi.fn(() => ({
@@ -380,6 +384,9 @@ import CanvasPage from "../src/app/canvas/page";
 describe("CanvasPage context menu mode", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    fetchImageBlobWithFallbackMock.mockResolvedValue(
+      new Blob(["image"], { type: "image/png" }),
+    );
     resetMockCanvasApi();
     fetchCanvasMock.mockResolvedValue({
       canvas: {
@@ -574,6 +581,14 @@ describe("CanvasPage context menu mode", () => {
         expect(createObjectUrlMock).toHaveBeenCalledTimes(1);
       });
 
+      expect(fetchImageBlobWithFallbackMock).toHaveBeenNthCalledWith(
+        1,
+        "https://example.com/reference-1.png",
+      );
+      expect(fetchImageBlobWithFallbackMock).toHaveBeenNthCalledWith(
+        2,
+        "https://example.com/reference-2.png",
+      );
       expect(drawImageMock).toHaveBeenCalledTimes(2);
       expect(clickedAnchors).toHaveLength(1);
       expect(clickedAnchors[0]?.download).toBe("canvas-selection-export.png");

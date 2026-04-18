@@ -29,9 +29,11 @@ import { CanvasLogoMenu } from "../../components/canvas-logo-menu";
 import { EditableProjectName } from "../../components/editable-project-name";
 import {
   createExcalidrawImageElement,
+  fetchImageBlobWithFallback,
   insertImageOnCanvas,
   insertVideoOnCanvas,
 } from "../../lib/canvas-elements";
+import { resolveBrowserAssetUrl } from "../../lib/browser-asset-url";
 import {
   ApiAuthError,
   fetchCanvas,
@@ -40,6 +42,7 @@ import {
 } from "../../lib/server-api";
 import { buildCanvasUrl, isArchitectureStudio } from "../../lib/studio-routes";
 import {
+  areArchitectureContextsEqual,
   createEmptyArchitectureContext,
   deriveArchitectureContextFromScene,
   insertArchitectureBoardIntoScene,
@@ -66,6 +69,7 @@ import {
   type CanvasComposerCommand,
   type CanvasContextMenuMode,
 } from "../../lib/canvas-context-actions";
+import { extractSelectedCanvasElements } from "../../lib/canvas-selection";
 
 type CanvasContextMenuState = {
   x: number;
@@ -131,14 +135,27 @@ async function readImageFileDimensions(file: File) {
   }
 }
 
+async function readBlobAsDataUrl(blob: Blob) {
+  return await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result ?? ""));
+    reader.onerror = () =>
+      reject(new Error("Failed to convert image blob to data URL"));
+    reader.readAsDataURL(blob);
+  });
+}
+
 async function loadImageFromUrl(url: string) {
   const image = new Image();
   image.crossOrigin = "anonymous";
+  const imageSource = url.startsWith("data:")
+    ? url
+    : await readBlobAsDataUrl(await fetchImageBlobWithFallback(url));
 
   await new Promise<void>((resolve, reject) => {
     image.onload = () => resolve();
     image.onerror = () => reject(new Error("Failed to load image asset"));
-    image.src = url;
+    image.src = imageSource;
   });
 
   return image;
@@ -173,6 +190,7 @@ function getSceneImageSource(
   const file = element.fileId ? files[element.fileId] : null;
   return (
     file?.dataURL ??
+    file?.storageUrl ??
     element.dataUrl ??
     element.storageUrl ??
     element.customData?.storageUrl ??
@@ -345,7 +363,14 @@ function CanvasPageContent() {
   const syncArchitectureContext = useCallback(
     (sceneElements: readonly ArchitectureSceneElement[] | null = null) => {
       if (!architectureMode) {
-        setArchitectureContext(createEmptyArchitectureContext(selectedElementIdsRef.current));
+        const nextContext = createEmptyArchitectureContext(
+          selectedElementIdsRef.current,
+        );
+        setArchitectureContext((current) =>
+          areArchitectureContextsEqual(current, nextContext)
+            ? current
+            : nextContext,
+        );
         return;
       }
 
@@ -357,7 +382,11 @@ function CanvasPageContent() {
         elements: liveElements,
         selectedElementIds: selectedElementIdsRef.current,
       });
-      setArchitectureContext(nextContext);
+      setArchitectureContext((current) =>
+        areArchitectureContextsEqual(current, nextContext)
+          ? current
+          : nextContext,
+      );
     },
     [architectureMode],
   );
@@ -604,6 +633,9 @@ function CanvasPageContent() {
     }
 
     const [element] = selectedCanvasElements;
+    if (!element) {
+      return null;
+    }
     if (
       element.type !== "image" ||
       (!element.storageUrl && !element.dataUrl)
@@ -613,6 +645,29 @@ function CanvasPageContent() {
 
     return element;
   }, [selectedCanvasElements]);
+  const selectedCanvasImageAsset = useMemo(() => {
+    if (!selectedCanvasImage) {
+      return null;
+    }
+
+    const api = excalidrawApiRef.current;
+    const sceneElements =
+      (api?.getSceneElements?.() as Record<string, any>[] | undefined) ?? [];
+    const files = (api?.getFiles?.() as Record<string, any> | undefined) ?? {};
+    const liveSceneElement =
+      sceneElements.find(
+        (element) => !element.isDeleted && String(element.id) === selectedCanvasImage.id,
+      ) ?? null;
+    const source = liveSceneElement
+      ? getSceneImageSource(liveSceneElement, files)
+      : selectedCanvasImage.storageUrl ?? selectedCanvasImage.dataUrl ?? null;
+
+    return {
+      source,
+      fileName: `canvas-export-${selectedCanvasImage.id}.png`,
+      alt: `画布参考图 ${selectedCanvasImage.id}`,
+    };
+  }, [excalidrawApi, selectedCanvasImage]);
   const selectionFullyLocked = useMemo(
     () =>
       selectedCanvasElements.length > 0 &&
@@ -642,6 +697,97 @@ function CanvasPageContent() {
       }
     },
     [],
+  );
+
+  const handleLocateCanvasElement = useCallback(
+    (assetId: string) => {
+      const api = excalidrawApiRef.current;
+      if (!api?.getSceneElements || !api?.getAppState || !api?.updateScene) {
+        console.warn("[canvas-page] excalidraw API unavailable, cannot locate canvas element", {
+          assetId,
+        });
+        return false;
+      }
+
+      const sceneElements = (api.getSceneElements() as Record<string, any>[] | undefined) ?? [];
+      const files = (api.getFiles?.() as Record<string, any> | undefined) ?? {};
+      const targetElement =
+        sceneElements.find(
+          (element) => !element.isDeleted && String(element.id) === assetId,
+        ) ?? null;
+
+      if (!targetElement) {
+        console.warn("[canvas-page] failed to locate canvas element for history record", {
+          assetId,
+        });
+        return false;
+      }
+
+      const appState = api.getAppState() ?? {};
+      const zoom =
+        typeof appState.zoom?.value === "number" && appState.zoom.value > 0
+          ? appState.zoom.value
+          : canvasViewport.zoom > 0
+            ? canvasViewport.zoom
+            : 1;
+      const viewportWidth =
+        typeof appState.width === "number" && appState.width > 0
+          ? appState.width
+          : typeof window !== "undefined"
+            ? window.innerWidth
+            : 0;
+      const viewportHeight =
+        typeof appState.height === "number" && appState.height > 0
+          ? appState.height
+          : typeof window !== "undefined"
+            ? window.innerHeight
+            : 0;
+      const targetCenterX = (targetElement.x ?? 0) + (targetElement.width ?? 0) / 2;
+      const targetCenterY = (targetElement.y ?? 0) + (targetElement.height ?? 0) / 2;
+      const nextScrollX =
+        viewportWidth > 0
+          ? viewportWidth / (2 * zoom) - targetCenterX
+          : (appState.scrollX as number | undefined) ?? canvasViewport.scrollX;
+      const nextScrollY =
+        viewportHeight > 0
+          ? viewportHeight / (2 * zoom) - targetCenterY
+          : (appState.scrollY as number | undefined) ?? canvasViewport.scrollY;
+      const selectedElementIds = { [assetId]: true };
+      const nextSelection = extractSelectedCanvasElements({
+        elements: sceneElements as any,
+        files,
+        selectedElementIds,
+      });
+
+      api.updateScene({
+        appState: {
+          ...appState,
+          selectedElementIds,
+          scrollX: nextScrollX,
+          scrollY: nextScrollY,
+        },
+        captureUpdate: "NONE",
+      });
+
+      setContextMenuState(null);
+      setSelectionActionOrigin("left");
+      setSelectedCanvasElements(nextSelection);
+      setCanvasViewport((current) => ({
+        ...current,
+        scrollX: nextScrollX,
+        scrollY: nextScrollY,
+        zoom,
+      }));
+
+      console.log("[canvas-page] located canvas element from history record", {
+        assetId,
+        scrollX: nextScrollX,
+        scrollY: nextScrollY,
+      });
+
+      return true;
+    },
+    [canvasViewport.scrollX, canvasViewport.scrollY, canvasViewport.zoom],
   );
 
   const handleClearCanvasSelection = useCallback(() => {
@@ -1149,18 +1295,38 @@ function CanvasPageContent() {
   }, [syncArchitectureContext]);
 
   const handleExportSelectedCanvasImage = useCallback(() => {
-    if (!selectedCanvasImage) {
+    if (!selectedCanvasImageAsset?.source) {
       return;
     }
+    const imageUrl = selectedCanvasImageAsset.source;
+    const fileName = selectedCanvasImageAsset.fileName;
 
-    const imageUrl = selectedCanvasImage.storageUrl ?? selectedCanvasImage.dataUrl;
-    if (!imageUrl) {
-      return;
-    }
+    const downloadImage = async () => {
+      try {
+        if (imageUrl.startsWith("data:")) {
+          downloadUrlFile(imageUrl, fileName);
+        } else {
+          const blob = await fetchImageBlobWithFallback(imageUrl);
+          downloadBlobFile(blob, fileName);
+        }
+        console.log("[canvas-page] exported selected canvas image", {
+          elementId: selectedCanvasImage?.id ?? null,
+          fileName,
+        });
+      } catch (exportError) {
+        console.error("[canvas-page] failed to export selected canvas image", exportError);
+        window.open(
+          resolveBrowserAssetUrl(imageUrl),
+          "_blank",
+          "noopener,noreferrer",
+        );
+      } finally {
+        setContextMenuState(null);
+      }
+    };
 
-    downloadUrlFile(imageUrl, `canvas-export-${selectedCanvasImage.id}.png`);
-    setContextMenuState(null);
-  }, [selectedCanvasImage]);
+    void downloadImage();
+  }, [selectedCanvasImage?.id, selectedCanvasImageAsset]);
 
   const handleExportSelection = useCallback(async () => {
     if (selectedCanvasImage) {
@@ -1829,12 +1995,15 @@ function CanvasPageContent() {
             selection={selectedCanvasElements}
             position={selectedImageActionBarPosition}
             mode={showMultiImageSelectionActionBar ? "multi-image" : "single-image"}
+            previewSrc={selectedCanvasImageAsset?.source ?? null}
+            previewAlt={selectedCanvasImageAsset?.alt ?? null}
             onSendToChat={handleSendSelectionToChat}
             onGroup={handleGroupSelectedImages}
             onMerge={handleMergeSelection}
             onEdit={handleEditSelectedCanvasImage}
             onDoodle={() => handleActivateSelectionTool("freedraw")}
             onText={() => handleActivateSelectionTool("text")}
+            onDownload={handleExportSelectedCanvasImage}
           />
         ) : null}
         <CanvasContextMenu
@@ -1880,6 +2049,7 @@ function CanvasPageContent() {
           generatedFilesApi={excalidrawApi}
           composerCommand={composerCommand}
           onComposerCommandHandled={handleComposerCommandHandled}
+          onLocateCanvasElement={handleLocateCanvasElement}
         />
         <input
           ref={referenceUploadInputRef}

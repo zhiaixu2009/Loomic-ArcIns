@@ -78,7 +78,9 @@ export function extractSelectedCanvasElements(options: {
         }
 
         const storageUrl =
-          element.customData?.storageUrl ?? initialFiles[element.fileId]?.storageUrl;
+          file?.storageUrl ??
+          element.customData?.storageUrl ??
+          initialFiles[element.fileId]?.storageUrl;
         if (typeof storageUrl === "string" && storageUrl) {
           base.storageUrl = storageUrl;
         }

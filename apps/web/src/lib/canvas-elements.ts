@@ -1,5 +1,6 @@
 import type { ImageArtifact, VideoArtifact } from "@loomic/shared";
 
+import { resolveBrowserAssetUrl } from "./browser-asset-url";
 import { getServerBaseUrl } from "./env";
 
 /** Video file extensions recognized for inline playback on canvas. */
@@ -112,6 +113,44 @@ export function createExcalidrawImageElement(opts: {
   return element;
 }
 
+async function fetchImageResponseWithFallback(url: string): Promise<Response> {
+  let response: Response | null = null;
+  const browserReachableUrl = resolveBrowserAssetUrl(url);
+
+  try {
+    response = await fetch(browserReachableUrl);
+    if (!response.ok) {
+      console.warn("[canvas-elements] direct fetch failed, retrying via proxy", {
+        status: response.status,
+        url,
+        browserReachableUrl,
+      });
+      response = null;
+    }
+  } catch (error) {
+    console.warn("[canvas-elements] direct fetch threw, retrying via proxy", {
+      error,
+      url,
+      browserReachableUrl,
+    });
+  }
+
+  if (!response) {
+    const proxyUrl = `${getServerBaseUrl()}/api/proxy-image?url=${encodeURIComponent(url)}`;
+    response = await fetch(proxyUrl);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch image: ${response.status}`);
+    }
+  }
+
+  return response;
+}
+
+export async function fetchImageBlobWithFallback(url: string): Promise<Blob> {
+  const response = await fetchImageResponseWithFallback(url);
+  return response.blob();
+}
+
 /**
  * Fetch an image URL and convert it to a data URL string.
  * Prefer a direct browser fetch for local/public assets so WSL-hosted
@@ -120,33 +159,7 @@ export function createExcalidrawImageElement(opts: {
  * third-party assets or stricter CORS cases.
  */
 export async function fetchAsDataURL(url: string): Promise<string> {
-  let response: Response | null = null;
-
-  try {
-    response = await fetch(url);
-    if (!response.ok) {
-      console.warn("[canvas-elements] direct fetch failed, retrying via proxy", {
-        status: response.status,
-        url,
-      });
-      response = null;
-    }
-  } catch (error) {
-    console.warn("[canvas-elements] direct fetch threw, retrying via proxy", {
-      error,
-      url,
-    });
-  }
-
-  if (!response) {
-  const proxyUrl = `${getServerBaseUrl()}/api/proxy-image?url=${encodeURIComponent(url)}`;
-    response = await fetch(proxyUrl);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch image: ${response.status}`);
-    }
-  }
-
-  const blob = await response.blob();
+  const blob = await fetchImageBlobWithFallback(url);
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(reader.result as string);
@@ -182,6 +195,7 @@ export async function insertImageOnCanvas(
       dataURL: dataURL as any,
       mimeType: artifact.mimeType,
       created: Date.now(),
+      storageUrl: artifact.url,
     },
   ]);
 

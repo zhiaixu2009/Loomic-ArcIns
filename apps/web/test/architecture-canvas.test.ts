@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   ARCHITECTURE_BOARD_KINDS,
+  areArchitectureContextsEqual,
   deriveArchitectureContextFromScene,
   insertArchitectureBoardIntoScene,
   insertArchitectureBoardStackIntoScene,
@@ -131,5 +132,29 @@ describe("architecture-canvas helpers", () => {
     expect(context.boards.every((board) => board.status === "missing")).toBe(true);
     expect(context.activeBoardId).toBeUndefined();
     expect(context.selectedElementIds).toEqual(["element-a", "element-b"]);
+  });
+
+  it("treats freshly derived but semantically identical contexts as equal", () => {
+    const stacked = insertArchitectureBoardStackIntoScene({
+      appState: VIEWPORT_APP_STATE,
+      elements: [],
+    });
+
+    const first = deriveArchitectureContextFromScene({
+      elements: stacked.elements,
+      selectedElementIds: [],
+    });
+    const second = deriveArchitectureContextFromScene({
+      elements: stacked.elements,
+      selectedElementIds: [],
+    });
+    const selectedVariant = deriveArchitectureContextFromScene({
+      elements: stacked.elements,
+      selectedElementIds: [stacked.elements[0]?.id ?? "fallback-id"],
+    });
+
+    expect(first).not.toBe(second);
+    expect(areArchitectureContextsEqual(first, second)).toBe(true);
+    expect(areArchitectureContextsEqual(first, selectedVariant)).toBe(false);
   });
 });

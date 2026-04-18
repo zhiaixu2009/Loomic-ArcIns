@@ -107,6 +107,7 @@ vi.mock("../src/lib/architecture-canvas", () => {
   };
 
   return {
+    areArchitectureContextsEqual: vi.fn((left, right) => JSON.stringify(left) === JSON.stringify(right)),
     createEmptyArchitectureContext: vi.fn(() => defaultContext),
     deriveArchitectureContextFromScene: vi.fn(() => defaultContext),
     insertArchitectureBoardIntoScene: vi.fn(() => ({

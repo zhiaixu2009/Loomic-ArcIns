@@ -18,6 +18,7 @@ import {
   type MouseEvent,
 } from "react";
 
+import { resolveBrowserAssetUrl } from "../../lib/browser-asset-url";
 import type { CanvasSelectedElement } from "../canvas-editor";
 import { ImageLightbox } from "../chat/image-lightbox";
 
@@ -28,12 +29,15 @@ type CanvasSelectionActionBarProps = {
     left: number;
     top: number;
   };
+  previewSrc?: string | null;
+  previewAlt?: string | null;
   onSendToChat: () => void;
   onGroup: () => void;
   onMerge: () => void;
   onEdit: () => void;
   onDoodle: () => void;
   onText: () => void;
+  onDownload?: () => void;
 };
 
 type ActionButtonProps = {
@@ -79,23 +83,34 @@ export function CanvasSelectionActionBar({
   mode,
   selection,
   position,
+  previewSrc,
+  previewAlt,
   onSendToChat,
   onGroup,
   onMerge,
   onEdit,
   onDoodle,
   onText,
+  onDownload,
 }: CanvasSelectionActionBarProps) {
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const image = selection[0];
+  const toolbarOffset = 36;
+
+  if (!image) {
+    return null;
+  }
 
   const imageUrl = useMemo(
-    () => image.storageUrl ?? image.dataUrl ?? null,
-    [image.dataUrl, image.storageUrl],
+    () =>
+      resolveBrowserAssetUrl(
+        previewSrc ?? image.storageUrl ?? image.dataUrl ?? "",
+      ) || null,
+    [image.dataUrl, image.storageUrl, previewSrc],
   );
   const imageAlt = useMemo(
-    () => `画布参考图 ${image.id}`,
-    [image.id],
+    () => previewAlt ?? `画布参考图 ${image.id}`,
+    [image.id, previewAlt],
   );
 
   const handlePreview = useCallback(() => {
@@ -107,6 +122,11 @@ export function CanvasSelectionActionBar({
   }, [imageUrl]);
 
   const handleDownload = useCallback(() => {
+    if (onDownload) {
+      onDownload();
+      return;
+    }
+
     if (!imageUrl) {
       return;
     }
@@ -118,7 +138,7 @@ export function CanvasSelectionActionBar({
     document.body.appendChild(anchor);
     anchor.click();
     document.body.removeChild(anchor);
-  }, [imageAlt, imageUrl]);
+  }, [imageAlt, imageUrl, onDownload]);
 
   return (
     <>
@@ -127,7 +147,7 @@ export function CanvasSelectionActionBar({
         className="pointer-events-none absolute z-[26] -translate-x-1/2 -translate-y-full px-2"
         style={{
           left: position.left,
-          top: position.top - 16,
+          top: Math.max(position.top - toolbarOffset, 24),
         }}
       >
         <div className="pointer-events-auto flex items-center gap-1 rounded-[10px] border border-slate-200 bg-white/96 p-1 shadow-[0_18px_48px_rgba(15,23,42,0.12)] backdrop-blur">

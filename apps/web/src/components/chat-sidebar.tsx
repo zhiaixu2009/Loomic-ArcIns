@@ -81,6 +81,7 @@ type ChatSidebarProps = {
   generatedFilesApi?: any;
   composerCommand?: CanvasComposerCommand | null;
   onComposerCommandHandled?: (commandId: string) => void;
+  onLocateCanvasElement?: (assetId: string) => boolean;
 };
 
 type ImmersiveRecordStatus = "pending" | "completed";
@@ -234,6 +235,9 @@ function formatImmersiveRecordTime(date: Date) {
     hour12: false,
   }).format(date);
 }
+
+const LOCATE_TO_CANVAS_LABEL = "定位到画布";
+const LOCATE_CANVAS_NODE_FAILED_MESSAGE = "未能定位到该画布节点";
 
 function extractTextFromMessage(message: SessionMessage) {
   return message.contentBlocks
@@ -717,6 +721,7 @@ export function ChatSidebar({
   generatedFilesApi,
   composerCommand = null,
   onComposerCommandHandled,
+  onLocateCanvasElement,
 }: ChatSidebarProps) {
   const breakpoint = useBreakpoint();
   const isOverlay = breakpoint !== "desktop";
@@ -810,6 +815,7 @@ export function ChatSidebar({
     addFiles,
     addCanvasRef,
     replaceCanvasRefs,
+    moveAttachment,
     retryUpload,
     removeAttachment,
     clearUploads,
@@ -2070,6 +2076,26 @@ export function ChatSidebar({
     [attachCanvasRefsToConversation, canvasId, effectiveConversationRefs],
   );
 
+  const handleLocateImmersiveRecordReference = useCallback(
+    (referenceAttachment: ReadyAttachment | null | undefined) => {
+      const assetId = referenceAttachment?.assetId;
+      if (!assetId || !onLocateCanvasElement) {
+        return;
+      }
+
+      console.log("[chat-sidebar] locate immersive record canvas element", {
+        canvasId,
+        assetId,
+      });
+
+      const located = onLocateCanvasElement(assetId);
+      if (!located) {
+        showToast(LOCATE_CANVAS_NODE_FAILED_MESSAGE, "error");
+      }
+    },
+    [canvasId, onLocateCanvasElement, showToast],
+  );
+
   const handleCreateImmersiveDialog = useCallback(() => {
     console.log("[chat-sidebar] immersive header add-dialog clicked", {
       canvasId,
@@ -2341,6 +2367,7 @@ export function ChatSidebar({
               onAddFiles={addFiles}
               onAttachSelectedCanvasImages={handleAttachSelectedCanvasImages}
               onMoveSelectedCanvasImage={handleMoveSelectedCanvasImage}
+              onMoveAttachment={moveAttachment}
               onRemoveSelectedCanvasImage={handleRemoveSelectedCanvasImage}
               onRemoveAttachment={handleRemoveAttachment}
               onRetryAttachment={retryUpload}
@@ -2430,6 +2457,7 @@ export function ChatSidebar({
         onAddFiles={addFiles}
         onAttachSelectedCanvasImages={handleAttachSelectedCanvasImages}
         onMoveSelectedCanvasImage={handleMoveSelectedCanvasImage}
+        onMoveAttachment={moveAttachment}
         onRemoveSelectedCanvasImage={handleRemoveSelectedCanvasImage}
         onRemoveAttachment={handleRemoveAttachment}
         onRetryAttachment={retryUpload}
@@ -2684,6 +2712,17 @@ export function ChatSidebar({
                           >
                             重新描述
                           </button>
+                          {primaryReference?.assetId && onLocateCanvasElement ? (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                handleLocateImmersiveRecordReference(primaryReference)
+                              }
+                              className="rounded-[10px] border border-slate-200 bg-white px-2.5 py-1 text-[12px] font-medium text-foreground transition-colors hover:bg-slate-100"
+                            >
+                              {LOCATE_TO_CANVAS_LABEL}
+                            </button>
+                          ) : null}
                         </div>
                         <div className="mt-3 flex items-center justify-between gap-3 text-[12px] text-muted-foreground">
                           <span>图片生成：{record.modelLabel}</span>
@@ -2757,6 +2796,20 @@ export function ChatSidebar({
                     >
                       重新描述
                     </button>
+                    {latestCanvasReferenceAttachment.assetId &&
+                    onLocateCanvasElement ? (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleLocateImmersiveRecordReference(
+                            latestCanvasReferenceAttachment,
+                          )
+                        }
+                        className="rounded-[10px] border border-slate-200 bg-white px-2.5 py-1 text-[12px] font-medium text-foreground transition-colors hover:bg-slate-100"
+                      >
+                        {LOCATE_TO_CANVAS_LABEL}
+                      </button>
+                    ) : null}
                   </div>
                   <p className="mt-3 text-[12px] text-muted-foreground">
                     图片生成：Banana Pro

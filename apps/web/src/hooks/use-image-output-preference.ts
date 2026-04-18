@@ -7,7 +7,7 @@ const STORAGE_KEY = "loomic:image-output-preference";
 
 export const DEFAULT_IMAGE_OUTPUT_PREFERENCE: ImageOutputPreference = {
   aspectRatio: "auto",
-  resolution: "1K",
+  resolution: "2K",
 };
 
 const listeners = new Set<() => void>();
@@ -39,9 +39,11 @@ function normalizePreference(
       : "auto";
 
   const resolution =
-    preference.resolution === "2K" || preference.resolution === "4K"
+    preference.resolution === "1K" ||
+    preference.resolution === "2K" ||
+    preference.resolution === "4K"
       ? preference.resolution
-      : "1K";
+      : "2K";
 
   return {
     aspectRatio,

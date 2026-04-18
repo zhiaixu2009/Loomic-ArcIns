@@ -143,6 +143,10 @@ type ShapeToolbarStyle = {
   backgroundColor: string;
   strokeWidth: number;
 };
+type TextToolbarStyle = {
+  color: string;
+  fontSize: number;
+};
 type SelectedShapeToolbarState = ShapeToolbarStyle & {
   id: string;
   type: ToolType;
@@ -151,6 +155,13 @@ type SelectedShapeToolbarState = ShapeToolbarStyle & {
   width: number;
   height: number;
   pointCount?: number;
+};
+type SelectedTextToolbarState = TextToolbarStyle & {
+  id: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
 };
 
 function LiveFrameLineIcon({ className }: { className?: string }) {
@@ -458,9 +469,14 @@ const SHAPE_TOOL_IDS: ToolType[] = [
   "arrow",
   "line",
 ];
+const STROKE_SELECTION_TOOL_IDS: ToolType[] = [...SHAPE_TOOL_IDS, "freedraw"];
 
 function isShapeToolId(tool: string): tool is ToolType {
   return SHAPE_TOOL_IDS.includes(tool as ToolType);
+}
+
+function isStrokeSelectionToolId(tool: string): tool is ToolType {
+  return STROKE_SELECTION_TOOL_IDS.includes(tool as ToolType);
 }
 
 function isArchitectureShapeFlyoutItemId(
@@ -495,7 +511,7 @@ function getArchitectureShapeFlyoutItemIdFromShape(
   return null;
 }
 
-function isShapeElement(element: any): element is {
+function isStrokeSelectionElement(element: any): element is {
   id: string;
   type: ToolType;
   x: number;
@@ -511,7 +527,24 @@ function isShapeElement(element: any): element is {
     element &&
       typeof element.id === "string" &&
       typeof element.type === "string" &&
-      isShapeToolId(element.type),
+      isStrokeSelectionToolId(element.type),
+  );
+}
+
+function isTextSelectionElement(element: any): element is {
+  id: string;
+  type: "text";
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  strokeColor?: string;
+  fontSize?: number;
+} {
+  return Boolean(
+    element &&
+      typeof element.id === "string" &&
+      element.type === "text",
   );
 }
 
@@ -558,6 +591,47 @@ function areSelectedShapeStatesEqual(
   );
 }
 
+function areSelectedTextStatesEqual(
+  left: SelectedTextToolbarState | null,
+  right: SelectedTextToolbarState | null,
+) {
+  if (left === right) {
+    return true;
+  }
+
+  if (!left || !right) {
+    return false;
+  }
+
+  return (
+    left.id === right.id &&
+    left.x === right.x &&
+    left.y === right.y &&
+    left.width === right.width &&
+    left.height === right.height &&
+    areTextToolbarStylesEqual(left, right)
+  );
+}
+
+function normalizeTextToolbarStyle(
+  style?: Partial<TextToolbarStyle> | null,
+): TextToolbarStyle {
+  return {
+    color: style?.color ?? "#ef4444",
+    fontSize:
+      typeof style?.fontSize === "number" && Number.isFinite(style.fontSize)
+        ? Math.max(12, Math.round(style.fontSize))
+        : 28,
+  };
+}
+
+function areTextToolbarStylesEqual(
+  left: TextToolbarStyle,
+  right: TextToolbarStyle,
+) {
+  return left.color === right.color && left.fontSize === right.fontSize;
+}
+
 function bumpSceneElement(element: Record<string, any>) {
   return {
     ...element,
@@ -577,6 +651,34 @@ function normalizeColorInputValue(color: string | undefined, fallback: string) {
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
+}
+
+function buildCanvasSelectionToolbarStyle(args: {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  scrollX: number;
+  scrollY: number;
+  zoom: number;
+}) {
+  const viewportWidth =
+    typeof window === "undefined" ? 1440 : window.innerWidth;
+  const viewportHeight =
+    typeof window === "undefined" ? 900 : window.innerHeight;
+  const centerX = (args.x + args.width / 2 + args.scrollX) * args.zoom;
+  const anchorTop = (args.y + args.scrollY) * args.zoom - 96;
+  const fallbackBelowTop =
+    (args.y + args.height + args.scrollY) * args.zoom + 12;
+
+  return {
+    left: clamp(centerX, 40, Math.max(40, viewportWidth - 40)),
+    top: clamp(
+      anchorTop < 16 ? fallbackBelowTop : anchorTop,
+      16,
+      Math.max(16, viewportHeight - 112),
+    ),
+  };
 }
 
 /** Memoized shimmer overlay for a single generating element */
@@ -662,8 +764,13 @@ export function CanvasToolMenu({
   const [shapeToolbarStyle, setShapeToolbarStyle] = useState<ShapeToolbarStyle>(() =>
     normalizeShapeToolbarStyle(),
   );
+  const [textToolbarStyle, setTextToolbarStyle] = useState<TextToolbarStyle>(() =>
+    normalizeTextToolbarStyle(),
+  );
   const [selectedShapeElement, setSelectedShapeElement] =
     useState<SelectedShapeToolbarState | null>(null);
+  const [selectedTextElement, setSelectedTextElement] =
+    useState<SelectedTextToolbarState | null>(null);
 
   // Image generator state
   const [activeGeneratorId, setActiveGeneratorId] = useState<string | null>(null);
@@ -723,6 +830,7 @@ export function CanvasToolMenu({
   const activeVideoPlayerIdRef = useRef(activeVideoPlayerId);
   activeVideoPlayerIdRef.current = activeVideoPlayerId;
   const railRef = useRef<HTMLDivElement | null>(null);
+  const officialGalleryCategoryStripRef = useRef<HTMLDivElement | null>(null);
 
   // Track previous generating element IDs to avoid re-renders when nothing changed
   const prevGeneratingKeyRef = useRef("");
@@ -783,6 +891,15 @@ export function CanvasToolMenu({
             ? prev
             : nextShapeToolbarStyle,
         );
+        const nextTextToolbarStyle = normalizeTextToolbarStyle({
+          color: appState?.currentItemStrokeColor,
+          fontSize: appState?.currentItemFontSize,
+        });
+        setTextToolbarStyle((prev) =>
+          areTextToolbarStylesEqual(prev, nextTextToolbarStyle)
+            ? prev
+            : nextTextToolbarStyle,
+        );
 
         const scrollX = appState?.scrollX ?? 0;
         const scrollY = appState?.scrollY ?? 0;
@@ -799,7 +916,11 @@ export function CanvasToolMenu({
           (el: any) => selectedIds[el.id] && !el.isDeleted,
         );
         const selectedShape =
-          selectedElements.length === 1 && isShapeElement(selectedElements[0])
+          selectedElements.length === 1 && isStrokeSelectionElement(selectedElements[0])
+            ? selectedElements[0]
+            : null;
+        const selectedText =
+          selectedElements.length === 1 && isTextSelectionElement(selectedElements[0])
             ? selectedElements[0]
             : null;
         const nextSelectedShapeElement =
@@ -832,13 +953,36 @@ export function CanvasToolMenu({
             ? prev
             : nextSelectedShapeElement,
         );
+        const nextSelectedTextElement =
+          selectedText
+            ? {
+                id: selectedText.id,
+                x: selectedText.x,
+                y: selectedText.y,
+                width: selectedText.width,
+                height: selectedText.height,
+                ...normalizeTextToolbarStyle({
+                  ...(selectedText.strokeColor
+                    ? { color: selectedText.strokeColor }
+                    : {}),
+                  ...(typeof selectedText.fontSize === "number"
+                    ? { fontSize: selectedText.fontSize }
+                    : {}),
+                }),
+              }
+            : null;
+        setSelectedTextElement((prev) =>
+          areSelectedTextStatesEqual(prev, nextSelectedTextElement)
+            ? prev
+            : nextSelectedTextElement,
+        );
         const nextShapeFlyoutItemId =
           getArchitectureShapeFlyoutItemIdFromShape(nextSelectedShapeElement);
         if (nextShapeFlyoutItemId) {
           setActiveArchitectureShapeItemId((prev) =>
             prev === nextShapeFlyoutItemId ? prev : nextShapeFlyoutItemId,
           );
-        } else if (tool === "selection" && !shapeFlyoutOpen) {
+        } else if (tool === "selection" && !shapeFlyoutOpen && !selectedText) {
           setActiveArchitectureShapeItemId(null);
         }
 
@@ -969,9 +1113,64 @@ export function CanvasToolMenu({
       } else {
         setActiveArchitectureShapeItemId(null);
       }
+      setActiveTool((prev: string) => (prev === tool ? prev : tool));
       excalidrawApi?.setActiveTool({ type: tool });
+
+      if (!excalidrawApi?.updateScene) {
+        return;
+      }
+
+      const currentAppState = excalidrawApi.getAppState?.() ?? {};
+
+      if (
+        tool === "rectangle" ||
+        tool === "ellipse" ||
+        tool === "arrow" ||
+        tool === "line"
+      ) {
+        excalidrawApi.updateScene({
+          appState: {
+            ...currentAppState,
+            currentItemStrokeColor: shapeToolbarStyle.strokeColor,
+            currentItemBackgroundColor: shapeToolbarStyle.backgroundColor,
+            currentItemStrokeWidth: shapeToolbarStyle.strokeWidth,
+            currentItemRoughness: 0,
+            currentItemStrokeStyle: "solid",
+            currentItemFillStyle: "solid",
+          },
+          captureUpdate: "IMMEDIATELY",
+        });
+        return;
+      }
+
+      if (tool === "freedraw") {
+        excalidrawApi.updateScene({
+          appState: {
+            ...currentAppState,
+            currentItemStrokeColor: shapeToolbarStyle.strokeColor,
+            currentItemStrokeWidth: shapeToolbarStyle.strokeWidth,
+            currentItemRoughness: 0,
+            currentItemStrokeStyle: "solid",
+          },
+          captureUpdate: "IMMEDIATELY",
+        });
+        return;
+      }
+
+      if (tool === "text") {
+        const nextTextStyle = normalizeTextToolbarStyle(textToolbarStyle);
+        setTextToolbarStyle(nextTextStyle);
+        excalidrawApi.updateScene({
+          appState: {
+            ...currentAppState,
+            currentItemStrokeColor: nextTextStyle.color,
+            currentItemFontSize: nextTextStyle.fontSize,
+          },
+          captureUpdate: "IMMEDIATELY",
+        });
+      }
     },
-    [excalidrawApi],
+    [excalidrawApi, shapeToolbarStyle, textToolbarStyle],
   );
 
   const applyShapeToolStyle = useCallback(
@@ -1039,6 +1238,9 @@ export function CanvasToolMenu({
             strokeWidth: nextStyle.strokeWidth,
             width: nextWidth,
             height: nextHeight,
+            roughness: 0,
+            strokeStyle: "solid",
+            fillStyle: "solid",
           });
         },
       );
@@ -1099,6 +1301,79 @@ export function CanvasToolMenu({
       applyShapeToolStyle({ strokeWidth });
     },
     [applySelectedShapeUpdate, applyShapeToolStyle, selectedShapeElement],
+  );
+
+  const applySelectedTextUpdate = useCallback(
+    (nextValues: Partial<TextToolbarStyle>) => {
+      if (!excalidrawApi?.updateScene || !selectedTextElement) {
+        return;
+      }
+
+      const nextStyle = normalizeTextToolbarStyle({
+        color: nextValues.color ?? selectedTextElement.color,
+        fontSize: nextValues.fontSize ?? selectedTextElement.fontSize,
+      });
+      const nextElements = (excalidrawApi.getSceneElements?.() ?? []).map(
+        (element: any) => {
+          if (element.isDeleted || element.id !== selectedTextElement.id) {
+            return element;
+          }
+
+          return bumpSceneElement({
+            ...element,
+            strokeColor: nextStyle.color,
+            fontSize: nextStyle.fontSize,
+          });
+        },
+      );
+      const currentAppState = excalidrawApi.getAppState?.() ?? {};
+
+      setSelectedTextElement({
+        ...selectedTextElement,
+        ...nextStyle,
+      });
+      setTextToolbarStyle(nextStyle);
+      excalidrawApi.updateScene({
+        elements: nextElements,
+        appState: {
+          ...currentAppState,
+          currentItemStrokeColor: nextStyle.color,
+          currentItemFontSize: nextStyle.fontSize,
+        },
+        captureUpdate: "IMMEDIATELY",
+      });
+    },
+    [excalidrawApi, selectedTextElement],
+  );
+
+  const handleTextStyleChange = useCallback(
+    (nextValues: Partial<TextToolbarStyle>) => {
+      if (selectedTextElement) {
+        applySelectedTextUpdate(nextValues);
+        return;
+      }
+
+      if (!excalidrawApi?.updateScene) {
+        return;
+      }
+
+      const nextStyle = normalizeTextToolbarStyle({
+        ...textToolbarStyle,
+        ...nextValues,
+      });
+      const currentAppState = excalidrawApi.getAppState?.() ?? {};
+
+      setTextToolbarStyle(nextStyle);
+      excalidrawApi.updateScene({
+        appState: {
+          ...currentAppState,
+          currentItemStrokeColor: nextStyle.color,
+          currentItemFontSize: nextStyle.fontSize,
+        },
+        captureUpdate: "IMMEDIATELY",
+      });
+    },
+    [applySelectedTextUpdate, excalidrawApi, selectedTextElement, textToolbarStyle],
   );
 
   const handleSelectedShapeDimensionChange = useCallback(
@@ -1271,6 +1546,29 @@ export function CanvasToolMenu({
     (category: OfficialGalleryCategoryId) => {
       setActiveOfficialGalleryCategory(category);
       setActiveOfficialGallerySubtype("默认");
+    },
+    [],
+  );
+
+  const handleScrollOfficialGalleryCategories = useCallback(
+    (direction: "left" | "right") => {
+      const strip = officialGalleryCategoryStripRef.current;
+      if (!strip) {
+        return;
+      }
+
+      const delta = direction === "left" ? -240 : 240;
+      console.log("[canvas-tool-menu] scroll official gallery categories", {
+        direction,
+        delta,
+      });
+
+      if (typeof strip.scrollBy === "function") {
+        strip.scrollBy({ left: delta, behavior: "smooth" });
+        return;
+      }
+
+      strip.scrollLeft += delta;
     },
     [],
   );
@@ -1466,10 +1764,18 @@ export function CanvasToolMenu({
     }
 
     const toolbarMode = selectedShapeElement
-      ? "selection"
-      : shapeFlyoutOpen || isShapeToolId(activeTool)
-        ? "tool"
-        : null;
+      ? selectedShapeElement.type === "freedraw"
+        ? "freedraw-selection"
+        : "selection"
+      : selectedTextElement
+        ? "text-selection"
+      : activeTool === "freedraw"
+        ? "freedraw"
+        : activeTool === "text"
+          ? "text"
+          : shapeFlyoutOpen || isShapeToolId(activeTool)
+            ? "tool"
+            : null;
 
     if (!toolbarMode) {
       return null;
@@ -1487,37 +1793,201 @@ export function CanvasToolMenu({
       "#ffffff",
     );
     const selectionToolbarStyle = selectedShapeElement
-      ? (() => {
-          const viewportWidth =
-            typeof window === "undefined" ? 1440 : window.innerWidth;
-          const viewportHeight =
-            typeof window === "undefined" ? 900 : window.innerHeight;
-          const centerX =
-            (selectedShapeElement.x +
-              selectedShapeElement.width / 2 +
-              canvasScrollZoom.scrollX) *
-            canvasScrollZoom.zoom;
-          const anchorTop =
-            (selectedShapeElement.y + canvasScrollZoom.scrollY) *
-              canvasScrollZoom.zoom -
-            82;
-          const fallbackBelowTop =
-            (selectedShapeElement.y +
-              selectedShapeElement.height +
-              canvasScrollZoom.scrollY) *
-              canvasScrollZoom.zoom +
-            12;
-
-          return {
-            left: clamp(centerX, 40, Math.max(40, viewportWidth - 40)),
-            top: clamp(
-              anchorTop < 16 ? fallbackBelowTop : anchorTop,
-              16,
-              Math.max(16, viewportHeight - 112),
-            ),
-          };
-        })()
+      ? buildCanvasSelectionToolbarStyle({
+          x: selectedShapeElement.x,
+          y: selectedShapeElement.y,
+          width: selectedShapeElement.width,
+          height: selectedShapeElement.height,
+          scrollX: canvasScrollZoom.scrollX,
+          scrollY: canvasScrollZoom.scrollY,
+          zoom: canvasScrollZoom.zoom,
+        })
+      : selectedTextElement
+        ? buildCanvasSelectionToolbarStyle({
+            x: selectedTextElement.x,
+            y: selectedTextElement.y,
+            width: selectedTextElement.width,
+            height: selectedTextElement.height,
+            scrollX: canvasScrollZoom.scrollX,
+            scrollY: canvasScrollZoom.scrollY,
+            zoom: canvasScrollZoom.zoom,
+          })
       : null;
+    const textStyle = selectedTextElement
+      ? normalizeTextToolbarStyle(selectedTextElement)
+      : textToolbarStyle;
+
+    if (
+      (toolbarMode === "freedraw" || toolbarMode === "freedraw-selection") &&
+      selectionToolbarStyle &&
+      toolbarMode === "freedraw-selection" &&
+      typeof document !== "undefined"
+    ) {
+      return createPortal(
+        <div
+          className="pointer-events-auto fixed z-[72] w-fit max-w-[calc(100vw-4rem)] -translate-x-1/2"
+          data-anchor="canvas-selection"
+          data-mode={toolbarMode}
+          data-testid="architecture-canvas-shape-toolbar"
+          style={selectionToolbarStyle}
+        >
+          <div className="flex flex-wrap items-center gap-3 rounded-[10px] border border-slate-200 bg-white/96 px-4 py-3 shadow-[0_18px_48px_rgba(15,23,42,0.1)] backdrop-blur">
+            <label className="flex items-center gap-2">
+              <span className="text-[11px] font-medium text-slate-500">颜色</span>
+              <input
+                aria-label="涂鸦颜色"
+                type="color"
+                value={strokeColorValue}
+                onChange={(event) => handleShapeStrokeSelect(event.currentTarget.value)}
+                className="h-8 w-8 cursor-pointer rounded-[8px] border border-slate-200 bg-white p-1"
+              />
+            </label>
+            <label className="flex min-w-[220px] items-center gap-3">
+              <span className="text-[11px] font-medium text-slate-500">粗细</span>
+              <input
+                aria-label="涂鸦粗细"
+                type="range"
+                min={1}
+                max={16}
+                step={1}
+                value={currentStyle.strokeWidth}
+                onChange={(event) =>
+                  handleShapeStrokeWidthChange(Number(event.currentTarget.value))
+                }
+                className="h-2 flex-1 accent-slate-900"
+              />
+              <span className="w-8 text-right text-[11px] font-medium text-slate-700">
+                {currentStyle.strokeWidth}
+              </span>
+            </label>
+          </div>
+        </div>,
+        document.body,
+      );
+    }
+
+    if (toolbarMode === "freedraw") {
+      return (
+        <div
+          className="absolute left-1/2 top-4 z-30 w-fit max-w-[calc(100vw-4rem)] -translate-x-1/2"
+          data-mode={toolbarMode}
+          data-testid="architecture-canvas-shape-toolbar"
+        >
+          <div className="flex flex-wrap items-center gap-3 rounded-[10px] border border-slate-200 bg-white/96 px-4 py-3 shadow-[0_18px_48px_rgba(15,23,42,0.1)] backdrop-blur">
+            <label className="flex items-center gap-2">
+              <span className="text-[11px] font-medium text-slate-500">颜色</span>
+              <input
+                aria-label="涂鸦颜色"
+                type="color"
+                value={strokeColorValue}
+                onChange={(event) => handleShapeStrokeSelect(event.currentTarget.value)}
+                className="h-8 w-8 cursor-pointer rounded-[8px] border border-slate-200 bg-white p-1"
+              />
+            </label>
+            <label className="flex min-w-[220px] items-center gap-3">
+              <span className="text-[11px] font-medium text-slate-500">粗细</span>
+              <input
+                aria-label="涂鸦粗细"
+                type="range"
+                min={1}
+                max={16}
+                step={1}
+                value={currentStyle.strokeWidth}
+                onChange={(event) =>
+                  handleShapeStrokeWidthChange(Number(event.currentTarget.value))
+                }
+                className="h-2 flex-1 accent-slate-900"
+              />
+              <span className="w-8 text-right text-[11px] font-medium text-slate-700">
+                {currentStyle.strokeWidth}
+              </span>
+            </label>
+          </div>
+        </div>
+      );
+    }
+
+    if (
+      (toolbarMode === "text" || toolbarMode === "text-selection") &&
+      selectionToolbarStyle &&
+      toolbarMode === "text-selection" &&
+      typeof document !== "undefined"
+    ) {
+      return createPortal(
+        <div
+          className="pointer-events-auto fixed z-[72] w-fit max-w-[calc(100vw-4rem)] -translate-x-1/2"
+          data-anchor="canvas-selection"
+          data-mode={toolbarMode}
+          data-testid="architecture-canvas-shape-toolbar"
+          style={selectionToolbarStyle}
+        >
+          <div className="flex flex-wrap items-center gap-3 rounded-[10px] border border-slate-200 bg-white/96 px-4 py-3 shadow-[0_18px_48px_rgba(15,23,42,0.1)] backdrop-blur">
+            <label className="flex items-center gap-2">
+              <span className="text-[11px] font-medium text-slate-500">颜色</span>
+              <input
+                aria-label="文字颜色"
+                type="color"
+                value={normalizeColorInputValue(textStyle.color, "#ef4444")}
+                onChange={(event) => handleTextStyleChange({ color: event.currentTarget.value })}
+                className="h-8 w-8 cursor-pointer rounded-[8px] border border-slate-200 bg-white p-1"
+              />
+            </label>
+            <label className="flex items-center gap-2 text-[11px] font-medium text-slate-500">
+              <span>字号</span>
+              <input
+                aria-label="文字字号"
+                type="number"
+                min={12}
+                max={96}
+                value={textStyle.fontSize}
+                onChange={(event) =>
+                  handleTextStyleChange({ fontSize: Number(event.currentTarget.value) })
+                }
+                className="h-8 w-20 rounded-[8px] border border-slate-200 bg-white px-2 text-sm text-slate-900 outline-none transition-colors focus:border-slate-400"
+              />
+            </label>
+          </div>
+        </div>,
+        document.body,
+      );
+    }
+
+    if (toolbarMode === "text") {
+      return (
+        <div
+          className="absolute left-1/2 top-4 z-30 w-fit max-w-[calc(100vw-4rem)] -translate-x-1/2"
+          data-mode={toolbarMode}
+          data-testid="architecture-canvas-shape-toolbar"
+        >
+          <div className="flex flex-wrap items-center gap-3 rounded-[10px] border border-slate-200 bg-white/96 px-4 py-3 shadow-[0_18px_48px_rgba(15,23,42,0.1)] backdrop-blur">
+            <label className="flex items-center gap-2">
+              <span className="text-[11px] font-medium text-slate-500">颜色</span>
+              <input
+                aria-label="文字颜色"
+                type="color"
+                value={normalizeColorInputValue(textStyle.color, "#ef4444")}
+                onChange={(event) => handleTextStyleChange({ color: event.currentTarget.value })}
+                className="h-8 w-8 cursor-pointer rounded-[8px] border border-slate-200 bg-white p-1"
+              />
+            </label>
+            <label className="flex items-center gap-2 text-[11px] font-medium text-slate-500">
+              <span>字号</span>
+              <input
+                aria-label="文字字号"
+                type="number"
+                min={12}
+                max={96}
+                value={textStyle.fontSize}
+                onChange={(event) =>
+                  handleTextStyleChange({ fontSize: Number(event.currentTarget.value) })
+                }
+                className="h-8 w-20 rounded-[8px] border border-slate-200 bg-white px-2 text-sm text-slate-900 outline-none transition-colors focus:border-slate-400"
+              />
+            </label>
+          </div>
+        </div>
+      );
+    }
 
     const toolbarCard = (
       <div className="flex flex-wrap items-center gap-3 rounded-[10px] border border-slate-200 bg-white/96 px-4 py-3 shadow-[0_18px_48px_rgba(15,23,42,0.1)] backdrop-blur">
@@ -1573,7 +2043,7 @@ export function CanvasToolMenu({
         </label>
 
         {selectedShapeElement ? (
-          <div className="ml-auto flex items-center gap-3">
+          <div className="flex items-center gap-3">
             <label className="flex items-center gap-2 text-[11px] font-medium text-slate-500">
               <span>W</span>
               <input
@@ -1612,14 +2082,14 @@ export function CanvasToolMenu({
     );
 
     if (
-      toolbarMode === "selection" &&
+      (toolbarMode === "selection" || toolbarMode === "freedraw-selection") &&
       selectionToolbarStyle &&
       typeof document !== "undefined"
     ) {
       return createPortal(
         <div
-          className="pointer-events-auto fixed z-[72] w-[min(760px,calc(100vw-4rem))] -translate-x-1/2"
-          data-anchor="shape-selection"
+          className="pointer-events-auto fixed z-[72] w-fit max-w-[calc(100vw-4rem)] -translate-x-1/2"
+          data-anchor="canvas-selection"
           data-mode={toolbarMode}
           data-testid="architecture-canvas-shape-toolbar"
           style={selectionToolbarStyle}
@@ -1632,7 +2102,7 @@ export function CanvasToolMenu({
 
     return (
       <div
-        className="absolute left-1/2 top-4 z-30 w-[min(760px,calc(100vw-8rem))] -translate-x-1/2"
+        className="absolute left-1/2 top-4 z-30 w-fit max-w-[calc(100vw-4rem)] -translate-x-1/2"
         data-mode={toolbarMode}
         data-testid="architecture-canvas-shape-toolbar"
       >
@@ -1741,10 +2211,15 @@ export function CanvasToolMenu({
                     type="button"
                     aria-label="向左滚动官方图库分类"
                     className="inline-flex h-8 w-8 items-center justify-center rounded-[8px] border border-slate-200 bg-white text-slate-600 transition-colors hover:bg-slate-100"
+                    onClick={() => handleScrollOfficialGalleryCategories("left")}
                   >
                     ‹
                   </button>
-                  <div className="flex flex-1 gap-2 overflow-x-auto py-1">
+                  <div
+                    ref={officialGalleryCategoryStripRef}
+                    data-testid="official-gallery-category-strip"
+                    className="flex flex-1 gap-2 overflow-x-auto py-1"
+                  >
                     {OFFICIAL_GALLERY_MAJOR_CATEGORIES.map((category) => {
                       const selected = activeOfficialGalleryCategory === category.id;
                       return (
@@ -1770,6 +2245,7 @@ export function CanvasToolMenu({
                     type="button"
                     aria-label="向右滚动官方图库分类"
                     className="inline-flex h-8 w-8 items-center justify-center rounded-[8px] border border-slate-200 bg-white text-slate-600 transition-colors hover:bg-slate-100"
+                    onClick={() => handleScrollOfficialGalleryCategories("right")}
                   >
                     ›
                   </button>
@@ -1794,7 +2270,10 @@ export function CanvasToolMenu({
                     );
                   })}
                 </div>
-                <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-5">
+                <div
+                  data-testid="official-gallery-grid"
+                  className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-6"
+                >
                   {activeOfficialGalleryItems.map((item, index) => (
                     <button
                       key={item.id}
@@ -1857,7 +2336,10 @@ export function CanvasToolMenu({
                     <div className="text-sm font-medium text-slate-700">数据为空</div>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-5">
+                  <div
+                    data-testid="my-creations-grid"
+                    className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-6"
+                  >
                     {activeMyCreationItems.map((item, index) => (
                       <button
                         key={item.id}

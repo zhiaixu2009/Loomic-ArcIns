@@ -2248,3 +2248,209 @@
 - Fresh planning read of PRD/task plan after this slice confirms:
   - the just-finished fixed-composer / anchored-toolbar slice is closed
   - the next best local front-end closures are `25.1-4 输入焦点冲突`, `25.1-7 历史定位失败提示`, and `18.4-2 我的创作非空态 + 回插画布`
+
+## 2026-04-18 Composer Inline Attachment Root Cause Closure
+
+- Re-checked the archived authenticated `建筑学长` composer evidence against the current local bug report.
+- Live evidence now re-frozen more explicitly:
+  - `D:/97-CodingProject/Loomic-ArcIns/output/playwright/reference-audit/content-2-top-image-selected.png`
+    - selected image chip is embedded inside the same upper input row as the `+` add-image button
+    - visible order is `缩略图 chip -> + -> 输入占位区 -> 发送`
+  - `C:/Users/admin/.codex/mcp/playwright/output/jzxz-home-probe.png`
+    - homepage empty composer keeps the same structural slots, only without the left thumbnail chip
+- Root cause in the local repo was not “just CSS drift”; it was a structural divergence:
+  - `apps/web/src/components/home-prompt.tsx` rendered uploaded attachments above `home-prompt-input-row`
+  - `apps/web/src/components/chat-input.tsx` rendered immersive pending/attached refs in a separate upper `meta rail`
+  - both behaviors conflict with the already-audited live rule “thumbnail lives in the input main row”
+- Product correction now frozen:
+  - homepage and immersive canvas must share the same composer geometry principle
+  - image thumbnails must enter the input main row instead of creating a second vertical layer above it
+  - future composer work cannot be closed from local intuition alone; it must cite authenticated live evidence or archived live screenshots in validation
+
+## 2026-04-18 History Locate Failure Closure
+
+- The current `25.1-7` closure did not require a new `CanvasEditor` protocol change.
+- Root-cause analysis confirmed the missing behavior lived at the page / sidebar boundary instead:
+  - `apps/web/src/components/chat-sidebar.tsx` had no record-card level callback for “locate this reference back on canvas”
+  - `apps/web/src/app/canvas/page.tsx` already owned the live Excalidraw API ref, current selection state, and viewport state, so it was the correct layer to restore selection and scroll position
+- The minimal stable implementation path is now frozen:
+  - record card reference `assetId` -> `ChatSidebar onLocateCanvasElement`
+  - `CanvasPage` resolves `assetId` against live scene elements
+  - page updates `selectedElementIds + scrollX + scrollY` through `updateScene(..., captureUpdate: "NONE")`
+  - page mirrors that state back into local `selectedCanvasElements` and `canvasViewport`
+- Failure semantics are now explicit:
+  - missing scene node does not silently no-op
+  - the right panel shows `未能定位到该画布节点`
+- Verified locally with:
+  - focused:
+    - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/chat-sidebar.test.tsx test/canvas-page-history-locate.test.tsx --reporter=dot --pool forks"`
+    - result: `2` files passed, `31` tests passed
+  - bounded regression:
+    - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/chat-sidebar.test.tsx test/canvas-page-history-locate.test.tsx test/canvas-page-selection-action-bar.test.tsx test/canvas-page-context-menu.test.tsx --reporter=dot --pool forks"`
+    - result: `4` files passed, `48` tests passed
+
+## 2026-04-18 Input-Focus / My-Creations Closure Audit
+
+- Re-auditing `25.1-4 输入焦点冲突` showed the behavior was already implemented rather than missing:
+  - `apps/web/src/components/chat-sidebar.tsx` keeps `composerDraft` intact while replacing only the focus-confirmed canvas reference attachments after the selected base image changes
+  - the key guard remains `composerDraft.trim().length > 0` plus focused-attachment tracking via `focusConfirmedCanvasRefAssetIdsRef`
+  - the existing test `keeps the typed draft and swaps the focused canvas reference when the user changes the selected base image` is the correct frozen proof point
+- Re-auditing `18.4-2 我的创作非空态 + 回插画布` showed the local product already had the needed behavior:
+  - `CanvasToolMenu` exposes a non-empty `我的创作` source strip and sample asset grid
+  - clicking a `我的创作` item already routes into the real `insertImageOnCanvas(...)` path and closes the dialog afterward
+- Fresh verification for the doc-closure audit:
+  - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/chat-sidebar.test.tsx test/canvas-tool-menu.test.tsx test/canvas-page-shell.test.tsx --reporter=dot --pool forks"`
+  - result: `3` files passed, `41` tests passed
+
+## 2026-04-18 Add-Material Browsing Polish Closure
+
+- A real remaining gap still existed inside `CanvasToolMenu` even after the broader add-dialog shell closure:
+  - the visible `官方图库` left/right arrow buttons were still inert shells
+  - large-screen gallery density still plateaued at `xl:5列`, which did not match the user-requested fixed-dialog browsing contract
+- The minimal safe fix path was purely local to `CanvasToolMenu`:
+  - add a ref for the official-gallery category strip
+  - wire the two arrow buttons to `scrollBy({ left: ±240, behavior: "smooth" })` with a `scrollLeft` fallback
+  - raise both `官方图库` and `我的创作` grids from `xl:5列` to `xl:6列`
+- No page-level or server changes were needed for this slice.
+- Fresh verification:
+  - focused:
+    - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/canvas-tool-menu.test.tsx --reporter=dot --pool forks"`
+    - result: `1` file passed, `9` tests passed
+  - bounded regression:
+    - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/canvas-tool-menu.test.tsx test/canvas-page-shell.test.tsx test/architecture-neutral-palette.test.ts --reporter=dot --pool forks"`
+    - result: `3` files passed, `25` tests passed
+
+## 2026-04-18 HomePrompt Template Hierarchy Closure
+
+- A real documentation-to-source mismatch still existed on the homepage template surface:
+  - frozen PRD `23.4` already claimed homepage and immersive composer both follow `类别 -> 模板项`
+  - actual local source did not:
+    - `apps/web/src/components/home-prompt.tsx` still held a flat three-item `HOME_PROMPT_TEMPLATES` array
+    - homepage `模版` popover therefore behaved like a legacy shortcut menu, not like the audited建筑学长 hierarchy
+- Root cause:
+  - earlier template-hierarchy work closed the immersive `ChatInput` path first
+  - the homepage `HomePrompt` was left on the pre-freeze implementation, while PRD writeback over-generalized the closure
+- Stable correction now frozen:
+  - homepage template data moved to `apps/web/src/lib/home-prompt-template-data.ts`
+  - homepage `模版` now renders `类别 -> 模板项` instead of a flat chip wall
+  - homepage category sample set now matches the already-frozen audited category universe:
+    - `效果渲染 / 总平填色 / 户型填色 / 风格迁移 / 剖立面 / 分析图 / 展板生成 / 灵感方案 / 氛围转换 / 画风转换 / 视角转换 / 方案设计 / 旧房改造 / 室内装修 / 局部修改 / 分镜图`
+- Product semantics re-frozen for homepage:
+  - switching category must filter the visible template items
+  - clicking a template item must both inject the prompt and reset the visible image-model chip back to `Banana Pro`
+  - homepage and immersive canvas no longer diverge on template IA
+- Verified locally with:
+  - focused:
+    - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/home-prompt.test.tsx --reporter=dot --pool forks"`
+    - result: `1` file passed, `4` tests passed
+  - bounded regression:
+    - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/home-prompt.test.tsx test/chat-input.test.tsx test/home-page-shell.test.tsx test/chat-sidebar.test.tsx --reporter=dot --pool forks"`
+    - result: `4` files passed, `54` tests passed
+
+## 2026-04-18 Composer Attachment Persistence / No-Scrollbar Closure
+
+- The fresh user-reported `chatinput` regression was not a single CSS issue; it had two concrete root causes in the local source:
+  - `apps/web/src/components/image-attachment-bar.tsx` rendered attachment thumbnails from `preview` only, even after upload success had already produced a durable `url`
+  - homepage / immersive composer attachment rails stacked nested horizontal scroll containers (`outer rail overflow-x-auto` + `ImageAttachmentBar composer-inline overflow-x-auto`), which made browser scrollbars appear inside the input shell
+- Product consequence before the fix:
+  - uploaded thumbnails could keep showing a stale blob URL instead of the persisted asset URL
+  - the input shell looked visually broken when attachments accumulated, because the browser exposed horizontal scrollbar chrome inside the composer
+- The bounded fix path is now frozen:
+  - `ImageAttachmentBar` prefers `att.url ?? att.preview`
+  - `composer-inline` attachment bars no longer create their own nested scroll container
+  - homepage seed-image rail, homepage attachment rail, immersive inline rail, and selected-image rails all suppress native scrollbar chrome while preserving horizontal overflow capability
+  - immersive textarea max height was relaxed from `72` to `96` and the fixed shell height was raised again so image chips and text can coexist without the cramped feel the user reported
+- `查看大图` now has an explicit regression assertion that the architecture lightbox opens on the selected image's durable `storageUrl` (`https://example.com/reference.png`) instead of an ambiguous transient source.
+- Verified locally with:
+  - red:
+    - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/home-prompt.test.tsx test/chat-input.test.tsx --reporter=dot --pool forks"`
+    - result: `2` failed, `18` passed
+  - focused green:
+    - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/home-prompt.test.tsx test/chat-input.test.tsx test/canvas-page-selection-action-bar.test.tsx --reporter=dot --pool forks"`
+    - result: `3` files passed, `28` tests passed
+  - bounded regression:
+    - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/home-prompt.test.tsx test/chat-input.test.tsx test/canvas-page-selection-action-bar.test.tsx test/chat-sidebar.test.tsx --reporter=dot --pool forks"`
+    - result: `4` files passed, `58` tests passed
+
+## 2026-04-18 Shared Template Browser Closure
+
+- Re-checked the archived authenticated `建筑学长` homepage template screenshot before continuing local UI work.
+- The new evidence-tightened structural rule is now frozen:
+  - homepage and immersive composer must both use a browser-style template surface
+  - the visible structure is `左侧分类列 + 搜索框 + 右侧模板项网格`
+  - default open state is `全部`, which may contain mixed cross-category items
+  - explicit category clicks must narrow the grid to that category only
+- A second live-evidence correction is now frozen from the archived canvas screenshot:
+  - the `添加图片` tile belongs inside the same inline composer main row as pending/confirmed thumbnails and the text area
+  - it cannot float to a detached lower button rail, because that causes the exact layout drift the user flagged
+- Local source root causes that were still present before this closure:
+  - `apps/web/src/components/home-prompt.tsx` still referenced the removed `activeTemplateCategory` path and therefore had a half-landed template-browser refactor
+  - `apps/web/src/components/chat-input.tsx` still used the legacy flat immersive `模版` menu and kept the add-image trigger outside the inline rail
+  - existing tests assumed the default template view should already be category-filtered, which conflicts with the live screenshot showing `全部`
+- Stable product correction now frozen:
+  - `apps/web/src/components/prompt-template-browser.tsx` is the shared template-browser surface for homepage and immersive composer
+  - top-level browser entries now explicitly include `全部 / 热度 / 最新` plus the audited domain categories
+  - homepage and immersive composer now share the same fixed-shell composer geometry while keeping the white / neutral gray visual contract
+- Runtime deployment finding:
+  - the local runtime is not a slow production-only image flow for this surface
+  - `scripts/windows/start-local-runtime.ps1` starts `docker-compose.dev.yml`, where `web` mounts the workspace source tree
+  - for front-end-only changes like this slice, the stable refresh path is `docker compose ... restart web` plus an HTTP probe, not a full rebuild
+
+## 2026-04-18 Local Project-Entry Stability / Loopback Origin Finding
+
+- The freshly reported `数据库接口挂了吗？现在进不去项目了` symptom did not reproduce as a database or API outage.
+- Fresh evidence gathered after the report:
+  - `scripts/windows/status-local-runtime.ps1` still showed:
+    - `http://127.0.0.1:3000/home => 200`
+    - `http://127.0.0.1:3001/api/health => 200`
+    - `web / server / worker` containers running and healthy
+  - authenticated API probing with the seeded account `free@test.loomic.com / opensourceloomic` returned:
+    - `GET /api/projects => 200`
+    - `GET /api/canvases/:id => 200`
+    - first recent project canvas id `6b0178f0-e908-4f9c-8b1c-2944cf97f74a`
+- Root-cause hypothesis tightened by code + runtime inspection:
+  - local browser auth is origin-scoped, so `http://localhost:3000` and `http://127.0.0.1:3000` do not share the same Supabase session storage
+  - when the same local runtime is opened under different loopback hosts, users can experience a false “进不去项目 / 像掉登录态了” symptom even though the database, API, and project records are healthy
+  - the stale `apps/web/src/lib/env.ts` fallback still defaulted to `http://localhost:3001`, which kept the local source less aligned with the already-frozen `127.0.0.1` runtime contract
+- Stable local correction now frozen:
+  - added `apps/web/src/components/dev-origin-guard.tsx`
+  - mounted `DevOriginGuard` in `apps/web/src/components/providers.tsx`
+  - normalized the fallback server base URL in `apps/web/src/lib/env.ts` to `http://127.0.0.1:3001`
+- Product consequence:
+  - local users who accidentally open the app via `localhost` are now redirected onto the canonical `127.0.0.1` workspace origin before the rest of the client session stack proceeds
+  - future “项目进不去” reports should first distinguish:
+    - runtime/API outage
+    - expired auth/session
+    - loopback host split (`localhost` vs `127.0.0.1`)
+
+## 2026-04-18 Pending-Selection / Export Fallback Closure
+
+- The previous red tests correctly identified that the remaining high-risk gap was not “layout polish”, but a behavior-contract mismatch across three chains:
+  - programmatic composer focus vs user-confirmed focus
+  - pending selected-canvas refs vs confirmed canvas-ref attachments
+  - browser-reachable asset URLs vs raw storage hostnames during export fallback
+- Stable root-cause findings now frozen:
+  - `ChatInput` previously called `textarea.focus()` for `externalDraft` and template injection without distinguishing programmatic focus from real user activation
+  - `ChatSidebar` treats `onInputFocus` as the confirmation boundary for pending selected canvas refs
+  - combining those two behaviors meant the local source could auto-confirm pending refs even when the user never explicitly activated the input area
+  - pending-chip filtering in `ChatInput` previously deduped on `assetId || url`, which incorrectly collapses distinct canvas elements when they share one persisted image URL
+  - multi-image export / merge still used a direct `Image.src = resolveBrowserAssetUrl(...)` path, so they did not inherit the same proxy/blob fallback already used by the single-image export path
+- Frozen implementation rule after this closure:
+  - only real user focus may confirm pending selected canvas refs
+  - programmatic draft/template injection may focus the textarea for convenience, but must not change attachment state
+  - confirmed canvas-ref attachments dedupe by `assetId` first; URL comparison is a fallback only for attachments that do not carry an `assetId`
+  - any export/merge path that needs to read image pixels must reuse `fetchImageBlobWithFallback` instead of direct remote `Image.src` loading
+
+## 2026-04-18 Immersive Chat-Input Geometry Finding
+
+- The remaining visible `chat input` mismatch was a geometry issue inside the immersive composer shell, not a missing data-binding bug:
+  - the upload trigger still lived in the textarea row
+  - pending / confirmed image chips still used an oversized `96px` preview body
+  - together, those two choices squeezed the text zone and recreated the “图片没有真正收回输入框内部” perception
+- Stable fix after the runtime re-check:
+  - keep the upload trigger inside the top in-shell media rail
+  - reduce thumbnail cards to the compact audited geometry (`68x68` outer / `60x60` preview)
+  - reserve the middle row for `textarea + send` only
+- This finding is now backed by both local runtime screenshots:
+  - `D:/97-CodingProject/Loomic-ArcIns/.tmp/chatinput-canvas-check.png`
+  - `D:/97-CodingProject/Loomic-ArcIns/.tmp/chatinput-canvas-check-with-attachment.png`

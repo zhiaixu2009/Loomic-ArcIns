@@ -262,6 +262,39 @@ export function useImageAttachments(accessToken: string, projectId?: string) {
     });
   }, []);
 
+  const moveAttachment = useCallback(
+    (id: string, direction: "left" | "right") => {
+      setAttachments((prev) => {
+        const currentIndex = prev.findIndex((attachment) => attachment.id === id);
+        if (currentIndex === -1) {
+          return prev;
+        }
+
+        const targetIndex =
+          direction === "left" ? currentIndex - 1 : currentIndex + 1;
+        if (targetIndex < 0 || targetIndex >= prev.length) {
+          return prev;
+        }
+
+        const next = [...prev];
+        [next[currentIndex], next[targetIndex]] = [
+          next[targetIndex]!,
+          next[currentIndex]!,
+        ];
+
+        console.log("[image-attachments] reordered attachments", {
+          attachmentId: id,
+          direction,
+          currentIndex,
+          targetIndex,
+        });
+
+        return next;
+      });
+    },
+    [],
+  );
+
   const clearUploads = useCallback(() => {
     setAttachments((prev) => {
       for (const att of prev) {
@@ -290,6 +323,7 @@ export function useImageAttachments(accessToken: string, projectId?: string) {
     addFiles,
     addCanvasRef,
     replaceCanvasRefs,
+    moveAttachment,
     retryUpload,
     removeAttachment,
     clearAll,

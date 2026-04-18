@@ -987,7 +987,7 @@
 | Item | Evidence Required | Current State |
 |------|-------------------|---------------|
 | Home prompt keeps the upload trigger inside the input shell and preserves split `自动 / 1K` pills | focused `home-prompt` regression | PASS |
-| Immersive composer keeps a fixed shell with pending chips moved into a dedicated meta rail | focused `chat-input` regression | PASS |
+| Immersive composer keeps a fixed shell while pending chips and uploaded thumbnails remain in the same main input row as `添加图片` | focused `chat-input` regression + Section `51` real-site correction | PASS |
 | Shape selection toolbar uses real color pickers and follows the selected shape geometry | focused `canvas-tool-menu` regression | PASS |
 | Image selection changes re-emit on same-id geometry updates so floating bars can follow movement | focused `canvas-editor-context-menu` regression | PASS |
 | Adjacent sidebar / canvas shell / image action-bar flows remain green after the stabilization | bounded 8-file regression | PASS |
@@ -1005,4 +1005,271 @@
 |------|-------------------|---------------|
 | Current homepage / canvas / composer regression set remains green before sync | fresh bounded web regression | PASS |
 | Repository sync does not overstate typecheck health | fresh typecheck gate recorded as failing | PASS |
+
+## 51. Composer Inline-Attachment Real-Site Closure
+
+| Time | Environment | Command / Action | Result | Evidence | Status |
+|------|-------------|------------------|--------|----------|--------|
+| 2026-04-18 07:05-07:08 | Archived authenticated `建筑学长` evidence re-check + user-reported local screenshot | Re-checked the previously captured live `建筑学长` canvas composer screenshot and compared it against the current local broken state reported by the user | Confirmed the frozen live contract had been misapplied locally: the real composer keeps `缩略图 chip + 添加图片 + 文本输入区 + 发送按钮` in the same input main row; the local `HomePrompt` and immersive `ChatInput` had diverged into an upper attachment rail / lifted bar structure that caused visible layout drift | `D:/97-CodingProject/Loomic-ArcIns/output/playwright/reference-audit/content-2-top-image-selected.png`; `C:/Users/admin/.codex/mcp/playwright/output/jzxz-home-probe.png`; user-provided screenshot in this thread; `D:/97-CodingProject/Loomic-ArcIns/findings.md` section `2026-04-18 Composer Inline Attachment Root Cause Closure` | PASS |
+| 2026-04-18 07:09-07:10 | WSL | `cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/chat-input.test.tsx test/home-prompt.test.tsx --reporter=dot --pool forks` before implementation | Red proof for the composer-layout bugfix | Failed in the intended places because immersive selected-image chips still lived outside `chat-input-immersive-input-row` and homepage uploaded thumbnails still rendered above `home-prompt-input-row` | session command output; `D:/97-CodingProject/Loomic-ArcIns/apps/web/test/chat-input.test.tsx`; `D:/97-CodingProject/Loomic-ArcIns/apps/web/test/home-prompt.test.tsx` | PASS |
+| 2026-04-18 07:13-07:14 | WSL | same focused command after implementation | Focused regression turned green | `2` files passed, `18` tests passed | session command output; `D:/97-CodingProject/Loomic-ArcIns/apps/web/src/components/chat-input.tsx`; `D:/97-CodingProject/Loomic-ArcIns/apps/web/src/components/home-prompt.tsx`; `D:/97-CodingProject/Loomic-ArcIns/apps/web/src/components/image-attachment-bar.tsx` | PASS |
+| 2026-04-18 07:14-07:16 | WSL | `cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/chat-input.test.tsx test/home-prompt.test.tsx test/chat-sidebar.test.tsx test/home-page-shell.test.tsx --reporter=dot --pool forks` | Wider bounded regression after unifying homepage and canvas composer layout semantics | `4` files passed, `51` tests passed | session command output; `D:/97-CodingProject/Loomic-ArcIns/progress.md` entry `2026-04-18 07:05 Asia/Shanghai` | PASS |
+
+### 51.1 Long-Term Real-Site Composer Gate
+
+| Item | Evidence Required | Current State |
+|------|-------------------|---------------|
+| Homepage composer layout changes must be cross-checked against authenticated `建筑学长` evidence, not only local tests | PRD freeze + archived live screenshot + validation entry | PASS |
+| Canvas bottom composer / docked composer changes must be cross-checked against authenticated `建筑学长` evidence, not only local tests | PRD freeze + archived live screenshot + validation entry | PASS |
+| Any change to `添加图片` / attachment chips / pending selection chips must record the specific live evidence path used for comparison | validation checklist + findings/progress writeback | PASS |
+
+## 52. Phase 7 Record-to-Canvas Locate Failure Closure
+
+| Time | Environment | Command / Action | Result | Evidence | Status |
+|------|-------------|------------------|--------|----------|--------|
+| 2026-04-18 09:04-09:05 | WSL | `cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/chat-sidebar.test.tsx test/canvas-page-history-locate.test.tsx --reporter=dot --pool forks` before implementation | Red proof for the frozen `25.1-7 历史定位失败提示` slice | `test/chat-sidebar.test.tsx` failed with the intended parser break (`Unterminated string literal`) in the new locate assertions, and `test/canvas-page-history-locate.test.tsx` failed because `CanvasPage` still never called `updateScene` when the record-card locate action fired | session command output; `D:/97-CodingProject/Loomic-ArcIns/apps/web/test/chat-sidebar.test.tsx`; `D:/97-CodingProject/Loomic-ArcIns/apps/web/test/canvas-page-history-locate.test.tsx` | PASS |
+| 2026-04-18 09:04-09:05 | WSL | same focused command after implementation | Focused regression turned green | `2` files passed, `31` tests passed; successful locate now forwards the reference `assetId`, and missing-node flow now emits the explicit failure toast `未能定位到该画布节点` | session command output; `D:/97-CodingProject/Loomic-ArcIns/apps/web/src/components/chat-sidebar.tsx`; `D:/97-CodingProject/Loomic-ArcIns/apps/web/src/app/canvas/page.tsx`; `D:/97-CodingProject/Loomic-ArcIns/apps/web/test/chat-sidebar.test.tsx`; `D:/97-CodingProject/Loomic-ArcIns/apps/web/test/canvas-page-history-locate.test.tsx` | PASS |
+| 2026-04-18 09:06-09:07 | WSL | `cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/chat-sidebar.test.tsx test/canvas-page-history-locate.test.tsx test/canvas-page-selection-action-bar.test.tsx test/canvas-page-context-menu.test.tsx --reporter=dot --pool forks` | Bounded regression after wiring the right-panel record locate action into the page-level canvas state | `4` files passed, `48` tests passed; adjacent image action-bar and context-menu flows remained green after the new locate handler landed | session command output; `D:/97-CodingProject/Loomic-ArcIns/progress.md` entry `2026-04-18 09:10 Asia/Shanghai` | PASS |
+
+### 52.1 Record Locate Checklist
+
+| Item | Evidence Required | Current State |
+|------|-------------------|---------------|
+| Right-side record cards expose a bounded `定位到画布` action only when a stable canvas reference `assetId` exists | focused `chat-sidebar` regression | PASS |
+| Clicking `定位到画布` restores selection and scrolls the live canvas viewport to the referenced node | focused `canvas-page-history-locate` regression | PASS |
+| Missing scene nodes surface an explicit failure toast instead of silently no-oping | focused `chat-sidebar` regression | PASS |
+| Existing selected-image action-bar and canvas context-menu flows remain green after the new locate path lands | bounded 4-file regression | PASS |
+
+## 53. Phase 7 Input-Focus / My-Creations Documentation Closure
+
+| Time | Environment | Command / Action | Result | Evidence | Status |
+|------|-------------|------------------|--------|----------|--------|
+| 2026-04-18 09:17-09:18 | WSL | `cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/chat-sidebar.test.tsx test/canvas-tool-menu.test.tsx test/canvas-page-shell.test.tsx --reporter=dot --pool forks` | Fresh audit verification before freezing `25.1-4 输入焦点冲突` and `18.4-2 我的创作非空态 + 回插画布` as already-landed behaviors | `3` files passed, `41` tests passed; `ChatSidebar` still preserves typed draft while replacing only the focused canvas reference attachment, and `CanvasToolMenu` still exposes non-empty `我的创作` assets that reinsert onto the live canvas | session command output; `D:/97-CodingProject/Loomic-ArcIns/apps/web/test/chat-sidebar.test.tsx`; `D:/97-CodingProject/Loomic-ArcIns/apps/web/test/canvas-tool-menu.test.tsx`; `D:/97-CodingProject/Loomic-ArcIns/apps/web/test/canvas-page-shell.test.tsx`; `D:/97-CodingProject/Loomic-ArcIns/progress.md` entry `2026-04-18 09:17 Asia/Shanghai` | PASS |
+
+### 53.1 Input-Focus / My-Creations Checklist
+
+| Item | Evidence Required | Current State |
+|------|-------------------|---------------|
+| Switching the selected base image after typing does not clear the user's current text draft | focused `chat-sidebar` regression | PASS |
+| Focus-confirmed canvas reference attachments are replaced in-place when the base image changes | focused `chat-sidebar` regression | PASS |
+| `我的创作` renders a non-empty source strip and asset grid instead of only the empty state | focused `canvas-tool-menu` regression | PASS |
+| Clicking a `我的创作` asset reuses the real canvas insert path instead of a fake preview-only action | focused `canvas-tool-menu` regression | PASS |
+
+## 54. Phase 7 Add-Material Browsing Polish Closure
+
+| Time | Environment | Command / Action | Result | Evidence | Status |
+|------|-------------|------------------|--------|----------|--------|
+| 2026-04-18 09:28-09:29 | WSL | `cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/canvas-tool-menu.test.tsx --reporter=dot --pool forks` before implementation | Red proof for the add-material browsing polish slice | The new regression failed in the intended place because `official-gallery-category-strip` did not exist yet, proving the visible arrow controls were still static shells and the new browsing contract was not wired | session command output; `D:/97-CodingProject/Loomic-ArcIns/apps/web/test/canvas-tool-menu.test.tsx` | PASS |
+| 2026-04-18 09:35-09:36 | WSL | same focused command after implementation | Focused regression turned green | `1` file passed, `9` tests passed; official-gallery arrows now issue real scroll commands and the large-screen gallery grids freeze at `xl:6列` | session command output; `D:/97-CodingProject/Loomic-ArcIns/apps/web/src/components/canvas-tool-menu.tsx`; `D:/97-CodingProject/Loomic-ArcIns/apps/web/test/canvas-tool-menu.test.tsx` | PASS |
+| 2026-04-18 09:37-09:38 | WSL | `cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/canvas-tool-menu.test.tsx test/canvas-page-shell.test.tsx test/architecture-neutral-palette.test.ts --reporter=dot --pool forks` | Bounded regression after the browsing-shell fix | `3` files passed, `25` tests passed; `/canvas` shell and neutral palette checks remained green after the new add-material interactions landed | session command output; `D:/97-CodingProject/Loomic-ArcIns/progress.md` entry `2026-04-18 09:37 Asia/Shanghai` | PASS |
+
+### 54.1 Add-Material Browsing Checklist
+
+| Item | Evidence Required | Current State |
+|------|-------------------|---------------|
+| `官方图库` 左右箭头触发真实分类条滚动，而不是静态展示按钮 | focused `canvas-tool-menu` regression | PASS |
+| `官方图库` 大屏素材网格提升到 `xl:6列` | focused `canvas-tool-menu` regression | PASS |
+| `我的创作` 大屏素材网格同步提升到 `xl:6列` | focused `canvas-tool-menu` regression | PASS |
+| `/canvas` shell 与中性色视觉契约在本轮改动后保持稳定 | bounded 3-file regression | PASS |
+
+## 55. Phase 7 Home Template Hierarchy Closure
+
+| Time | Environment | Command / Action | Result | Evidence | Status |
+|------|-------------|------------------|--------|----------|--------|
+| 2026-04-18 09:52-09:53 | WSL | `cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/home-prompt.test.tsx --reporter=dot --pool forks` before implementation | Red proof for homepage `模版` hierarchy parity | Failed in the intended places because the homepage popover still exposed a flat `场地分析框架 / 效果图深化方向 / 演示视频脚本` list, could not render `home-prompt-template-menu`, and did not expose category-first navigation such as `分析图` | session command output; `D:/97-CodingProject/Loomic-ArcIns/apps/web/test/home-prompt.test.tsx`; `D:/97-CodingProject/Loomic-ArcIns/apps/web/src/components/home-prompt.tsx` | PASS |
+| 2026-04-18 10:03-10:03 | WSL | same focused command after implementation | Focused regression turned green | `1` file passed, `4` tests passed; homepage `模版` now exposes `类别 -> 模板项` and the audited path `分析图 -> 基地现状分析 -> Banana Pro` | session command output; `D:/97-CodingProject/Loomic-ArcIns/apps/web/src/lib/home-prompt-template-data.ts`; `D:/97-CodingProject/Loomic-ArcIns/apps/web/src/components/home-prompt.tsx`; `D:/97-CodingProject/Loomic-ArcIns/apps/web/test/home-prompt.test.tsx` | PASS |
+| 2026-04-18 10:04-10:05 | WSL | `cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/home-prompt.test.tsx test/chat-input.test.tsx test/home-page-shell.test.tsx test/chat-sidebar.test.tsx --reporter=dot --pool forks` | Bounded regression after closing homepage template hierarchy parity | `4` files passed, `54` tests passed; immersive composer hierarchy, homepage shell, and right-panel composer flows remained green after the homepage template-data refactor | session command output; `D:/97-CodingProject/Loomic-ArcIns/progress.md` entry `2026-04-18 10:03 Asia/Shanghai` | PASS |
+
+### 55.1 Long-Term Real-Site Template Gate
+
+| Item | Evidence Required | Current State |
+|------|-------------------|---------------|
+| Any future homepage `HomePrompt` template IA change must cite authenticated `建筑学长` evidence or archived live screenshots, not only local unit tests | PRD freeze + findings/progress writeback + validation entry | PASS |
+| Homepage and immersive composer template menus must stay aligned on `类别 -> 模板项` hierarchy unless new real-site evidence proves a divergence | focused `home-prompt` + existing `chat-input` regression + PRD freeze | PASS |
+| Clicking a homepage template item must continue to inject prompt text and reset the visible image-model chip back to `Banana Pro` | focused `home-prompt` regression | PASS |
+
+## 56. Phase 7 Composer Attachment Persistence / No-Scrollbar Closure
+
+| Time | Environment | Command / Action | Result | Evidence | Status |
+|------|-------------|------------------|--------|----------|--------|
+| 2026-04-18 10:28-10:29 | WSL | `cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/home-prompt.test.tsx test/chat-input.test.tsx --reporter=dot --pool forks` before implementation | Red proof for the persisted-thumbnail / scrollbar regression | Failed in the intended places because homepage and immersive composer attachment thumbnails still rendered `blob:stale-preview` instead of the persisted upload URL, proving the UI was still prioritizing transient preview sources | session command output; `D:/97-CodingProject/Loomic-ArcIns/apps/web/test/home-prompt.test.tsx`; `D:/97-CodingProject/Loomic-ArcIns/apps/web/test/chat-input.test.tsx` | PASS |
+| 2026-04-18 10:32-10:33 | WSL | `cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/home-prompt.test.tsx test/chat-input.test.tsx test/canvas-page-selection-action-bar.test.tsx --reporter=dot --pool forks` | Focused regression after fixing thumbnail source priority, nested overflow rails, and large-image source coverage | `3` files passed, `28` tests passed; homepage / immersive composer now prefer persisted URLs, hide native rail scrollbars, and `查看大图` resolves the selected image `storageUrl` | session command output; `D:/97-CodingProject/Loomic-ArcIns/apps/web/src/components/image-attachment-bar.tsx`; `D:/97-CodingProject/Loomic-ArcIns/apps/web/src/components/home-prompt.tsx`; `D:/97-CodingProject/Loomic-ArcIns/apps/web/src/components/chat-input.tsx`; `D:/97-CodingProject/Loomic-ArcIns/apps/web/test/canvas-page-selection-action-bar.test.tsx` | PASS |
+| 2026-04-18 10:37-10:38 | WSL | `cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/home-prompt.test.tsx test/chat-input.test.tsx test/canvas-page-selection-action-bar.test.tsx test/chat-sidebar.test.tsx --reporter=dot --pool forks` | Bounded regression after the composer persistence / no-scrollbar fix | `4` files passed, `58` tests passed; adjacent right-panel composer logic stayed green after the attachment-source and shell-height correction | session command output; `D:/97-CodingProject/Loomic-ArcIns/progress.md` entry `2026-04-18 10:28 Asia/Shanghai` | PASS |
+
+### 56.1 Composer Persistence Checklist
+
+| Item | Evidence Required | Current State |
+|------|-------------------|---------------|
+| Uploaded composer thumbnails prefer persisted asset URLs instead of only local blob previews | focused `home-prompt` + `chat-input` regressions | PASS |
+| Homepage and immersive attachment rails no longer expose the nested-scrollbar artifact | focused `home-prompt` + `chat-input` regressions | PASS |
+| Architecture `查看大图` opens on the selected image `storageUrl` | focused `canvas-page-selection-action-bar` regression | PASS |
+| Adjacent right-panel composer flows remain stable after the source-priority / shell-height change | bounded 4-file regression | PASS |
+
+## 57. Phase 7 Shared Template Browser / Runtime Refresh Closure
+
+| Time | Environment | Command / Action | Result | Evidence | Status |
+|------|-------------|------------------|--------|----------|--------|
+| 2026-04-18 11:36-11:37 | Archived authenticated `建筑学长` evidence re-check | Re-read the captured homepage template screenshot and canvas selected-image screenshot before touching local source | Confirmed the real product uses a browser-style template surface and a single composer main row instead of the old local flat chip popovers | `C:/Users/admin/.codex/mcp/playwright/output/jzxz-template-panel-open.png`; `D:/97-CodingProject/Loomic-ArcIns/output/playwright/reference-audit/content-2-top-image-selected.png`; `D:/97-CodingProject/Loomic-ArcIns/findings.md` section `2026-04-18 Shared Template Browser Closure` | PASS |
+| 2026-04-18 11:36-11:38 | WSL | `cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/home-prompt.test.tsx test/chat-input.test.tsx --reporter=dot --pool forks` before the final fix | Red proof for the half-landed template-browser / add-tile parity gap | Failed in the intended places because homepage still referenced `activeTemplateCategory` and immersive `模版` still exposed the legacy flat menu while the add-image tile was not consistently in the inline rail | session command output; `D:/97-CodingProject/Loomic-ArcIns/apps/web/src/components/home-prompt.tsx`; `D:/97-CodingProject/Loomic-ArcIns/apps/web/src/components/chat-input.tsx`; `D:/97-CodingProject/Loomic-ArcIns/apps/web/test/home-prompt.test.tsx`; `D:/97-CodingProject/Loomic-ArcIns/apps/web/test/chat-input.test.tsx` | PASS |
+| 2026-04-18 11:50-11:51 | WSL | same focused command after implementation | Focused regression turned green | `2` files passed, `24` tests passed; homepage and immersive composer now share the same `PromptTemplateBrowser`, the default `全部` view, and the inline add-tile composer geometry | session command output; `D:/97-CodingProject/Loomic-ArcIns/apps/web/src/components/prompt-template-browser.tsx`; `D:/97-CodingProject/Loomic-ArcIns/apps/web/src/components/home-prompt.tsx`; `D:/97-CodingProject/Loomic-ArcIns/apps/web/src/components/chat-input.tsx`; `D:/97-CodingProject/Loomic-ArcIns/apps/web/test/home-prompt.test.tsx`; `D:/97-CodingProject/Loomic-ArcIns/apps/web/test/chat-input.test.tsx` | PASS |
+| 2026-04-18 11:51-11:52 | WSL | `cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/home-prompt.test.tsx test/chat-input.test.tsx test/chat-sidebar.test.tsx test/canvas-page-selection-action-bar.test.tsx test/canvas-page-shell.test.tsx --reporter=dot --pool forks` | Bounded regression after the shared template-browser / inline-rail correction | `5` files passed, `65` tests passed; right-panel composer, selected-image action bar, and canvas shell stayed green | session command output; `D:/97-CodingProject/Loomic-ArcIns/progress.md` entry `2026-04-18 11:36 Asia/Shanghai` | PASS |
+| 2026-04-18 11:53-11:55 | WSL Docker dev runtime | `docker compose -f docker-compose.local.yml -f docker-compose.dev.yml --env-file .tmp/loomic-local.env restart web`; `docker compose ... logs --tail=160 web`; `curl -I --max-time 20 http://127.0.0.1:3000/home` | Running local web runtime refreshed onto the new source without a full production rebuild | Web container restarted, `next dev` reported `✓ Ready in 3s`, and `/home` returned `HTTP/1.1 200 OK` after the refresh window | session command output; `D:/97-CodingProject/Loomic-ArcIns/progress.md` entry `2026-04-18 11:53 Asia/Shanghai` | PASS |
+
+### 57.1 Shared Template Browser Checklist
+
+| Item | Evidence Required | Current State |
+|------|-------------------|---------------|
+| Homepage and immersive composer must share one browser-style template IA rather than two separate flat menus | focused `home-prompt` + `chat-input` regressions | PASS |
+| Default template state may show mixed items only in `全部`; switching to a specific category must narrow the grid | focused `home-prompt` + `chat-input` regressions | PASS |
+| The visible top-level template entries include `全部 / 热度 / 最新` plus audited domain categories | focused `home-prompt` + `chat-input` regressions + PRD writeback | PASS |
+| The running `127.0.0.1:3000/home` instance must be refreshed after source edits, not left on a stale container build | docker restart + logs + HTTP probe | PASS |
+
+## 58. Phase 7 Local Project-Entry Stability / Loopback Canonicalization
+
+| Time | Environment | Command / Action | Result | Evidence | Status |
+|------|-------------|------------------|--------|----------|--------|
+| 2026-04-18 12:47-12:48 | Windows + WSL Docker | `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/windows/status-local-runtime.ps1` immediately after the user reported “数据库接口挂了吗？现在进不去项目了” | Reproduced the runtime boundary before any fix assumptions | `web / server / worker` were still running; `http://127.0.0.1:3000/home => 200`; `http://127.0.0.1:3001/api/health => 200`, so the symptom did not reproduce as a platform-wide API outage | session command output; `D:/97-CodingProject/Loomic-ArcIns/progress.md` entry `2026-04-18 12:47 Asia/Shanghai` | PASS |
+| 2026-04-18 12:48-12:49 | Windows Node + local Supabase | Node script using `@supabase/supabase-js` with seeded account `free@test.loomic.com / opensourceloomic`, then `GET /api/projects` and `GET /api/canvases/:id` | Authenticated project/canvas APIs still served real project data | `GET /api/projects => 200`; first recent project canvas `6b0178f0-e908-4f9c-8b1c-2944cf97f74a`; `GET /api/canvases/:id => 200` | session command output; `D:/97-CodingProject/Loomic-ArcIns/findings.md` section `2026-04-18 Local Project-Entry Stability / Loopback Origin Finding` | PASS |
+| 2026-04-18 12:48-12:49 | WSL | `cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/dev-origin-guard.test.ts test/env.test.ts --reporter=dot --pool forks` before implementation | Red proof for the local-entry stability hypothesis | Failed in the intended places because `dev-origin-guard` did not exist yet and `getServerBaseUrl()` still defaulted to `http://localhost:3001`, leaving the loopback host contract inconsistent | session command output; `D:/97-CodingProject/Loomic-ArcIns/apps/web/test/dev-origin-guard.test.ts`; `D:/97-CodingProject/Loomic-ArcIns/apps/web/test/env.test.ts` | PASS |
+| 2026-04-18 12:49-12:50 | WSL | same focused command after implementation | Focused regression turned green | `2` files passed, `7` tests passed; `localhost` now canonicalizes to `127.0.0.1` and the env fallback matches the frozen local runtime contract | session command output; `D:/97-CodingProject/Loomic-ArcIns/apps/web/src/components/dev-origin-guard.tsx`; `D:/97-CodingProject/Loomic-ArcIns/apps/web/src/lib/env.ts` | PASS |
+| 2026-04-18 12:49-12:51 | WSL | `cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/dev-origin-guard.test.ts test/env.test.ts test/login.test.tsx test/register.test.tsx test/root-layout.test.tsx test/root-page.test.tsx test/use-create-project.test.tsx --reporter=dot --pool forks` | Bounded regression after the loopback canonicalization fix | `7` files passed, `17` tests passed; login/register/root/create-project flows stayed green after mounting `DevOriginGuard` in shared providers | session command output; `D:/97-CodingProject/Loomic-ArcIns/progress.md` entry `2026-04-18 12:47 Asia/Shanghai` | PASS |
+| 2026-04-18 12:51-12:52 | Windows + WSL Docker + local Supabase | Re-ran `scripts/windows/status-local-runtime.ps1` plus repeated seeded-account API probe after the fix | Runtime and authenticated project-entry APIs remained healthy after the canonicalization change | `http://127.0.0.1:3000/home => 200`; `http://127.0.0.1:3001/api/health => 200`; seeded-account `GET /api/projects => 200`; seeded-account `GET /api/canvases/:id => 200` | session command output; `D:/97-CodingProject/Loomic-ArcIns/progress.md` entry `2026-04-18 12:47 Asia/Shanghai` | PASS |
+
+### 58.1 Local Entry Stability Checklist
+
+| Item | Evidence Required | Current State |
+|------|-------------------|---------------|
+| User reports of “进不去项目” must first be separated from true DB/API outage | runtime status + authenticated API probe | PASS |
+| Local browser sessions should no longer fragment between `localhost` and `127.0.0.1` entry paths | focused `dev-origin-guard` regression | PASS |
+| Browser-safe API fallback must align with the frozen `127.0.0.1` local runtime contract | focused `env` regression | PASS |
+| Login, register, root layout, and create-project flows remain stable after the canonicalization fix | bounded 7-file regression | PASS |
+
+## 59. Phase 7 Pending-Selection / Export Fallback Closure
+
+| Time | Environment | Command / Action | Result | Evidence | Status |
+|------|-------------|------------------|--------|----------|--------|
+| 2026-04-18 17:49-17:50 | Windows Node | `node .\\node_modules\\vitest\\vitest.mjs --config apps/web/vitest.config.ts run apps/web/test/chat-input.test.tsx apps/web/test/chat-sidebar.test.tsx apps/web/test/canvas-page-selection-action-bar.test.tsx apps/web/test/canvas-page-context-menu.test.tsx --reporter=dot --pool forks` | Focused regression after closing the pending-selection / export-fallback behavior gap | `4` files passed, `74` tests passed; programmatic draft focus no longer confirms pending refs, same-URL distinct refs remain visible, single-image download fallback opens a browser-reachable URL, and multi-image export / merge read pixels through blob fallback | session command output; `D:/97-CodingProject/Loomic-ArcIns/apps/web/src/components/chat-input.tsx`; `D:/97-CodingProject/Loomic-ArcIns/apps/web/src/app/canvas/page.tsx`; `D:/97-CodingProject/Loomic-ArcIns/apps/web/test/chat-input.test.tsx`; `D:/97-CodingProject/Loomic-ArcIns/apps/web/test/chat-sidebar.test.tsx`; `D:/97-CodingProject/Loomic-ArcIns/apps/web/test/canvas-page-selection-action-bar.test.tsx`; `D:/97-CodingProject/Loomic-ArcIns/apps/web/test/canvas-page-context-menu.test.tsx` | PASS |
+| 2026-04-18 17:50-17:51 | Windows Node | `node .\\node_modules\\vitest\\vitest.mjs --config apps/web/vitest.config.ts run apps/web/test/browser-asset-url.test.ts apps/web/test/canvas-elements.test.ts apps/web/test/chat-input.test.tsx apps/web/test/chat-sidebar.test.tsx apps/web/test/canvas-page-selection-action-bar.test.tsx apps/web/test/canvas-page-context-menu.test.tsx apps/web/test/canvas-tool-menu.test.tsx apps/web/test/canvas-page-shell.test.tsx --reporter=dot --pool forks` | Bounded regression after the behavior-chain fix | `8` files passed, `94` tests passed; browser-asset rewrite, canvas export flows, composer attachment state, tool menus, and canvas shell all stayed green after the fix | session command output; `D:/97-CodingProject/Loomic-ArcIns/progress.md` entry `2026-04-18 17:49 Asia/Shanghai` | PASS |
+
+### 59.1 Pending-Selection / Export Fallback Checklist
+
+| Item | Evidence Required | Current State |
+|------|-------------------|---------------|
+| Programmatic `externalDraft` / template injection must not auto-confirm pending selected canvas refs | focused `chat-input` + `chat-sidebar` regressions | PASS |
+| Distinct selected canvas elements may stay pending even when one confirmed canvas-ref attachment shares the same persisted URL | focused `chat-input` regression | PASS |
+| Single-image export fallback must open a browser-reachable asset URL instead of the raw storage hostname | focused `canvas-page-selection-action-bar` regression | PASS |
+| Multi-image export / merge must load pixels through `fetchImageBlobWithFallback` rather than direct remote `Image.src` loading | focused `canvas-page-context-menu` regression | PASS |
+| Adjacent browser-asset, canvas-tool, and shell behavior remains stable after the fix | bounded 8-file regression | PASS |
+
+## 60. Phase 7 Immersive Chat-Input Geometry Closure
+
+| Time | Environment | Command / Action | Result | Evidence | Status |
+|------|-------------|------------------|--------|----------|--------|
+| 2026-04-18 21:00-21:01 | Windows Node | `node .\\node_modules\\vitest\\vitest.mjs --config apps/web/vitest.config.ts run apps/web/test/chat-input.test.tsx --reporter=dot --pool forks` | Red-updated contract then focused green verification for the immersive `chat input` shell | `1` file passed, `15` tests passed; `添加图片` now belongs to the internal media rail and the pending chip shell uses the compact audited size | session command output; `D:/97-CodingProject/Loomic-ArcIns/apps/web/test/chat-input.test.tsx`; `D:/97-CodingProject/Loomic-ArcIns/apps/web/src/components/chat-input.tsx` | PASS |
+| 2026-04-18 21:01-21:02 | Windows Node | `node .\\node_modules\\vitest\\vitest.mjs --config apps/web/vitest.config.ts run apps/web/test/chat-input.test.tsx apps/web/test/chat-sidebar.test.tsx --reporter=dot --pool forks` | Bounded chat/composer regression after restructuring the immersive shell | `2` files passed, `46` tests passed; collapsed/docked chat flows remained green after moving the upload trigger into the top rail | session command output; `D:/97-CodingProject/Loomic-ArcIns/apps/web/test/chat-sidebar.test.tsx`; `D:/97-CodingProject/Loomic-ArcIns/progress.md` entry `2026-04-18 21:08 Asia/Shanghai` | PASS |
+| 2026-04-18 21:02-21:03 | Windows Node | `node .\\node_modules\\vitest\\vitest.mjs --config apps/web/vitest.config.ts run apps/web/test/browser-asset-url.test.ts apps/web/test/canvas-elements.test.ts apps/web/test/chat-input.test.tsx apps/web/test/chat-sidebar.test.tsx apps/web/test/canvas-page-selection-action-bar.test.tsx apps/web/test/canvas-page-context-menu.test.tsx apps/web/test/canvas-tool-menu.test.tsx apps/web/test/canvas-page-shell.test.tsx --reporter=dot --pool forks` | Wider bounded regression after the geometry fix | `8` files passed, `86` tests passed; no collateral regression across canvas shell, selection bar, context menu, or browser-asset helpers | session command output; `D:/97-CodingProject/Loomic-ArcIns/progress.md` entry `2026-04-18 21:08 Asia/Shanghai` | PASS |
+| 2026-04-18 21:04-21:08 | Headless Chrome + local seeded account | Logged into `http://127.0.0.1:3000/login` as `free@test.loomic.com / opensourceloomic`, navigated to `/canvas?id=6b0178f0-e908-4f9c-8b1c-2944cf97f74a&studio=architecture`, captured empty-state screenshot, then injected a local PNG into the hidden composer file input and captured a second screenshot | Real runtime evidence confirms the immersive composer now keeps the attachment chip and `添加图片` tile inside the same top in-shell media rail; the textarea row stays clear and no longer carries the upload control | `D:/97-CodingProject/Loomic-ArcIns/.tmp/chatinput-canvas-check.png`; `D:/97-CodingProject/Loomic-ArcIns/.tmp/chatinput-canvas-check-with-attachment.png` | PASS |
+
+### 60.1 Immersive Chat-Input Checklist
+
+| Item | Evidence Required | Current State |
+|------|-------------------|---------------|
+| `添加图片` must live in the immersive in-shell media rail, not inside the textarea row | focused `chat-input` regression + runtime screenshots | PASS |
+| Pending / confirmed thumbnails must use the compact audited geometry instead of the previous oversized preview shell | focused `chat-input` regression + runtime attachment screenshot | PASS |
+| Empty and attachment states must both keep a stable `素材轨道 -> 文本区 -> 底部参数条` shell hierarchy | focused `chat-input` regression + two runtime screenshots | PASS |
+| ChatSidebar collapsed/docked flows must remain stable after the shell restructure | bounded `chat-input` + `chat-sidebar` regression | PASS |
+| Adjacent canvas shell / selection / context-menu behavior must remain stable after the composer change | bounded 8-file regression | PASS |
+
+## 61. Phase 7 Tight Spacing / Rotate-Handle Clearance Closure
+
+| Time | Environment | Command / Action | Result | Evidence | Status |
+|------|-------------|------------------|--------|----------|--------|
+| 2026-04-18 21:26-21:27 | Windows Node | `node .\\node_modules\\vitest\\vitest.mjs --config apps/web/vitest.config.ts run apps/web/test/chat-input.test.tsx apps/web/test/canvas-page-selection-action-bar.test.tsx --reporter=dot --pool forks` before the geometry-only fix | Red proof for the two audited spacing defects | Failed in the intended places because the immersive input block still used `mt-3` and the selected-image floating action bar still resolved to `top: 24`, which kept it too far above the image | session command output; `D:/97-CodingProject/Loomic-ArcIns/apps/web/test/chat-input.test.tsx`; `D:/97-CodingProject/Loomic-ArcIns/apps/web/test/canvas-page-selection-action-bar.test.tsx`; `D:/97-CodingProject/Loomic-ArcIns/apps/web/src/components/chat-input.tsx`; `D:/97-CodingProject/Loomic-ArcIns/apps/web/src/components/canvas/canvas-selection-action-bar.tsx` | PASS |
+| 2026-04-18 21:27-21:28 | Windows Node | same focused command after implementation | Focused regression turned green | `2` files passed, `26` tests passed; the immersive media rail now sits tighter against the text area and bottom controls, and the selected-image floating bar now clears only the rotate-handle safety zone | session command output; `D:/97-CodingProject/Loomic-ArcIns/progress.md` entry `2026-04-18 21:28 Asia/Shanghai` | PASS |
+| 2026-04-18 21:28-21:29 | Windows Node | `node .\\node_modules\\vitest\\vitest.mjs --config apps/web/vitest.config.ts run apps/web/test/chat-sidebar.test.tsx apps/web/test/canvas-page-context-menu.test.tsx apps/web/test/canvas-page-shell.test.tsx --reporter=dot --pool forks` | Bounded regression after the spacing closure | `3` files passed, `43` tests passed; adjacent chat-sidebar, context-menu, and canvas-shell behavior stayed green after shrinking the composer and toolbar offsets | session command output; `D:/97-CodingProject/Loomic-ArcIns/progress.md` entry `2026-04-18 21:28 Asia/Shanghai` | PASS |
+| 2026-04-18 21:28 | Windows local runtime probe | `Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1:3000/canvas?id=canvas-1&studio=architecture' -TimeoutSec 10` | Confirmed the local canvas route remained reachable during the spacing verification pass | `HTTP 200` from the live `127.0.0.1:3000` runtime | session command output; `D:/97-CodingProject/Loomic-ArcIns/progress.md` entry `2026-04-18 21:28 Asia/Shanghai` | PASS |
+
+### 61.1 Tight Spacing / Rotate-Handle Clearance Checklist
+
+| Item | Evidence Required | Current State |
+|------|-------------------|---------------|
+| Immersive media rail must sit close to the text block rather than leaving a visible blank band | focused `chat-input` regression | PASS |
+| Bottom parameter row must stay visually attached to the text block after attachment rail changes | focused `chat-input` regression | PASS |
+| Selected-image floating action bar must clear only the native rotate handle zone, not float far above the image | focused `canvas-page-selection-action-bar` regression | PASS |
+| Chat-sidebar, context-menu, and canvas-shell flows must remain stable after the spacing-only geometry change | bounded 3-file regression | PASS |
+| Local `127.0.0.1:3000/canvas` route remains reachable while validating the spacing fix | local runtime HTTP probe | PASS |
+
+## 62. Phase 7 Template-Browser Anchor Closure
+
+| Time | Environment | Command / Action | Result | Evidence | Status |
+|------|-------------|------------------|--------|----------|--------|
+| 2026-04-18 22:26-22:29 | Windows Node | `node .\\node_modules\\vitest\\vitest.mjs --config apps/web/vitest.config.ts run apps/web/test/chat-input.test.tsx --reporter=dot --pool forks` after adding the new compact-empty-state + template-anchor regressions and updating the immersive button expectations | Focused regression turned green after removing the hard-coded template-menu offset and fixing the empty-state input alignment | `1` file passed, `18` tests passed; empty state no longer bottom-aligns its textarea, and the template-browser portal now anchors to the `模版` button with `translateY(-100%)` above-placement semantics instead of the old far-away fixed offset | session command output; `D:/97-CodingProject/Loomic-ArcIns/apps/web/src/components/chat-input.tsx`; `D:/97-CodingProject/Loomic-ArcIns/apps/web/test/chat-input.test.tsx`; `D:/97-CodingProject/Loomic-ArcIns/progress.md` entry `2026-04-18 22:30 Asia/Shanghai` | PASS |
+| 2026-04-18 22:30-22:31 | Windows Node | `node .\\node_modules\\vitest\\vitest.mjs --config apps/web/vitest.config.ts run apps/web/test/chat-input.test.tsx apps/web/test/chat-sidebar.test.tsx --reporter=dot --pool forks` | Bounded regression after the template-browser anchor fix | `2` files passed, `49` tests passed; adjacent chat-sidebar behavior remained stable while the immersive composer changed its internal rail and portal positioning logic | session command output; `D:/97-CodingProject/Loomic-ArcIns/progress.md` entry `2026-04-18 22:30 Asia/Shanghai` | PASS |
+| 2026-04-18 22:30 | Windows local runtime probe | `Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1:3000/canvas?id=canvas-1&studio=architecture' -TimeoutSec 10` | Confirmed the live local canvas route remained reachable during the template-browser anchor verification pass | `HTTP 200` from the local runtime | session command output; `D:/97-CodingProject/Loomic-ArcIns/progress.md` entry `2026-04-18 22:30 Asia/Shanghai` | PASS |
+
+### 62.1 Template-Browser Anchor Checklist
+
+| Item | Evidence Required | Current State |
+|------|-------------------|---------------|
+| `模版` browser must stay visually attached to the trigger instead of using a fixed large upward offset | focused `chat-input` portal-position regression | PASS |
+| Empty immersive composer state must keep the textarea aligned from the top rather than falling into the lower half of the shell | focused `chat-input` regression | PASS |
+| Existing chat-sidebar immersive flows remain stable after the template-browser anchor change | bounded `chat-input` + `chat-sidebar` regression | PASS |
+| Local `127.0.0.1:3000/canvas` route remains reachable while validating the anchor fix | local runtime HTTP probe | PASS |
+
+## 63. Phase 7 Two-Line Composer Text Baseline Closure
+
+| Time | Environment | Command / Action | Result | Evidence | Status |
+|------|-------------|------------------|--------|----------|--------|
+| 2026-04-18 22:47-22:48 | Windows Node | `node .\\node_modules\\vitest\\vitest.mjs --config apps/web/vitest.config.ts run apps/web/test/chat-input.test.tsx --reporter=dot --pool forks` immediately after adding the new two-line baseline regression | Red proof for the immersive textarea height defect | Failed in the intended place because the immersive textarea still rendered `min-h-[80px]` and resolved to `height: 80px` for short content instead of staying at a two-line baseline | session command output; `D:/97-CodingProject/Loomic-ArcIns/apps/web/test/chat-input.test.tsx`; `D:/97-CodingProject/Loomic-ArcIns/apps/web/src/components/chat-input.tsx` | PASS |
+| 2026-04-18 22:48-22:49 | Windows Node | same focused command after implementation | Focused regression turned green | `1` file passed, `19` tests passed; immersive composer text area now defaults to the two-line baseline and still expands to measured height once content exceeds that baseline | session command output; `D:/97-CodingProject/Loomic-ArcIns/apps/web/test/chat-input.test.tsx`; `D:/97-CodingProject/Loomic-ArcIns/apps/web/src/components/chat-input.tsx`; `D:/97-CodingProject/Loomic-ArcIns/progress.md` entry `2026-04-18 22:48 Asia/Shanghai` | PASS |
+| 2026-04-18 22:49-22:50 | Windows Node | `node .\\node_modules\\vitest\\vitest.mjs --config apps/web/vitest.config.ts run apps/web/test/chat-input.test.tsx apps/web/test/chat-sidebar.test.tsx --reporter=dot --pool forks` | Bounded regression after shrinking the immersive text baseline | `2` files passed, `50` tests passed; adjacent chat-sidebar immersive flows remained stable after the textarea baseline change | session command output; `D:/97-CodingProject/Loomic-ArcIns/progress.md` entry `2026-04-18 22:48 Asia/Shanghai` | PASS |
+| 2026-04-18 22:50 | Windows local runtime probe | `Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1:3000/canvas?id=canvas-1&studio=architecture' -TimeoutSec 10` | Confirmed the live local canvas route remained reachable while validating the two-line text baseline fix | `HTTP 200` from the local runtime | session command output; `D:/97-CodingProject/Loomic-ArcIns/progress.md` entry `2026-04-18 22:48 Asia/Shanghai` | PASS |
+
+### 63.1 Two-Line Composer Text Baseline Checklist
+
+| Item | Evidence Required | Current State |
+|------|-------------------|---------------|
+| Immersive textarea must default to a two-line text baseline instead of the previous taller shell | focused `chat-input` regression | PASS |
+| Short content must clamp to the compact baseline instead of inflating the composer | focused `chat-input` regression | PASS |
+| Multi-line content must still expand when measured height exceeds the baseline | focused `chat-input` regression | PASS |
+| Chat-sidebar immersive flows must remain stable after the baseline shrink | bounded `chat-input` + `chat-sidebar` regression | PASS |
+| Local `127.0.0.1:3000/canvas` route remains reachable while validating the fix | local runtime HTTP probe | PASS |
+
+## 64. Phase 7 Immersive Input-Row Height Closure
+
+| Time | Environment | Command / Action | Result | Evidence | Status |
+|------|-------------|------------------|--------|----------|--------|
+| 2026-04-18 23:00-23:01 | Windows Node | `node .\\node_modules\\vitest\\vitest.mjs --config apps/web/vitest.config.ts run apps/web/test/chat-input.test.tsx --reporter=dot --pool forks` immediately after extending the compact empty-state regression | Red proof for the oversized immersive input-row container | Failed in the intended place because `data-testid="chat-input-immersive-input-row"` still rendered `flex-1`, so the row kept absorbing leftover shell height instead of shrinking to its real content | session command output; `D:/97-CodingProject/Loomic-ArcIns/apps/web/test/chat-input.test.tsx`; `D:/97-CodingProject/Loomic-ArcIns/apps/web/src/components/chat-input.tsx` | PASS |
+| 2026-04-18 23:00-23:01 | Windows Node | same focused command after implementation | Focused regression turned green | `1` file passed, `19` tests passed; the immersive input-row container no longer consumes remaining height and now stays content-sized while preserving the two-line textarea baseline | session command output; `D:/97-CodingProject/Loomic-ArcIns/apps/web/test/chat-input.test.tsx`; `D:/97-CodingProject/Loomic-ArcIns/apps/web/src/components/chat-input.tsx`; `D:/97-CodingProject/Loomic-ArcIns/progress.md` entry `2026-04-18 23:00 Asia/Shanghai` | PASS |
+| 2026-04-18 23:01-23:02 | Windows Node | `node .\\node_modules\\vitest\\vitest.mjs --config apps/web/vitest.config.ts run apps/web/test/chat-input.test.tsx apps/web/test/chat-sidebar.test.tsx --reporter=dot --pool forks` | Bounded regression after shrinking the input-row container | `2` files passed, `50` tests passed; adjacent immersive chat-sidebar flows remained stable after the row-height change | session command output; `D:/97-CodingProject/Loomic-ArcIns/progress.md` entry `2026-04-18 23:00 Asia/Shanghai` | PASS |
+| 2026-04-18 23:02 | Windows local runtime probe | `Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1:3000/canvas?id=canvas-1&studio=architecture' -TimeoutSec 10` | Confirmed the live local canvas route remained reachable while validating the input-row height fix | `HTTP 200` from the local runtime | session command output; `D:/97-CodingProject/Loomic-ArcIns/progress.md` entry `2026-04-18 23:00 Asia/Shanghai` | PASS |
+
+### 64.1 Immersive Input-Row Height Checklist
+
+| Item | Evidence Required | Current State |
+|------|-------------------|---------------|
+| `chat-input-immersive-input-row` must not continue to expand with `flex-1` | focused `chat-input` regression | PASS |
+| The immersive input row must shrink to the real textarea + send-button height | focused `chat-input` regression | PASS |
+| The two-line textarea baseline must remain intact after shrinking the row container | focused `chat-input` regression | PASS |
+| Chat-sidebar immersive flows must remain stable after the row-height change | bounded `chat-input` + `chat-sidebar` regression | PASS |
+| Local `127.0.0.1:3000/canvas` route remains reachable while validating the fix | local runtime HTTP probe | PASS |
+
+## 65. Phase 7 Empty Composer Shell Height Closure
+
+| Time | Environment | Command / Action | Result | Evidence | Status |
+|------|-------------|------------------|--------|----------|--------|
+| 2026-04-18 23:14-23:15 | Windows Node | `node .\\node_modules\\vitest\\vitest.mjs --config apps/web/vitest.config.ts run apps/web/test/chat-input.test.tsx --reporter=dot --pool forks` immediately after extending the compact empty-state regression | Red proof for the oversized empty immersive shell | Failed in the intended place because `data-testid="chat-input-immersive-shell"` still rendered `h-[272px]`, leaving a large empty block below the bottom parameter row | session command output; `D:/97-CodingProject/Loomic-ArcIns/apps/web/test/chat-input.test.tsx`; `D:/97-CodingProject/Loomic-ArcIns/apps/web/src/components/chat-input.tsx` | PASS |
+| 2026-04-18 23:14-23:15 | Windows Node | same focused command after implementation | Focused regression turned green | `1` file passed, `19` tests passed; the empty immersive shell now treats `272px` as a max cap rather than a fixed height and the inner input/control stack no longer expands to fill spare space | session command output; `D:/97-CodingProject/Loomic-ArcIns/apps/web/test/chat-input.test.tsx`; `D:/97-CodingProject/Loomic-ArcIns/apps/web/src/components/chat-input.tsx`; `D:/97-CodingProject/Loomic-ArcIns/progress.md` entry `2026-04-18 23:15 Asia/Shanghai` | PASS |
+| 2026-04-18 23:15-23:16 | Windows Node | `node .\\node_modules\\vitest\\vitest.mjs --config apps/web/vitest.config.ts run apps/web/test/chat-input.test.tsx apps/web/test/chat-sidebar.test.tsx --reporter=dot --pool forks` | Bounded regression after shrinking the empty composer shell | `2` files passed, `50` tests passed; immersive chat-sidebar flows remained stable after the shell-height change | session command output; `D:/97-CodingProject/Loomic-ArcIns/progress.md` entry `2026-04-18 23:15 Asia/Shanghai` | PASS |
+| 2026-04-18 23:16 | Windows local runtime probe | `Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1:3000/canvas?id=canvas-1&studio=architecture' -TimeoutSec 10` | Confirmed the live local canvas route remained reachable while validating the empty-shell height fix | `HTTP 200` from the local runtime | session command output; `D:/97-CodingProject/Loomic-ArcIns/progress.md` entry `2026-04-18 23:15 Asia/Shanghai` | PASS |
+
+### 65.1 Empty Composer Shell Height Checklist
+
+| Item | Evidence Required | Current State |
+|------|-------------------|---------------|
+| Empty immersive shell must not keep a fixed `272px` height | focused `chat-input` regression | PASS |
+| The inner input/control stack must not continue filling leftover shell height | focused `chat-input` regression | PASS |
+| The two-line textarea baseline and compact top rail must remain intact after shell shrink | focused `chat-input` regression | PASS |
+| Chat-sidebar immersive flows must remain stable after the shell-height change | bounded `chat-input` + `chat-sidebar` regression | PASS |
+| Local `127.0.0.1:3000/canvas` route remains reachable while validating the fix | local runtime HTTP probe | PASS |
 

@@ -13,6 +13,9 @@ import { motion } from "framer-motion";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
+import { resolveBrowserAssetUrl } from "../../lib/browser-asset-url";
+import { fetchImageBlobWithFallback } from "../../lib/canvas-elements";
+
 /* ------------------------------------------------------------------ */
 /*  LightboxBtn — toolbar icon button                                  */
 /* ------------------------------------------------------------------ */
@@ -68,6 +71,7 @@ export function ImageLightbox({
   const [flipX, setFlipX] = useState(1);
   const [flipY, setFlipY] = useState(1);
   const [translate, setTranslate] = useState({ x: 0, y: 0 });
+  const browserSrc = resolveBrowserAssetUrl(src);
   const dragRef = useRef<{
     dragging: boolean;
     startX: number;
@@ -104,8 +108,7 @@ export function ImageLightbox({
 
   const handleDownload = useCallback(async () => {
     try {
-      const res = await fetch(src);
-      const blob = await res.blob();
+      const blob = await fetchImageBlobWithFallback(src);
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -113,10 +116,9 @@ export function ImageLightbox({
       a.click();
       URL.revokeObjectURL(url);
     } catch {
-      // Fallback: open in new tab if download fails (e.g. CORS)
-      window.open(src, "_blank");
+      window.open(browserSrc, "_blank", "noopener,noreferrer");
     }
-  }, [src, alt]);
+  }, [alt, browserSrc, src]);
 
   const overlayRef = useRef<HTMLDivElement>(null);
 
@@ -196,7 +198,7 @@ export function ImageLightbox({
         <div className="relative flex h-full w-full items-center justify-center px-16 pt-16 pb-[110px]">
           <img
             draggable
-            src={src}
+            src={browserSrc}
             alt={alt}
             className="select-none object-contain"
             style={{
@@ -304,7 +306,7 @@ export function ImageLightbox({
       >
         <img
           draggable
-          src={src}
+          src={browserSrc}
           alt={alt}
           className="max-h-[85vh] max-w-[90vw] object-contain select-none"
           style={{

@@ -51,17 +51,15 @@ describe("HomePrompt", () => {
     imageModelPreferenceState.models = [];
   });
 
-  it("shows the home prompt control strip with split 自动 / 1K buttons and an in-shell upload trigger", () => {
+  it("shows the home prompt control strip with split 自动 / 2K buttons and an in-shell upload trigger", () => {
     render(<HomePrompt onSubmit={vi.fn()} />);
 
     expect(screen.getByTitle("上传参考图")).toBeInTheDocument();
     expect(screen.getByTestId("agent-model-selector")).toHaveTextContent(
       "Banana Pro",
     );
-    expect(
-      screen.getByRole("button", { name: "自动" }),
-    ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "1K" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "自动" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "2K" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "模版" })).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "自动 1K" }),
@@ -73,25 +71,111 @@ describe("HomePrompt", () => {
     ).toBeInTheDocument();
   });
 
-  it("injects a home template prompt into the textarea", async () => {
+  it("renders the home template menu as a left-nav browser with search and an item grid", async () => {
+    render(<HomePrompt onSubmit={vi.fn()} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "模版" }));
+
+    const menu = screen.getByTestId("home-prompt-template-menu");
+    const grid = within(menu).getByTestId("template-browser-item-grid");
+
+    expect(within(menu).getByPlaceholderText("搜索")).toBeInTheDocument();
+    expect(
+      within(menu).getByTestId("template-browser-category-list"),
+    ).toBeInTheDocument();
+    expect(within(menu).getByRole("button", { name: "全部" })).toBeInTheDocument();
+    expect(within(menu).getByRole("button", { name: "热度" })).toBeInTheDocument();
+    expect(within(menu).getByRole("button", { name: "最新" })).toBeInTheDocument();
+    expect(within(menu).getByRole("button", { name: "效果渲染" })).toBeInTheDocument();
+    expect(within(menu).getByRole("button", { name: "总平填色" })).toBeInTheDocument();
+    expect(
+      within(grid).getByRole("button", { name: "建筑晴天渲染" }),
+    ).toBeInTheDocument();
+    expect(
+      within(grid).getByRole("button", { name: "建筑平面清新填色" }),
+    ).toBeInTheDocument();
+
+    await userEvent.click(within(menu).getByRole("button", { name: "总平填色" }));
+
+    expect(
+      within(grid).getByRole("button", { name: "建筑平面清新填色" }),
+    ).toBeInTheDocument();
+    expect(
+      within(grid).queryByRole("button", { name: "建筑晴天渲染" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("filters the home template browser through the live-style search input", async () => {
+    render(<HomePrompt onSubmit={vi.fn()} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "模版" }));
+
+    const menu = screen.getByTestId("home-prompt-template-menu");
+    const grid = within(menu).getByTestId("template-browser-item-grid");
+
+    await userEvent.type(within(menu).getByPlaceholderText("搜索"), "基地");
+
+    expect(
+      within(grid).getByRole("button", { name: "基地现状分析" }),
+    ).toBeInTheDocument();
+    expect(
+      within(grid).queryByRole("button", { name: "建筑晴天渲染" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("injects the selected home template prompt and resets the image model to Banana Pro", async () => {
     imageModelPreferenceState.mode = "manual";
     imageModelPreferenceState.models = ["google/nano-banana-2"];
 
     render(<HomePrompt onSubmit={vi.fn()} />);
 
     await userEvent.click(screen.getByRole("button", { name: "模版" }));
-    await userEvent.click(
-      screen.getByRole("button", { name: "场地分析框架" }),
-    );
+    await userEvent.click(screen.getByRole("button", { name: "分析图" }));
+    await userEvent.click(screen.getByRole("button", { name: "基地现状分析" }));
 
     expect(
       screen.getByPlaceholderText("添加图片输入文案开始创作之旅..."),
     ).toHaveValue(
-      "请围绕当前项目整理场地关系、动线、视线与功能分区，输出一份可以直接进入无限画布的场地分析框架。",
+      "请基于当前场地现状资料，整理基地边界、周边关系、交通动线、视线资源与场地限制，输出一份可直接进入无限画布的现状分析提示。",
     );
     expect(setImageModelPreferenceMock).toHaveBeenCalledWith({
       mode: "manual",
       models: ["google/nano-banana-pro"],
+    });
+  });
+
+  it("keeps uploaded reference thumbnails inside the home input row, prefers persisted urls, and hides rail scrollbars", () => {
+    render(
+      <HomePrompt
+        onSubmit={vi.fn()}
+        attachments={[
+          {
+            id: "attachment-1",
+            preview: "blob:stale-preview",
+            uploading: false,
+            assetId: "asset-1",
+            url: "https://example.com/persisted-reference.png",
+            mimeType: "image/png",
+            source: "upload",
+            name: "参考图 1",
+          },
+        ]}
+        onRemoveAttachment={vi.fn()}
+      />,
+    );
+
+    const inputRow = screen.getByTestId("home-prompt-input-row");
+    const attachmentImage = within(inputRow).getByAltText("参考图 1");
+    expect(attachmentImage).toBeInTheDocument();
+    expect(attachmentImage).toHaveAttribute(
+      "src",
+      "https://example.com/persisted-reference.png",
+    );
+    expect(
+      within(inputRow).getByRole("button", { name: "上传参考图" }),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("home-prompt-attachment-rail")).toHaveStyle({
+      scrollbarWidth: "none",
     });
   });
 });

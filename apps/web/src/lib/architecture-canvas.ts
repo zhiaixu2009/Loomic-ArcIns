@@ -453,6 +453,87 @@ export function deriveArchitectureContextFromScene(
   };
 }
 
+export function areArchitectureContextsEqual(
+  left: ArchitectureContext,
+  right: ArchitectureContext,
+) {
+  if (left === right) {
+    return true;
+  }
+
+  if (left.studio !== right.studio || left.activeBoardId !== right.activeBoardId) {
+    return false;
+  }
+
+  if (
+    left.selectedElementIds.length !== right.selectedElementIds.length ||
+    left.objectTypesInSelection.length !== right.objectTypesInSelection.length ||
+    left.strategyOptions.length !== right.strategyOptions.length ||
+    left.boards.length !== right.boards.length
+  ) {
+    return false;
+  }
+
+  for (let index = 0; index < left.selectedElementIds.length; index += 1) {
+    if (left.selectedElementIds[index] !== right.selectedElementIds[index]) {
+      return false;
+    }
+  }
+
+  for (let index = 0; index < left.objectTypesInSelection.length; index += 1) {
+    if (left.objectTypesInSelection[index] !== right.objectTypesInSelection[index]) {
+      return false;
+    }
+  }
+
+  for (let index = 0; index < left.strategyOptions.length; index += 1) {
+    const leftOption = left.strategyOptions[index];
+    const rightOption = right.strategyOptions[index];
+    if (
+      leftOption.optionId !== rightOption.optionId ||
+      leftOption.title !== rightOption.title ||
+      leftOption.summary !== rightOption.summary ||
+      leftOption.disposition !== rightOption.disposition
+    ) {
+      return false;
+    }
+  }
+
+  for (let index = 0; index < left.boards.length; index += 1) {
+    const leftBoard = left.boards[index];
+    const rightBoard = right.boards[index];
+
+    if (
+      leftBoard.boardId !== rightBoard.boardId ||
+      leftBoard.kind !== rightBoard.kind ||
+      leftBoard.title !== rightBoard.title ||
+      leftBoard.status !== rightBoard.status ||
+      leftBoard.anchor.x !== rightBoard.anchor.x ||
+      leftBoard.anchor.y !== rightBoard.anchor.y ||
+      leftBoard.anchor.width !== rightBoard.anchor.width ||
+      leftBoard.anchor.height !== rightBoard.anchor.height ||
+      leftBoard.elementIds.length !== rightBoard.elementIds.length ||
+      leftBoard.objectTypes.length !== rightBoard.objectTypes.length
+    ) {
+      return false;
+    }
+
+    for (let elementIndex = 0; elementIndex < leftBoard.elementIds.length; elementIndex += 1) {
+      if (leftBoard.elementIds[elementIndex] !== rightBoard.elementIds[elementIndex]) {
+        return false;
+      }
+    }
+
+    for (let typeIndex = 0; typeIndex < leftBoard.objectTypes.length; typeIndex += 1) {
+      if (leftBoard.objectTypes[typeIndex] !== rightBoard.objectTypes[typeIndex]) {
+        return false;
+      }
+    }
+  }
+
+  return true;
+}
+
 function resolveSingleBoardAnchor(
   elements: readonly ArchitectureSceneElement[],
   appState: ArchitectureSceneAppState,

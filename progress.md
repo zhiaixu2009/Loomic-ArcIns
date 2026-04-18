@@ -3248,3 +3248,549 @@
 - Commit intent frozen:
   - sync the current audited web/doc state to `origin/main`
   - do not claim typecheck is green
+
+## 2026-04-18 07:05 Asia/Shanghai
+
+- Re-opened the reported homepage / canvas composer layout bug under the systematic-debugging flow instead of patching CSS blindly.
+- Root-cause investigation:
+  - compared the user-reported local screenshot with archived authenticated `建筑学长` evidence
+  - confirmed the real product keeps `缩略图 chip + 添加图片 + 输入区 + 发送按钮` in the same main input row
+  - confirmed the local repo had diverged structurally in two places:
+    - `HomePrompt` rendered uploaded thumbnails above the input row
+    - immersive `ChatInput` rendered pending/attached refs in a separate upper `meta rail`
+- Red verification before implementation:
+  - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/chat-input.test.tsx test/home-prompt.test.tsx --reporter=dot --pool forks"`
+  - result:
+    - FAIL in the intended places because the current DOM still placed composer thumbnails outside the main input row
+- Green implementation applied:
+  - updated `apps/web/src/components/image-attachment-bar.tsx`
+  - updated `apps/web/src/components/chat-input.tsx`
+  - updated `apps/web/src/components/home-prompt.tsx`
+  - updated `apps/web/test/chat-input.test.tsx`
+  - updated `apps/web/test/home-prompt.test.tsx`
+- Green verification:
+  - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/chat-input.test.tsx test/home-prompt.test.tsx --reporter=dot --pool forks"`
+  - result:
+    - PASS (`2` files, `18` tests)
+- Bounded regression after the fix:
+  - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/chat-input.test.tsx test/home-prompt.test.tsx test/chat-sidebar.test.tsx test/home-page-shell.test.tsx --reporter=dot --pool forks"`
+  - result:
+    - PASS (`4` files, `51` tests)
+- Long-term constraint writeback completed:
+  - PRD and validation now explicitly require authenticated `建筑学长` evidence for future composer / attachment / `添加图片` layout changes
+
+## 2026-04-18 09:10 Asia/Shanghai
+
+- Opened the next bounded frozen slice under the same TDD/debugging flow:
+  - target: `25.1-7 历史定位失败提示`
+  - scope: right-side record card -> page-level canvas locate only
+  - explicit non-goal: do not reopen `CanvasEditor` protocol or unrelated right-panel IA
+- Root-cause investigation:
+  - reproduced the current failure with:
+    - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/chat-sidebar.test.tsx test/canvas-page-history-locate.test.tsx --reporter=dot --pool forks"`
+  - observed red state:
+    - `test/chat-sidebar.test.tsx` failed on a broken inserted string literal around the new locate-button assertions
+    - `test/canvas-page-history-locate.test.tsx` failed because `CanvasPage` still did not consume the locate callback or call `updateScene`
+- Green implementation applied:
+  - updated `apps/web/test/chat-sidebar.test.tsx`
+    - replaced the broken inserted button/ toast literals with stable escaped-string assertions
+    - kept the new focused tests for successful locate and locate-failure toast
+  - updated `apps/web/src/components/chat-sidebar.tsx`
+    - added the bounded `onLocateCanvasElement` prop
+    - added record-card level `定位到画布` buttons for both the single reference card and persistent record items
+    - added explicit failure toast `未能定位到该画布节点`
+  - updated `apps/web/src/app/canvas/page.tsx`
+    - added the page-level locate handler using the live Excalidraw API ref
+    - mapped the target `assetId` back into `selectedElementIds`
+    - re-centered the viewport on the target element and mirrored the new selection into local page state
+- Focused green verification:
+  - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/chat-sidebar.test.tsx test/canvas-page-history-locate.test.tsx --reporter=dot --pool forks"`
+  - result:
+    - PASS (`2` files, `31` tests)
+- Bounded regression after the fix:
+  - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/chat-sidebar.test.tsx test/canvas-page-history-locate.test.tsx test/canvas-page-selection-action-bar.test.tsx test/canvas-page-context-menu.test.tsx --reporter=dot --pool forks"`
+  - result:
+    - PASS (`4` files, `48` tests)
+- Documentation writeback completed:
+  - updated `docs/prd/2026-04-16-jianzhuxuezhang-ai-canvas-agent-prd.md`
+  - updated `task_plan.md`
+  - updated `findings.md`
+  - updated `progress.md`
+  - updated `docs/verification/2026-04-12-architecture-agent-studio-validation.md`
+
+## 2026-04-18 11:36 Asia/Shanghai
+
+- Reconnected the current session to the frozen PRD / planning files and re-checked the archived authenticated `建筑学长` evidence for the homepage template popover and canvas composer geometry.
+- Root-cause closure before editing:
+  - `apps/web/src/components/home-prompt.tsx` still carried the stale `activeTemplateCategory` path and therefore had a half-landed template-browser refactor
+  - `apps/web/src/components/chat-input.tsx` still exposed the legacy flat immersive `模版` menu and could leave the add-image trigger outside the inline rail
+  - the user-reported drift was therefore a real implementation mismatch, not only a styling preference difference
+- Red verification before implementation:
+  - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/home-prompt.test.tsx test/chat-input.test.tsx --reporter=dot --pool forks"`
+  - result:
+    - FAIL in the intended places because homepage still referenced the removed template state and immersive `模版` still lacked the shared browser structure
+- Green implementation applied:
+  - updated `apps/web/src/components/home-prompt.tsx`
+    - rewired homepage `模版` to the shared `PromptTemplateBrowser`
+    - unified homepage shell to `素材轨道 -> 文本区 -> 底部参数胶囊 + 发送`
+    - kept `上传参考图` inside the main composer shell with a fixed tile slot
+  - updated `apps/web/src/components/chat-input.tsx`
+    - rewired immersive `模版` to the shared `PromptTemplateBrowser`
+    - moved `添加图片` into the inline composer rail next to pending / confirmed thumbnails
+    - kept the immersive shell fixed-height while preserving the white / neutral contract
+  - updated `apps/web/test/home-prompt.test.tsx`
+    - aligned the default-browser expectation to the live `全部` view
+    - locked `热度 / 最新` top-level entries and category filtering behavior
+  - updated `apps/web/test/chat-input.test.tsx`
+    - aligned the default-browser expectation to the live `全部` view
+    - locked the inline add-tile behavior and browser-style immersive template menu
+- Focused green verification:
+  - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/home-prompt.test.tsx test/chat-input.test.tsx --reporter=dot --pool forks"`
+  - result:
+    - PASS (`2` files, `24` tests)
+- Bounded regression after the fix:
+  - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/home-prompt.test.tsx test/chat-input.test.tsx test/chat-sidebar.test.tsx test/canvas-page-selection-action-bar.test.tsx test/canvas-page-shell.test.tsx --reporter=dot --pool forks"`
+  - result:
+    - PASS (`5` files, `65` tests)
+- Runtime refresh onto the local dev web container:
+  - `wsl.exe -e bash -lc 'cd /mnt/d/97-CodingProject/Loomic-ArcIns && docker compose -f docker-compose.local.yml -f docker-compose.dev.yml --env-file .tmp/loomic-local.env restart web'`
+  - first immediate probe returned a transient connection reset while `next dev` was booting
+  - confirmed recovery with:
+    - `docker compose -f docker-compose.local.yml -f docker-compose.dev.yml --env-file .tmp/loomic-local.env logs --tail=160 web`
+    - `curl -I --max-time 20 http://127.0.0.1:3000/home`
+  - result:
+    - `next dev` reported `✓ Ready in 3s`
+    - `/home` returned `HTTP/1.1 200 OK`
+- Documentation writeback completed:
+  - updated `docs/prd/2026-04-16-jianzhuxuezhang-ai-canvas-agent-prd.md`
+  - updated `docs/verification/2026-04-12-architecture-agent-studio-validation.md`
+  - updated `findings.md`
+  - updated `progress.md`
+
+## 2026-04-18 10:28 Asia/Shanghai
+
+- Re-opened the fresh user-reported composer regression under the same systematic-debugging flow instead of blindly stretching CSS:
+  - user-reported symptoms:
+    - text input shell felt too short and exposed ugly scrollbars around image chips
+    - uploaded thumbnails looked suspiciously non-persistent in `chatinput`
+    - `查看大图` needed an explicit durable-source regression check
+- Root-cause investigation:
+  - `apps/web/src/components/image-attachment-bar.tsx` still rendered `preview` first, even after uploads had a durable `url`
+  - composer-inline attachment bars still carried their own `overflow-x-auto`, while the surrounding rails already scrolled, creating nested scrollbar chrome
+- Red verification before implementation:
+  - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/home-prompt.test.tsx test/chat-input.test.tsx --reporter=dot --pool forks"`
+  - result:
+    - FAIL in the intended places because both homepage and immersive composer still used `blob:stale-preview` as the rendered `img[src]`
+- Green implementation applied:
+  - updated `apps/web/src/components/image-attachment-bar.tsx`
+    - `composer-inline` no longer creates a nested scroll container
+    - attachment thumbnails now prefer `url ?? preview`
+  - updated `apps/web/src/components/home-prompt.tsx`
+    - added hidden-scrollbar styling to the home attachment and seed rails
+    - raised the home prompt input row / textarea comfort bounds
+  - updated `apps/web/src/components/chat-input.tsx`
+    - added hidden-scrollbar styling to the immersive inline rail and selected-image rails
+    - raised the immersive composer fixed shell / textarea comfort bounds
+    - aligned bottom popover widths to fixed neutral shells
+  - updated `apps/web/test/home-prompt.test.tsx`
+    - locked persisted-url thumbnail rendering and hidden attachment-rail scrollbar behavior
+  - updated `apps/web/test/chat-input.test.tsx`
+    - locked persisted-url thumbnail rendering and hidden immersive inline-rail scrollbar behavior
+  - updated `apps/web/test/canvas-page-selection-action-bar.test.tsx`
+    - locked the architecture large-image viewer to the selected image `storageUrl`
+- Focused green verification:
+  - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/home-prompt.test.tsx test/chat-input.test.tsx test/canvas-page-selection-action-bar.test.tsx --reporter=dot --pool forks"`
+  - result:
+    - PASS (`3` files, `28` tests)
+- Bounded regression after the fix:
+  - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/home-prompt.test.tsx test/chat-input.test.tsx test/canvas-page-selection-action-bar.test.tsx test/chat-sidebar.test.tsx --reporter=dot --pool forks"`
+  - result:
+    - PASS (`4` files, `58` tests)
+- Follow-up tooling note:
+  - attempted a local formatting pass with:
+    - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns && node ./node_modules/prettier/bin/prettier.cjs --write apps/web/src/components/home-prompt.tsx apps/web/src/lib/home-prompt-template-data.ts apps/web/test/home-prompt.test.tsx"`
+  - result:
+    - skipped because the repo root does not currently expose `node_modules/prettier/bin/prettier.cjs`
+    - no source files were modified by the failed formatting attempt
+- Next frozen slice after this closure:
+  - `25.1-4 输入焦点冲突`
+  - `18.4-2 我的创作非空态 + 回插画布`
+
+## 2026-04-18 09:17 Asia/Shanghai
+
+- Re-opened the next two frozen items as an audit-first pass before writing more code:
+  - `25.1-4 输入焦点冲突`
+  - `18.4-2 我的创作非空态 + 回插画布`
+- Static audit outcome:
+  - `25.1-4` was already implemented in `apps/web/src/components/chat-sidebar.tsx`
+    - the focused `composerDraft` is preserved while `replaceCanvasRefs(...)` swaps only the focus-confirmed attachments after base-image change
+  - `18.4-2` was already implemented in `apps/web/src/components/canvas-tool-menu.tsx`
+    - `我的创作` already renders a non-empty source strip + image grid
+    - clicking a grid item already routes into `insertImageOnCanvas(...)`
+- Fresh verification run for the documentation freeze:
+  - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/chat-sidebar.test.tsx test/canvas-tool-menu.test.tsx test/canvas-page-shell.test.tsx --reporter=dot --pool forks"`
+  - result:
+    - PASS (`3` files, `41` tests)
+- Documentation writeback completed for the audit closure:
+  - updated `docs/prd/2026-04-16-jianzhuxuezhang-ai-canvas-agent-prd.md`
+  - updated `task_plan.md`
+  - updated `findings.md`
+  - updated `progress.md`
+  - updated `docs/verification/2026-04-12-architecture-agent-studio-validation.md`
+
+## 2026-04-18 09:37 Asia/Shanghai
+
+- Opened the next true production gap inside `添加素材`:
+  - `官方图库` 左右箭头还是静态壳子按钮
+  - `官方图库 / 我的创作` 大屏网格仍停在 `xl:5列`
+- Red verification before implementation:
+  - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/canvas-tool-menu.test.tsx --reporter=dot --pool forks"`
+  - result:
+    - FAIL in the intended place because the new test could not find `official-gallery-category-strip`, proving the browsing-strip contract had not been implemented yet
+- Green implementation applied:
+  - updated `apps/web/src/components/canvas-tool-menu.tsx`
+    - added `officialGalleryCategoryStripRef`
+    - added real left/right scroll handlers for the official-gallery category strip
+    - added `official-gallery-category-strip / official-gallery-grid / my-creations-grid` test hooks
+    - raised both large-screen grids to `xl:grid-cols-6`
+  - updated `apps/web/test/canvas-tool-menu.test.tsx`
+    - added the new regression locking category-strip scrolling and the `xl:6列` contract
+- Focused green verification:
+  - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/canvas-tool-menu.test.tsx --reporter=dot --pool forks"`
+  - result:
+    - PASS (`1` file, `9` tests)
+- Bounded regression after the fix:
+  - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/canvas-tool-menu.test.tsx test/canvas-page-shell.test.tsx test/architecture-neutral-palette.test.ts --reporter=dot --pool forks"`
+  - result:
+    - PASS (`3` files, `25` tests)
+- Documentation writeback completed:
+  - updated `docs/prd/2026-04-16-jianzhuxuezhang-ai-canvas-agent-prd.md`
+  - updated `task_plan.md`
+  - updated `findings.md`
+  - updated `progress.md`
+  - updated `docs/verification/2026-04-12-architecture-agent-studio-validation.md`
+
+## 2026-04-18 10:03 Asia/Shanghai
+
+- Re-opened the homepage `模版` surface after a PRD-to-code consistency audit:
+  - frozen PRD `23.4` already stated that homepage and immersive composer should both use `类别 -> 模板项`
+  - local source reality still lagged:
+    - `apps/web/src/components/home-prompt.tsx` kept a flat three-item `HOME_PROMPT_TEMPLATES` list
+    - homepage template popover still rendered a single-layer chip list instead of category-first navigation
+- Red verification before implementation:
+  - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/home-prompt.test.tsx --reporter=dot --pool forks"`
+  - result:
+    - FAIL in the intended places because the new regression could not find `home-prompt-template-menu`, and the old flat menu exposed `场地分析框架 / 效果图深化方向 / 演示视频脚本` instead of category buttons such as `分析图`
+- Green implementation applied:
+  - added `apps/web/src/lib/home-prompt-template-data.ts`
+    - moved homepage template data into a dedicated source-of-truth file
+    - aligned local homepage categories with the frozen audited category set:
+      - `效果渲染 / 总平填色 / 户型填色 / 风格迁移 / 剖立面 / 分析图 / 展板生成 / 灵感方案 / 氛围转换 / 画风转换 / 视角转换 / 方案设计 / 旧房改造 / 室内装修 / 局部修改 / 分镜图`
+  - updated `apps/web/src/components/home-prompt.tsx`
+    - rewired `模版` to render `类别 -> 模板项`
+    - added `home-prompt-template-menu` test hook
+    - kept the white/gray input shell, inline upload button, split `自动 / 1K` pills, and `Banana Pro` recommended-model reset behavior intact
+  - updated `apps/web/test/home-prompt.test.tsx`
+    - replaced the old flat-template assertion with hierarchy assertions
+    - locked the homepage path `分析图 -> 基地现状分析 -> Banana Pro`
+- Focused green verification:
+  - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/home-prompt.test.tsx --reporter=dot --pool forks"`
+  - result:
+    - PASS (`1` file, `4` tests)
+- Bounded regression after the fix:
+  - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/home-prompt.test.tsx test/chat-input.test.tsx test/home-page-shell.test.tsx test/chat-sidebar.test.tsx --reporter=dot --pool forks"`
+  - result:
+    - PASS (`4` files, `54` tests)
+- Documentation writeback completed:
+  - updated `docs/prd/2026-04-16-jianzhuxuezhang-ai-canvas-agent-prd.md`
+  - updated `task_plan.md`
+  - updated `findings.md`
+  - updated `progress.md`
+  - updated `docs/verification/2026-04-12-architecture-agent-studio-validation.md`
+
+## 2026-04-18 12:47 Asia/Shanghai
+
+- Re-opened debugging after the fresh user report `数据库接口挂了吗？现在进不去项目了`.
+- Phase 1 root-cause evidence gathering:
+  - `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/windows/status-local-runtime.ps1`
+  - result:
+    - `http://127.0.0.1:3000/home => 200`
+    - `http://127.0.0.1:3001/api/health => 200`
+    - `web / server / worker` containers healthy
+  - queried local Supabase data and confirmed the database still contains:
+    - `14` auth users
+    - `43` canvases
+    - recent projects and primary canvases for `free@test.loomic.com`
+  - authenticated API probe with `free@test.loomic.com / opensourceloomic`:
+    - `GET /api/projects => 200`
+    - `GET /api/canvases/6b0178f0-e908-4f9c-8b1c-2944cf97f74a => 200`
+- Root-cause hypothesis after code inspection:
+  - not a DB outage
+  - more likely local loopback host drift:
+    - Supabase browser auth storage is origin-scoped
+    - `localhost` and `127.0.0.1` can therefore split the apparent login/project-entry state
+  - `apps/web/src/lib/env.ts` fallback still pointed to `http://localhost:3001`, while the frozen local runtime contract already uses `127.0.0.1`
+- Red-first verification before implementation:
+  - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/dev-origin-guard.test.ts test/env.test.ts --reporter=dot --pool forks"`
+  - result:
+    - FAIL in the intended places because the new `dev-origin-guard` module did not exist yet and the env fallback still resolved to `http://localhost:3001`
+- Green implementation applied:
+  - added `apps/web/src/components/dev-origin-guard.tsx`
+    - canonicalizes `http://localhost:*` to `http://127.0.0.1:*`
+    - redirects before the rest of the client providers continue
+  - updated `apps/web/src/components/providers.tsx`
+    - mounted `DevOriginGuard` ahead of `AuthProvider`
+  - updated `apps/web/src/lib/env.ts`
+    - aligned default API fallback to `http://127.0.0.1:3001`
+  - updated `apps/web/test/dev-origin-guard.test.ts`
+  - updated `apps/web/test/env.test.ts`
+    - repaired the test to match the current single-argument `loadWebEnv()` helper contract
+- Focused green verification:
+  - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/dev-origin-guard.test.ts test/env.test.ts --reporter=dot --pool forks"`
+  - result:
+    - PASS (`2` files, `7` tests)
+- Bounded regression after the fix:
+  - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/dev-origin-guard.test.ts test/env.test.ts test/login.test.tsx test/register.test.tsx test/root-layout.test.tsx test/root-page.test.tsx test/use-create-project.test.tsx --reporter=dot --pool forks"`
+  - result:
+    - PASS (`7` files, `17` tests)
+- Fresh runtime/API confirmation after the code change:
+  - `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/windows/status-local-runtime.ps1`
+  - seeded-account API probe repeated through Node + `@supabase/supabase-js`
+  - result:
+    - `http://127.0.0.1:3000/home => 200`
+    - `http://127.0.0.1:3001/api/health => 200`
+    - `GET /api/projects => 200`
+    - `GET /api/canvases/:id => 200`
+
+## 2026-04-18 17:49 Asia/Shanghai
+
+- Closed the next high-risk canvas/composer behavior slice that had already been red-proved in the previous debugging pass:
+  - programmatic draft/template focus no longer auto-confirms pending selected canvas refs
+  - pending selected refs are no longer deduped away just because a different confirmed canvas-ref attachment shares the same URL
+  - single-image export fallback now opens a browser-reachable URL instead of the raw storage hostname
+  - multi-image export / merge now reuse the same blob-based image fetch path instead of depending on direct `Image.src` loading
+- Root-cause-tightened implementation applied:
+  - updated `apps/web/src/components/chat-input.tsx`
+    - added a guarded programmatic-focus path so `externalDraft` and template injection do not trigger `onInputFocus`
+    - narrowed pending-chip dedupe to `assetId` first, with URL fallback only when the confirmed attachment has no `assetId`
+  - updated `apps/web/src/app/canvas/page.tsx`
+    - changed `loadImageFromUrl()` to load images through `fetchImageBlobWithFallback` + blob-to-data-URL conversion
+    - changed single-image export fallback to `resolveBrowserAssetUrl(imageUrl)`
+- Fresh verification completed for this slice:
+  - focused:
+    - `node .\\node_modules\\vitest\\vitest.mjs --config apps/web/vitest.config.ts run apps/web/test/chat-input.test.tsx apps/web/test/chat-sidebar.test.tsx apps/web/test/canvas-page-selection-action-bar.test.tsx apps/web/test/canvas-page-context-menu.test.tsx --reporter=dot --pool forks`
+    - result: `4` files passed, `74` tests passed
+  - bounded regression:
+    - `node .\\node_modules\\vitest\\vitest.mjs --config apps/web/vitest.config.ts run apps/web/test/browser-asset-url.test.ts apps/web/test/canvas-elements.test.ts apps/web/test/chat-input.test.tsx apps/web/test/chat-sidebar.test.tsx apps/web/test/canvas-page-selection-action-bar.test.tsx apps/web/test/canvas-page-context-menu.test.tsx apps/web/test/canvas-tool-menu.test.tsx apps/web/test/canvas-page-shell.test.tsx --reporter=dot --pool forks`
+    - result: `8` files passed, `94` tests passed
+- Operational cleanup:
+  - closed the completed review subagents `Hooke` and `Goodall` to reclaim memory after the read-only audit phase
+- Planning consequence:
+  - the pending-vs-confirmed composer state machine and export fallback chain are now frozen by direct tests instead of only by inspection
+  - the next front-end slice should move back to unfinished real-site parity work rather than re-opening these now-closed behavior bugs
+
+## 2026-04-18 21:08 Asia/Shanghai
+
+- Re-opened the immersive canvas `chat input` slice after the fresh user report that the image chip still sat wrong inside the composer and the overall shell height remained visibly off.
+- Red-first tightening applied to the existing focused chat-input contract:
+  - updated `apps/web/test/chat-input.test.tsx`
+    - `添加图片` must live in the immersive in-shell media rail, not inside the text row
+    - the immersive pending chip shell must shrink to the audited small-card geometry (`h-[68px] w-[68px]`)
+- Green implementation completed:
+  - updated `apps/web/src/components/chat-input.tsx`
+    - moved the immersive `添加图片` trigger out of the textarea row and into the internal top media rail
+    - reduced pending/selected chip size to `68x68` outer / `60x60` preview body
+    - reduced immersive textarea auto-height bounds from `104/144` to `80/112`
+    - increased the fixed immersive shell height to `272px`
+    - kept the structure stable as `顶部素材轨道 -> 文本区 -> 底部参数条`
+  - updated `apps/web/src/components/image-attachment-bar.tsx`
+    - aligned confirmed attachment chips to the same compact audited geometry and overlay-control sizing
+- Fresh verification completed for this chat-input closure:
+  - focused:
+    - `node .\\node_modules\\vitest\\vitest.mjs --config apps/web/vitest.config.ts run apps/web/test/chat-input.test.tsx --reporter=dot --pool forks`
+    - result: `1` file passed, `15` tests passed
+  - chat/composer bounded:
+    - `node .\\node_modules\\vitest\\vitest.mjs --config apps/web/vitest.config.ts run apps/web/test/chat-input.test.tsx apps/web/test/chat-sidebar.test.tsx --reporter=dot --pool forks`
+    - result: `2` files passed, `46` tests passed
+  - wider bounded regression:
+    - `node .\\node_modules\\vitest\\vitest.mjs --config apps/web/vitest.config.ts run apps/web/test/browser-asset-url.test.ts apps/web/test/canvas-elements.test.ts apps/web/test/chat-input.test.tsx apps/web/test/chat-sidebar.test.tsx apps/web/test/canvas-page-selection-action-bar.test.tsx apps/web/test/canvas-page-context-menu.test.tsx apps/web/test/canvas-tool-menu.test.tsx apps/web/test/canvas-page-shell.test.tsx --reporter=dot --pool forks`
+    - result: `8` files passed, `86` tests passed
+- Running local browser evidence captured through headless Chrome + seeded local account `free@test.loomic.com / opensourceloomic`:
+  - empty immersive canvas screenshot:
+    - `D:/97-CodingProject/Loomic-ArcIns/.tmp/chatinput-canvas-check.png`
+  - immersive canvas screenshot with an injected uploaded image:
+    - `D:/97-CodingProject/Loomic-ArcIns/.tmp/chatinput-canvas-check-with-attachment.png`
+  - result:
+    - the attachment chip and `添加图片` tile now both sit inside the same top composer rail
+    - the textarea row no longer carries the upload trigger, so the text zone is not vertically crushed by the thumbnail rail
+- Planning consequence:
+  - the immersive chat-input shell is now re-frozen by both tests and real local runtime screenshots
+  - next canvas parity work should continue from the remaining unchecked PRD items instead of reopening this chat-input geometry slice again
+
+## 2026-04-18 21:28 Asia/Shanghai
+
+- Re-opened the same immersive composer slice again for two much narrower audited spacing defects reported by the user:
+  - the top media rail still left too much blank space before the text area
+  - the selected-image floating action bar still hovered far above the image instead of only clearing the native rotate handle
+- Followed the same red-first debugging path instead of guessing:
+  - updated `apps/web/test/chat-input.test.tsx`
+    - added a regression that freezes the immersive attachment rail spacing against the text block and bottom control row
+  - updated `apps/web/test/canvas-page-selection-action-bar.test.tsx`
+    - tightened the selected-image bar position contract so it must sit in the `80-88px` top range for the mocked audited selection rather than the old `24px` far-away position
+  - confirmed the red state before implementation:
+    - the immersive input wrapper still exposed `mt-3`
+    - the selected-image action bar still resolved to `top: 24`
+- Green implementation completed with the smallest geometry-only edits:
+  - updated `apps/web/src/components/chat-input.tsx`
+    - reduced the inline media rail bottom padding from `pb-1` to `pb-0.5`
+    - reduced the media-rail -> text-block spacing from `mt-3` to `mt-1.5`
+    - reduced the text-block -> bottom-control spacing from `mt-3 pt-3` to `mt-2 pt-2`
+  - updated `apps/web/src/components/canvas/canvas-selection-action-bar.tsx`
+    - reduced the selected-image floating bar offset from `120` to `36`, so the bar now clears only the rotate-handle safety zone instead of floating far above the image
+- Fresh verification completed:
+  - focused:
+    - `node .\\node_modules\\vitest\\vitest.mjs --config apps/web/vitest.config.ts run apps/web/test/chat-input.test.tsx apps/web/test/canvas-page-selection-action-bar.test.tsx --reporter=dot --pool forks`
+    - result: `2` files passed, `26` tests passed
+  - bounded regression:
+    - `node .\\node_modules\\vitest\\vitest.mjs --config apps/web/vitest.config.ts run apps/web/test/chat-sidebar.test.tsx apps/web/test/canvas-page-context-menu.test.tsx apps/web/test/canvas-page-shell.test.tsx --reporter=dot --pool forks`
+    - result: `3` files passed, `43` tests passed
+  - local runtime probe:
+    - `Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1:3000/canvas?id=canvas-1&studio=architecture' -TimeoutSec 10`
+    - result: `HTTP 200`, so the current local canvas route stayed reachable while verifying the spacing fix
+- Planning consequence:
+  - the immersive composer vertical spacing is now frozen more tightly than before, so future regressions should trip tests immediately
+  - the selected-image floating toolbar contract now encodes “clear only the rotate handle” instead of the previous vague “high enough” wording
+
+## 2026-04-18 22:30 Asia/Shanghai
+
+- Re-opened the immersive canvas composer again after the user reported that the `模版` browser was "flying away" from the bottom-bar trigger instead of staying attached to the button.
+- Root cause investigation completed before touching behavior:
+  - `apps/web/src/components/chat-input.tsx`
+    - the template-browser portal position still used a hard-coded `rect.top - 408` offset
+    - this made the menu jump far above the trigger whenever the canvas composer sat near the bottom of the viewport
+  - the same pass also confirmed why the empty composer felt too hollow:
+    - the input row had previously been bottom-aligned, which visually exaggerated the gap below the add-image tile
+- Red-first regression work:
+  - restored `apps/web/test/chat-input.test.tsx` to the last healthy repository version after a temporary local encoding break during the test-edit rescue step
+  - re-applied and kept the focused immersive geometry tests:
+    - empty state stays compact instead of bottom-aligning the textarea under the add tile
+    - template browser must anchor to the `模版` button rather than float hundreds of pixels away
+- Green implementation completed:
+  - updated `apps/web/src/components/chat-input.tsx`
+    - empty immersive input row now stays top-aligned and the top rail collapses to `60px` when only the add-image tile is present
+    - template-browser portal now renders hidden first, measures its real height, and resolves an anchored placement relative to the button
+    - placement semantics now prefer `above` with `translateY(-100%)`, and only fall back `below` when the available space above is insufficient
+    - removed the previous fixed `-408` magic offset from template-menu positioning
+  - updated `apps/web/test/chat-input.test.tsx`
+    - aligned existing immersive tests with the current merged `自动 / 2K` output control
+    - updated the inline-rail assertions to the current `chat-input-immersive-inline-rail` structure
+    - added a portal-position regression using mocked DOMRects for the template trigger and measured menu shell
+- Verification completed:
+  - focused:
+    - `node .\\node_modules\\vitest\\vitest.mjs --config apps/web/vitest.config.ts run apps/web/test/chat-input.test.tsx --reporter=dot --pool forks`
+    - result: `1` file passed, `18` tests passed
+  - bounded:
+    - `node .\\node_modules\\vitest\\vitest.mjs --config apps/web/vitest.config.ts run apps/web/test/chat-input.test.tsx apps/web/test/chat-sidebar.test.tsx --reporter=dot --pool forks`
+    - result: `2` files passed, `49` tests passed
+  - local runtime probe:
+    - `Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1:3000/canvas?id=canvas-1&studio=architecture' -TimeoutSec 10`
+    - result: `HTTP 200`
+- Planning consequence:
+  - the template-browser anchor behavior is now frozen as an explicit regression instead of a visual guess
+  - future canvas-composer work should preserve “button-anchored portal” semantics rather than reintroducing fixed vertical offsets
+
+## 2026-04-18 22:48 Asia/Shanghai
+
+- Tightened the immersive `canvas` composer text area again after the user clarified that the text zone should only reserve two lines by default and grow only after the content exceeds that baseline.
+- Root cause confirmed before editing:
+  - `apps/web/src/components/chat-input.tsx`
+    - the immersive textarea still used `min-h-[80px]`
+    - the runtime auto-height effect still hard-coded `minHeight = 80` for immersive mode
+  - this kept the canvas composer visually closer to three lines even when the user had only one short sentence
+- Red-first verification completed:
+  - updated `apps/web/test/chat-input.test.tsx`
+    - added a focused regression that locks the immersive textarea to a two-line baseline
+    - the same regression also proves that once content exceeds the baseline, the textarea grows to the measured scroll height instead of staying pinned to the baseline
+  - ran the focused test before implementation
+    - result: failed in the intended place because the textarea still rendered `min-h-[80px]` and resolved to `height: 80px`
+- Green implementation completed with the smallest possible behavior change:
+  - updated `apps/web/src/components/chat-input.tsx`
+    - changed immersive textarea class from `min-h-[80px]` to `min-h-[56px]`
+    - changed immersive runtime auto-height baseline from `80` to `56`
+    - preserved the existing `112px` max height cap and overflow handling
+- Verification completed:
+  - focused:
+    - `node .\\node_modules\\vitest\\vitest.mjs --config apps/web/vitest.config.ts run apps/web/test/chat-input.test.tsx --reporter=dot --pool forks`
+    - result: `1` file passed, `19` tests passed
+  - bounded:
+    - `node .\\node_modules\\vitest\\vitest.mjs --config apps/web/vitest.config.ts run apps/web/test/chat-input.test.tsx apps/web/test/chat-sidebar.test.tsx --reporter=dot --pool forks`
+    - result: `2` files passed, `50` tests passed
+  - local runtime probe:
+    - `Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1:3000/canvas?id=canvas-1&studio=architecture' -TimeoutSec 10`
+    - result: `HTTP 200`
+- Planning consequence:
+  - the immersive composer now has an explicit “two-line by default” regression guard instead of relying on manual visual checking
+  - future `chat input` edits must preserve compact white-space behavior while allowing taller drafts to expand upward naturally
+
+## 2026-04-18 23:00 Asia/Shanghai
+
+- Narrowed the follow-up geometry issue the user called out: the immersive `data-testid="chat-input-immersive-input-row"` container itself was still too tall even after the textarea baseline had already been reduced to two lines.
+- Root cause confirmed before editing:
+  - `apps/web/src/components/chat-input.tsx`
+    - the immersive input row still carried `flex-1`
+    - this let the row absorb the remaining shell height instead of shrinking to the real textarea + send-button content height
+- Red-first verification completed:
+  - updated `apps/web/test/chat-input.test.tsx`
+    - extended the compact empty-state regression so the immersive input row must no longer keep `flex-1`
+  - ran the focused test before implementation
+    - result: failed in the intended place because the row still rendered `class="flex min-h-0 flex-1 items-start gap-3"`
+- Green implementation completed with the smallest possible geometry-only edit:
+  - updated `apps/web/src/components/chat-input.tsx`
+    - removed `flex-1` from `data-testid="chat-input-immersive-input-row"`
+    - kept the textarea two-line baseline, button alignment, top rail, and bottom control row unchanged
+- Verification completed:
+  - focused:
+    - `node .\\node_modules\\vitest\\vitest.mjs --config apps/web/vitest.config.ts run apps/web/test/chat-input.test.tsx --reporter=dot --pool forks`
+    - result: `1` file passed, `19` tests passed
+  - bounded:
+    - `node .\\node_modules\\vitest\\vitest.mjs --config apps/web/vitest.config.ts run apps/web/test/chat-input.test.tsx apps/web/test/chat-sidebar.test.tsx --reporter=dot --pool forks`
+    - result: `2` files passed, `50` tests passed
+  - local runtime probe:
+    - `Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1:3000/canvas?id=canvas-1&studio=architecture' -TimeoutSec 10`
+    - result: `HTTP 200`
+- Planning consequence:
+  - the immersive input row now has an explicit regression guard preventing it from expanding to fill leftover shell height
+  - future composer work should keep this layer content-sized unless there is a deliberate audited redesign
+
+## 2026-04-18 23:15 Asia/Shanghai
+
+- Followed the user's screenshot and tightened the remaining oversized empty-state composer shell. The large blank band was no longer caused by the textarea row itself; it came from the empty immersive shell still reserving a fixed `272px` height plus an inner wrapper that still expanded to fill leftovers.
+- Root cause confirmed before editing:
+  - `apps/web/src/components/chat-input.tsx`
+    - `data-testid="chat-input-immersive-shell"` still rendered `h-[272px] max-h-[272px]`
+    - the inner stack wrapping the input row and bottom controls still carried `flex-1`
+  - together these two constraints left a large empty block below the parameter row in the collapsed immersive composer
+- Red-first verification completed:
+  - updated `apps/web/test/chat-input.test.tsx`
+    - extended the empty-state compact regression so the shell must no longer keep the fixed `h-[272px]`
+    - the same regression now also requires the inner input/control stack to drop `flex-1`
+  - ran the focused test before implementation
+    - result: failed in the intended place because the shell still rendered `class="flex h-[272px] max-h-[272px] ..."`
+- Green implementation completed with the smallest layout-only change:
+  - updated `apps/web/src/components/chat-input.tsx`
+    - removed fixed `h-[272px]` from the immersive shell while keeping `max-h-[272px]` as an upper bound
+    - removed `flex-1` from the inner wrapper around the input row + bottom parameter row
+    - preserved the two-line textarea baseline and the existing top rail / bottom parameter layout
+- Verification completed:
+  - focused:
+    - `node .\\node_modules\\vitest\\vitest.mjs --config apps/web/vitest.config.ts run apps/web/test/chat-input.test.tsx --reporter=dot --pool forks`
+    - result: `1` file passed, `19` tests passed
+  - bounded:
+    - `node .\\node_modules\\vitest\\vitest.mjs --config apps/web/vitest.config.ts run apps/web/test/chat-input.test.tsx apps/web/test/chat-sidebar.test.tsx --reporter=dot --pool forks`
+    - result: `2` files passed, `50` tests passed
+  - local runtime probe:
+    - `Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1:3000/canvas?id=canvas-1&studio=architecture' -TimeoutSec 10`
+    - result: `HTTP 200`
+- Planning consequence:
+  - the immersive composer shell now shrinks to content in empty state instead of reserving a tall fixed frame
+  - future canvas-composer work should treat `272px` as an upper bound only, not a permanent empty-state height

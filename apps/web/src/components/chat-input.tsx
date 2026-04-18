@@ -9,6 +9,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { createPortal } from "react-dom";
 import { ArrowLeft, ArrowRight, LayoutTemplate, X } from "lucide-react";
 
 import type { MessageMention } from "@loomic/shared";
@@ -17,10 +18,15 @@ import type { CanvasSelectedElement } from "./canvas-editor";
 import { useImageModelPreference } from "../hooks/use-image-model-preference";
 import { useImageOutputPreference } from "../hooks/use-image-output-preference";
 import { useVideoModelPreference } from "../hooks/use-video-model-preference";
+import { resolveBrowserAssetUrl } from "../lib/browser-asset-url";
 import { buildTemplateRecommendedImagePreference } from "../lib/image-model-utils";
 import { AgentModelSelector } from "./agent-model-selector";
 import { ImageAttachmentBar } from "./image-attachment-bar";
 import { ImageModelPreferencePopover } from "./image-model-preference";
+import {
+  PromptTemplateBrowser,
+  type PromptTemplateBrowserCategory,
+} from "./prompt-template-browser";
 
 type ChatInputProps = {
   onSend: (message: string) => void;
@@ -34,6 +40,7 @@ type ChatInputProps = {
     direction: "left" | "right",
   ) => void;
   onRemoveSelectedCanvasImage?: (elementId: string) => void;
+  onMoveAttachment?: (id: string, direction: "left" | "right") => void;
   onRemoveAttachment?: (id: string) => void;
   onRetryAttachment?: (id: string) => void;
   isUploading?: boolean;
@@ -95,6 +102,10 @@ const DEFAULT_PLACEHOLDER =
   "\u63cf\u8ff0\u5efa\u7b51\u6548\u679c\u56fe\u3001\u955c\u5934\u811a\u672c\u6216\u8bc4\u5ba1\u76ee\u6807\uff0c\u8f93\u5165 @ \u53ef\u5f15\u7528\u7d20\u6750";
 const IMMERSIVE_DEFAULT_PLACEHOLDER =
   "\u6dfb\u52a0\u56fe\u7247\u8f93\u5165\u6587\u6848\u5f00\u59cb\u521b\u4f5c\u4e4b\u65c5...";
+const HIDDEN_SCROLLBAR_STYLE = {
+  scrollbarWidth: "none",
+  msOverflowStyle: "none",
+} as const;
 
 export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
   function ChatInput(
@@ -106,6 +117,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
       onAddFiles,
       onAttachSelectedCanvasImages,
       onMoveSelectedCanvasImage,
+      onMoveAttachment,
       onRemoveSelectedCanvasImage,
       onRemoveAttachment,
       onRetryAttachment,
@@ -141,13 +153,25 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
     const [resolutionMenuOpen, setResolutionMenuOpen] = useState(false);
     const resolutionMenuRef = useRef<HTMLDivElement>(null);
     const resolutionBtnRef = useRef<HTMLButtonElement>(null);
+    const [immersiveOutputMenuOpen, setImmersiveOutputMenuOpen] = useState(false);
+    const immersiveOutputMenuRef = useRef<HTMLDivElement>(null);
+    const immersiveOutputBtnRef = useRef<HTMLButtonElement>(null);
+    const [immersiveOutputMenuPosition, setImmersiveOutputMenuPosition] =
+      useState<{ left: number; top: number; width: number } | null>(null);
     const [templateMenuOpen, setTemplateMenuOpen] = useState(false);
     const templateMenuRef = useRef<HTMLDivElement>(null);
     const templateBtnRef = useRef<HTMLButtonElement>(null);
+    const [templateMenuPosition, setTemplateMenuPosition] = useState<{
+      left: number;
+      top: number;
+      width: number;
+      placement: "above" | "below";
+    } | null>(null);
     const [activeTemplateCategoryId, setActiveTemplateCategoryId] = useState<
       string | null
     >(null);
     const lastExternalDraftIdRef = useRef<string | null>(null);
+    const suppressNextInputFocusRef = useRef(false);
     const value = draftValue ?? internalValue;
 
     const updateValue = useCallback(
@@ -174,6 +198,36 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
         });
       },
     }), [updateValue]);
+
+    const focusTextareaWithoutConfirmingSelection = useCallback(() => {
+      requestAnimationFrame(() => {
+        const textarea = textareaRef.current;
+        if (!textarea || document.activeElement === textarea) {
+          return;
+        }
+
+        suppressNextInputFocusRef.current = true;
+        textarea.focus();
+
+        requestAnimationFrame(() => {
+          if (
+            suppressNextInputFocusRef.current &&
+            document.activeElement !== textarea
+          ) {
+            suppressNextInputFocusRef.current = false;
+          }
+        });
+      });
+    }, []);
+
+    const handleTextareaFocus = useCallback(() => {
+      if (suppressNextInputFocusRef.current) {
+        suppressNextInputFocusRef.current = false;
+        return;
+      }
+
+      onInputFocus?.();
+    }, [onInputFocus]);
 
     const handleSubmit = useCallback(() => {
       const trimmed = value.trim();
@@ -207,8 +261,13 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
       if (!textarea) return;
 
       textarea.style.height = "auto";
-      const maxHeight = immersiveArchitecture ? 72 : 240;
-      textarea.style.height = `${Math.min(textarea.scrollHeight, maxHeight)}px`;
+      const minHeight = immersiveArchitecture ? 56 : 72;
+      const maxHeight = immersiveArchitecture ? 112 : 240;
+      const nextHeight = Math.min(
+        Math.max(textarea.scrollHeight || minHeight, minHeight),
+        maxHeight,
+      );
+      textarea.style.height = `${nextHeight}px`;
       textarea.style.overflowY =
         textarea.scrollHeight > maxHeight ? "auto" : "hidden";
     }, [immersiveArchitecture, value]);
@@ -225,17 +284,20 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
       lastExternalDraftIdRef.current = externalDraft.id;
       updateValue(externalDraft.prompt);
       onAtQuery?.(null);
-
-      requestAnimationFrame(() => {
-        textareaRef.current?.focus();
-      });
-    }, [externalDraft, onAtQuery, updateValue]);
+      focusTextareaWithoutConfirmingSelection();
+    }, [
+      externalDraft,
+      focusTextareaWithoutConfirmingSelection,
+      onAtQuery,
+      updateValue,
+    ]);
 
     useEffect(() => {
       if (
         !templateMenuOpen &&
         !aspectRatioMenuOpen &&
-        !resolutionMenuOpen
+        !resolutionMenuOpen &&
+        !immersiveOutputMenuOpen
       ) {
         return;
       }
@@ -249,7 +311,9 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
           aspectRatioMenuRef.current?.contains(target) ||
           aspectRatioBtnRef.current?.contains(target) ||
           resolutionMenuRef.current?.contains(target) ||
-          resolutionBtnRef.current?.contains(target)
+          resolutionBtnRef.current?.contains(target) ||
+          immersiveOutputMenuRef.current?.contains(target) ||
+          immersiveOutputBtnRef.current?.contains(target)
         ) {
           return;
         }
@@ -257,6 +321,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
         setTemplateMenuOpen(false);
         setAspectRatioMenuOpen(false);
         setResolutionMenuOpen(false);
+        setImmersiveOutputMenuOpen(false);
       };
 
       const handleKeyDown = (event: KeyboardEvent) => {
@@ -264,6 +329,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
           setTemplateMenuOpen(false);
           setAspectRatioMenuOpen(false);
           setResolutionMenuOpen(false);
+          setImmersiveOutputMenuOpen(false);
         }
       };
 
@@ -274,7 +340,12 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
         document.removeEventListener("mousedown", handlePointerDown);
         document.removeEventListener("keydown", handleKeyDown);
       };
-    }, [aspectRatioMenuOpen, resolutionMenuOpen, templateMenuOpen]);
+    }, [
+      aspectRatioMenuOpen,
+      immersiveOutputMenuOpen,
+      resolutionMenuOpen,
+      templateMenuOpen,
+    ]);
 
     const handleChange = useCallback(
       (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -389,10 +460,11 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
             }
 
             const attachmentUrl = attachment.url ?? attachment.preview ?? "";
-            return (
-              attachment.assetId === element.id ||
-              (elementUrl.length > 0 && attachmentUrl === elementUrl)
-            );
+            if (attachment.assetId) {
+              return attachment.assetId === element.id;
+            }
+
+            return elementUrl.length > 0 && attachmentUrl === elementUrl;
           });
         }) ?? [],
       [attachments, selectedCanvasElements],
@@ -461,7 +533,6 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
       null;
     const showTemplateSuggestions =
       !immersiveArchitecture && templateCategories.length > 0;
-
     useEffect(() => {
       if (templateCategories.length === 0) {
         if (activeTemplateCategoryId !== null) {
@@ -490,32 +561,34 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
           onMoveSelectedCanvasImage && index < total - 1,
         );
         const arrowButtonClass =
-          "absolute bottom-1 inline-flex h-[18px] w-6 items-center justify-center rounded-[4px] bg-black/50 text-white transition-colors hover:bg-black/60 disabled:cursor-not-allowed disabled:bg-black/50 disabled:text-white/65";
+          "absolute bottom-1 inline-flex h-5 w-5 items-center justify-center rounded-[6px] bg-black/72 text-white transition-colors hover:bg-black/86 disabled:cursor-not-allowed disabled:bg-black/35 disabled:text-white/65";
 
         return (
-          <div
-            key={element.id}
-            data-testid="chat-input-selected-canvas-chip"
-            className="relative h-[60px] w-[60px] shrink-0 overflow-visible"
-          >
-            <div className="relative h-full w-full overflow-hidden rounded-[10px] border border-slate-200 bg-slate-50">
-              {element.storageUrl || element.dataUrl ? (
-                <img
-                  src={element.storageUrl ?? element.dataUrl}
+            <div
+              key={element.id}
+              data-testid="chat-input-selected-canvas-chip"
+              className="relative h-[68px] w-[68px] shrink-0 overflow-visible"
+            >
+              <div className="relative h-[60px] w-[60px] overflow-hidden rounded-[10px] border border-slate-200 bg-slate-50">
+                {element.storageUrl || element.dataUrl ? (
+                  <img
+                  src={resolveBrowserAssetUrl(
+                    element.storageUrl ?? element.dataUrl,
+                  )}
                   alt={orderLabel}
                   className="h-full w-full object-cover"
                 />
               ) : null}
               {onRemoveSelectedCanvasImage ? (
-                <button
-                  type="button"
-                  aria-label={`移除待选${orderLabel}`}
-                  onClick={() => onRemoveSelectedCanvasImage(element.id)}
-                  className="absolute -right-1.5 -top-1.5 z-10 inline-flex h-[18px] w-[18px] items-center justify-center rounded-full bg-black/50 text-white/80 transition-colors hover:bg-black/60 hover:text-white"
-                >
-                  <X className="h-3 w-3" />
-                </button>
-              ) : null}
+                  <button
+                    type="button"
+                    aria-label={`移除待选${orderLabel}`}
+                    onClick={() => onRemoveSelectedCanvasImage(element.id)}
+                    className="absolute -right-1 -top-1 z-10 inline-flex h-5 w-5 items-center justify-center rounded-full bg-black/72 text-white transition-colors hover:bg-black/86"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                ) : null}
               <button
                 type="button"
                 aria-label={`将${orderLabel} 向前移动`}
@@ -527,7 +600,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
                 }
                 className={`${arrowButtonClass} left-1`}
               >
-                <ArrowLeft className="h-3 w-3" />
+                <ArrowLeft className="h-2.5 w-2.5" />
               </button>
               <button
                 type="button"
@@ -540,7 +613,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
                 }
                 className={`${arrowButtonClass} right-1`}
               >
-                <ArrowRight className="h-3 w-3" />
+                <ArrowRight className="h-2.5 w-2.5" />
               </button>
             </div>
           </div>
@@ -559,17 +632,37 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
         updateValue(template.prompt);
         setTemplateMenuOpen(false);
         onAtQuery?.(null);
-        requestAnimationFrame(() => {
-          textareaRef.current?.focus();
-        });
+        focusTextareaWithoutConfirmingSelection();
       },
-      [onAtQuery, setPreference, updateValue],
+      [
+        focusTextareaWithoutConfirmingSelection,
+        onAtQuery,
+        setPreference,
+        updateValue,
+      ],
+    );
+    const immersiveTemplateBrowserCategories = useMemo<
+      PromptTemplateBrowserCategory[]
+    >(
+      () =>
+        templateCategories.map((category) => ({
+          id: category.id,
+          label: category.label,
+          items: category.suggestions.map((template) => ({
+            id: template.id,
+            label: template.label,
+            keywords: [category.label, template.prompt],
+            onSelect: () => handleApplyTemplate(template),
+          })),
+        })),
+      [handleApplyTemplate, templateCategories],
     );
 
     const handleSelectAspectRatio = useCallback(
       (nextAspectRatio: (typeof IMAGE_ASPECT_RATIO_OPTIONS)[number]) => {
         setAspectRatio(nextAspectRatio);
         setAspectRatioMenuOpen(false);
+        setImmersiveOutputMenuOpen(false);
       },
       [setAspectRatio],
     );
@@ -578,6 +671,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
       (nextResolution: (typeof IMAGE_RESOLUTION_OPTIONS)[number]) => {
         setResolution(nextResolution);
         setResolutionMenuOpen(false);
+        setImmersiveOutputMenuOpen(false);
       },
       [setResolution],
     );
@@ -587,15 +681,104 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
         ? "自动"
         : imageOutputPreference.aspectRatio;
     const architectureResolutionLabel = imageOutputPreference.resolution;
+    const immersiveOutputLabel = `${architectureAspectRatioLabel} / ${architectureResolutionLabel}`;
     const uploadButtonLabel = immersiveArchitecture ? "添加图片" : "上传图片";
 
     const nonImmersiveContainerClass =
       "flex min-h-[120px] flex-col justify-between gap-2 rounded-[10px] border-[0.5px] border-border bg-card p-2 transition-[border] focus-within:border-border";
-    const showImmersiveMetaRail =
-      immersiveArchitecture &&
-      (showImmersiveSelectionChips ||
-        Boolean(attachments && attachments.length > 0) ||
-        Boolean(mentions && mentions.length > 0 && onRemoveMention));
+    const showImmersiveEmbeddedMedia = immersiveArchitecture;
+    const hasImmersiveMetaItems =
+      showImmersiveSelectionChips ||
+      Boolean(attachments && attachments.length > 0) ||
+      Boolean(mentions && mentions.length > 0);
+
+    const updateImmersiveOutputMenuPosition = useCallback(() => {
+      const button = immersiveOutputBtnRef.current;
+      if (!button) {
+        return;
+      }
+
+      const rect = button.getBoundingClientRect();
+      const menuWidth = 320;
+      const left = Math.min(
+        Math.max(rect.left - 140, 16),
+        Math.max(window.innerWidth - menuWidth - 16, 16),
+      );
+      const preferredTop = rect.top - 264;
+      const fallbackTop = Math.min(rect.bottom + 12, window.innerHeight - 220);
+      setImmersiveOutputMenuPosition({
+        left,
+        top: preferredTop >= 16 ? preferredTop : Math.max(fallbackTop, 16),
+        width: menuWidth,
+      });
+    }, []);
+
+    const updateTemplateMenuPosition = useCallback(() => {
+      const button = templateBtnRef.current;
+      const menu = templateMenuRef.current;
+      if (!button || !menu) {
+        return;
+      }
+
+      const rect = button.getBoundingClientRect();
+      const menuRect = menu.getBoundingClientRect();
+      const menuWidth = Math.min(620, window.innerWidth - 32);
+      const gap = 12;
+      const left = Math.min(
+        Math.max(rect.left - 48, 16),
+        Math.max(window.innerWidth - menuWidth - 16, 16),
+      );
+      const fitsAbove = rect.top - gap - menuRect.height >= 16;
+      const placement = fitsAbove ? "above" : "below";
+      const top =
+        placement === "above"
+          ? rect.top - gap
+          : Math.min(
+              rect.bottom + gap,
+              Math.max(window.innerHeight - menuRect.height - 16, 16),
+            );
+
+      setTemplateMenuPosition({
+        left,
+        top,
+        width: menuWidth,
+        placement,
+      });
+    }, []);
+
+    useEffect(() => {
+      if (!immersiveOutputMenuOpen) {
+        return;
+      }
+
+      updateImmersiveOutputMenuPosition();
+      const handleWindowChange = () => updateImmersiveOutputMenuPosition();
+      window.addEventListener("resize", handleWindowChange);
+      window.addEventListener("scroll", handleWindowChange, true);
+      return () => {
+        window.removeEventListener("resize", handleWindowChange);
+        window.removeEventListener("scroll", handleWindowChange, true);
+      };
+    }, [immersiveOutputMenuOpen, updateImmersiveOutputMenuPosition]);
+
+    useEffect(() => {
+      if (!templateMenuOpen || !immersiveArchitecture) {
+        return;
+      }
+
+      updateTemplateMenuPosition();
+      const handleWindowChange = () => updateTemplateMenuPosition();
+      window.addEventListener("resize", handleWindowChange);
+      window.addEventListener("scroll", handleWindowChange, true);
+      return () => {
+        window.removeEventListener("resize", handleWindowChange);
+        window.removeEventListener("scroll", handleWindowChange, true);
+      };
+    }, [
+      immersiveArchitecture,
+      templateMenuOpen,
+      updateTemplateMenuPosition,
+    ]);
 
     if (immersiveArchitecture) {
       return (
@@ -603,14 +786,21 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
           <div
             data-testid="chat-input-immersive-shell"
             data-layout="fixed"
-            className="flex h-[156px] max-h-[156px] flex-col gap-2 rounded-[10px] border border-slate-200 bg-white p-3 shadow-[0_16px_40px_rgba(15,23,42,0.08)] transition-[border] focus-within:border-slate-300"
+            className="flex max-h-[272px] flex-col rounded-[10px] border border-slate-200 bg-white p-3 shadow-[0_16px_40px_rgba(15,23,42,0.08)] transition-[border] focus-within:border-slate-300"
             onDrop={handleDrop}
             onDragOver={handleDragOver}
           >
-            {showImmersiveMetaRail ? (
+            <div
+              data-testid="chat-input-immersive-composer-body"
+              className="flex min-h-0 flex-1 flex-col"
+            >
+            {showImmersiveEmbeddedMedia ? (
               <div
-                data-testid="chat-input-immersive-meta-rail"
-                className="flex min-h-[60px] items-start gap-2 overflow-x-auto pb-1"
+                data-testid="chat-input-immersive-inline-rail"
+                className={`flex items-start gap-2 overflow-x-auto overflow-y-hidden pb-0.5 pr-1 [&::-webkit-scrollbar]:hidden ${
+                  hasImmersiveMetaItems ? "min-h-[68px]" : "min-h-[60px]"
+                }`}
+                style={HIDDEN_SCROLLBAR_STYLE}
               >
                 {showImmersiveSelectionChips
                   ? selectedImageElements.map((element, index) =>
@@ -627,6 +817,8 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
                     <ImageAttachmentBar
                       attachments={attachments}
                       onRemove={onRemoveAttachment}
+                      variant="composer-inline"
+                      {...(onMoveAttachment ? { onMove: onMoveAttachment } : {})}
                       {...(onRetryAttachment ? { onRetry: onRetryAttachment } : {})}
                     />
                   </div>
@@ -657,14 +849,6 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
                     ))}
                   </div>
                 ) : null}
-              </div>
-            ) : null}
-
-            <div className="relative flex min-h-0 flex-1 flex-col rounded-[10px] border border-slate-200 bg-white px-3 py-2">
-              <div
-                data-testid="chat-input-immersive-input-row"
-                className="flex min-h-[52px] items-end gap-2"
-              >
                 {onAddFiles ? (
                   <input
                     ref={fileInputRef}
@@ -679,12 +863,12 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
                   aria-label={uploadButtonLabel}
-                  className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] border border-slate-200 bg-white text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-45"
+                  className="inline-flex h-[60px] w-[60px] shrink-0 items-center justify-center rounded-[10px] border border-slate-200 bg-white text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-45"
                   title={uploadButtonLabel}
                   disabled={!onAddFiles}
                 >
                   <svg
-                    className="h-[16px] w-[16px]"
+                    className="h-[18px] w-[18px]"
                     viewBox="0 0 24 24"
                     fill="none"
                     aria-hidden="true"
@@ -706,26 +890,34 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
                     />
                   </svg>
                 </button>
+              </div>
+            ) : null}
 
+            <div className="relative mt-1.5 flex min-h-0 flex-col px-0 pb-0 pt-0">
+              <div
+                data-testid="chat-input-immersive-input-row"
+                className="flex min-h-0 items-start gap-3"
+              >
                 <textarea
                   ref={textareaRef}
                   data-chat-input
                   value={value}
                   onChange={handleChange}
                   onKeyDown={handleKeyDown}
-                  onFocus={onInputFocus}
+                  onFocus={handleTextareaFocus}
                   onPaste={handlePaste}
                   placeholder={placeholder}
                   aria-label={"输入消息"}
                   rows={1}
-                  style={{ scrollbarWidth: "none" }}
-                  className="min-h-[48px] max-h-[72px] flex-1 resize-none bg-transparent px-1 text-sm leading-[1.8] text-foreground placeholder:text-muted-foreground focus:outline-none [&::-webkit-scrollbar]:hidden"
+                  style={HIDDEN_SCROLLBAR_STYLE}
+                  className="min-h-[56px] max-h-[112px] flex-1 resize-none bg-transparent px-1 py-1 text-[15px] leading-7 text-foreground placeholder:text-muted-foreground focus:outline-none [&::-webkit-scrollbar]:hidden"
                 />
 
                 <button
                   onClick={handleSubmit}
                   disabled={disabled || !hasContent || isUploading}
-                  className="flex h-8 min-w-8 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground transition-colors hover:bg-primary/80 active:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-20"
+                  aria-label="发送消息"
+                  className="flex h-10 min-w-10 shrink-0 items-center justify-center self-end rounded-full bg-primary text-primary-foreground transition-colors hover:bg-primary/80 active:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-20"
                 >
                   <svg
                     className="h-[14px] w-[14px]"
@@ -743,7 +935,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
 
               <div
                 data-testid="chat-input-immersive-control-row"
-                className="mt-2 flex items-center justify-between gap-2"
+                className="mt-2 flex items-center justify-between gap-2 border-t border-slate-100 pt-2"
               >
                 <div className="flex items-center gap-1">
                   <AgentModelSelector
@@ -752,113 +944,27 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
                     source="image"
                   />
 
-                  <div className="relative">
-                    <button
-                      ref={aspectRatioBtnRef}
-                      type="button"
-                      onClick={() => {
-                        setAspectRatioMenuOpen((prev) => !prev);
-                        setResolutionMenuOpen(false);
-                        setTemplateMenuOpen(false);
-                      }}
-                      title={architectureAspectRatioLabel}
-                      aria-label={architectureAspectRatioLabel}
-                      className={`flex h-8 items-center justify-center rounded-[10px] border px-2.5 text-[11px] font-medium transition-colors ${
-                        aspectRatioMenuOpen
-                          ? "border-slate-300 bg-slate-100 text-foreground"
-                          : "border-slate-200 bg-white text-foreground hover:bg-slate-50"
-                      }`}
-                    >
-                      <span>{architectureAspectRatioLabel}</span>
-                    </button>
-
-                    {aspectRatioMenuOpen ? (
-                      <div
-                        ref={aspectRatioMenuRef}
-                        className="absolute bottom-full left-0 z-20 mb-2 rounded-[10px] border border-slate-200 bg-white p-2 shadow-[0_18px_48px_rgba(15,23,42,0.1)]"
-                      >
-                        <div className="mb-2 px-2 text-[11px] font-medium text-muted-foreground">
-                          画幅比例
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          {IMAGE_ASPECT_RATIO_OPTIONS.map((option) => {
-                            const selected =
-                              imageOutputPreference.aspectRatio === option;
-                            const label = option === "auto" ? "自动" : option;
-                            return (
-                              <button
-                                key={option}
-                                type="button"
-                                onClick={() => handleSelectAspectRatio(option)}
-                                className={`inline-flex items-center rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
-                                  selected
-                                    ? "border-slate-300 bg-slate-100 text-foreground"
-                                    : "border-slate-200 bg-white text-foreground hover:bg-slate-50"
-                                }`}
-                              >
-                                {label}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    ) : null}
-                  </div>
-
-                  <div className="relative">
-                    <button
-                      ref={resolutionBtnRef}
-                      type="button"
-                      aria-label={architectureResolutionLabel}
-                      title={architectureResolutionLabel}
-                      onClick={() => {
-                        setResolutionMenuOpen((prev) => !prev);
-                        setAspectRatioMenuOpen(false);
-                        setTemplateMenuOpen(false);
-                      }}
-                      className={`flex h-8 items-center justify-center rounded-[10px] border px-2.5 text-[11px] font-medium transition-colors ${
-                        resolutionMenuOpen
-                          ? "border-slate-300 bg-slate-100 text-foreground"
-                          : "border-slate-200 bg-white text-foreground hover:bg-slate-50"
-                      }`}
-                    >
-                      <span>{architectureResolutionLabel}</span>
-                    </button>
-
-                    {resolutionMenuOpen ? (
-                      <div
-                        ref={resolutionMenuRef}
-                        className="absolute bottom-full left-0 z-20 mb-2 rounded-[10px] border border-slate-200 bg-white p-2 shadow-[0_18px_48px_rgba(15,23,42,0.1)]"
-                      >
-                        <div className="mb-2 px-2 text-[11px] font-medium text-muted-foreground">
-                          输出分辨率
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          {IMAGE_RESOLUTION_OPTIONS.map((option) => {
-                            const selected =
-                              imageOutputPreference.resolution === option;
-                            return (
-                              <button
-                                key={option}
-                                type="button"
-                                onClick={() => handleSelectResolution(option)}
-                                className={`inline-flex items-center rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
-                                  selected
-                                    ? "border-slate-300 bg-slate-100 text-foreground"
-                                    : "border-slate-200 bg-white text-foreground hover:bg-slate-50"
-                                }`}
-                              >
-                                {option}
-                              </button>
-                            );
-                          })}
-                        </div>
-                        <p className="mt-2 px-2 text-[11px] text-muted-foreground">
-                          高分辨率实际生成受账号权限影响
-                        </p>
-                      </div>
-                    ) : null}
-                  </div>
+                  <button
+                    ref={immersiveOutputBtnRef}
+                    type="button"
+                    onClick={() => {
+                      setImmersiveOutputMenuOpen((prev) => !prev);
+                      setAspectRatioMenuOpen(false);
+                      setResolutionMenuOpen(false);
+                      setTemplateMenuOpen(false);
+                    }}
+                    title={immersiveOutputLabel}
+                    aria-label={immersiveOutputLabel}
+                    className={`flex h-8 items-center justify-center gap-1 rounded-[10px] border px-2.5 text-[11px] font-medium transition-colors ${
+                      immersiveOutputMenuOpen
+                        ? "border-slate-300 bg-slate-100 text-foreground"
+                        : "border-slate-200 bg-white text-foreground hover:bg-slate-50"
+                    }`}
+                  >
+                    <span>{architectureAspectRatioLabel}</span>
+                    <span className="text-slate-300">/</span>
+                    <span>{architectureResolutionLabel}</span>
+                  </button>
 
                   {templateCategories.length > 0 ? (
                     <div className="relative">
@@ -867,9 +973,11 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
                         type="button"
                         aria-label="模版"
                         onClick={() => {
+                          setTemplateMenuPosition(null);
                           setTemplateMenuOpen((prev) => !prev);
                           setAspectRatioMenuOpen(false);
                           setResolutionMenuOpen(false);
+                          setImmersiveOutputMenuOpen(false);
                         }}
                         className={`flex h-8 items-center gap-1.5 rounded-[10px] border border-slate-200 px-2.5 text-[11px] font-medium transition-colors ${
                           templateMenuOpen
@@ -880,60 +988,113 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
                         <LayoutTemplate className="h-3.5 w-3.5" />
                         <span>模版</span>
                       </button>
-
-                      {templateMenuOpen ? (
-                        <div
-                          ref={templateMenuRef}
-                          className="absolute bottom-full left-0 z-20 mb-2 w-[320px] rounded-[10px] border border-slate-200 bg-white p-2 shadow-[0_18px_48px_rgba(15,23,42,0.1)]"
-                        >
-                          <div className="mb-2 px-2 text-[11px] font-medium text-muted-foreground">
-                            快捷模版
-                          </div>
-                          {templateCategories.length > 1 ? (
-                            <div className="mb-3 flex flex-wrap gap-2 px-1">
-                              {templateCategories.map((category) => {
-                                const selected =
-                                  activeTemplateCategory?.id === category.id;
-                                return (
-                                  <button
-                                    key={category.id}
-                                    type="button"
-                                    aria-pressed={selected}
-                                    onClick={() =>
-                                      setActiveTemplateCategoryId(category.id)
-                                    }
-                                    className={`inline-flex items-center rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
-                                      selected
-                                        ? "border-slate-300 bg-slate-100 text-foreground"
-                                        : "border-slate-200 bg-white text-foreground hover:bg-slate-50"
-                                    }`}
-                                  >
-                                    {category.label}
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          ) : null}
-                          <div className="flex flex-wrap gap-2">
-                            {activeTemplateCategory?.suggestions.map((template) => (
-                              <button
-                                key={template.id}
-                                type="button"
-                                onClick={() => handleApplyTemplate(template)}
-                                className="inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-slate-50"
-                              >
-                                {template.label}
-                              </button>
-                            )) ?? null}
-                          </div>
-                        </div>
-                      ) : null}
                     </div>
                   ) : null}
                 </div>
               </div>
             </div>
           </div>
+          </div>
+          {immersiveOutputMenuOpen && immersiveOutputMenuPosition
+            ? createPortal(
+                <div
+                  ref={immersiveOutputMenuRef}
+                  data-testid="chat-input-immersive-output-menu"
+                  className="fixed z-[120] rounded-[10px] border border-slate-200 bg-white p-3 shadow-[0_18px_48px_rgba(15,23,42,0.12)]"
+                  style={{
+                    left: immersiveOutputMenuPosition.left,
+                    top: Math.max(immersiveOutputMenuPosition.top, 16),
+                    width: immersiveOutputMenuPosition.width,
+                  }}
+                >
+                  <div className="mb-3">
+                    <div className="mb-2 px-1 text-[11px] font-medium text-muted-foreground">
+                      画幅比例
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {IMAGE_ASPECT_RATIO_OPTIONS.map((option) => {
+                        const selected =
+                          imageOutputPreference.aspectRatio === option;
+                        const label = option === "auto" ? "自动" : option;
+                        return (
+                          <button
+                            key={option}
+                            type="button"
+                            onClick={() => handleSelectAspectRatio(option)}
+                            className={`inline-flex items-center rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+                              selected
+                                ? "border-slate-300 bg-slate-100 text-foreground"
+                                : "border-slate-200 bg-white text-foreground hover:bg-slate-50"
+                            }`}
+                          >
+                            {label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="mb-2 px-1 text-[11px] font-medium text-muted-foreground">
+                      输出清晰度
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {IMAGE_RESOLUTION_OPTIONS.map((option) => {
+                        const selected =
+                          imageOutputPreference.resolution === option;
+                        return (
+                          <button
+                            key={option}
+                            type="button"
+                            onClick={() => handleSelectResolution(option)}
+                            className={`inline-flex items-center rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+                              selected
+                                ? "border-slate-300 bg-slate-100 text-foreground"
+                                : "border-slate-200 bg-white text-foreground hover:bg-slate-50"
+                            }`}
+                          >
+                            {option}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <p className="mt-2 px-1 text-[11px] text-muted-foreground">
+                      高分辨率实际生成受账号权限影响
+                    </p>
+                  </div>
+                </div>,
+                document.body,
+              )
+            : null}
+          {templateMenuOpen &&
+          immersiveTemplateBrowserCategories.length > 0
+            ? createPortal(
+                <div
+                  ref={templateMenuRef}
+                  data-testid="chat-input-template-menu-portal"
+                  className="fixed z-[120]"
+                  style={{
+                    left: templateMenuPosition?.left ?? 16,
+                    top: templateMenuPosition?.top ?? 16,
+                    width:
+                      templateMenuPosition?.width ??
+                      Math.min(620, window.innerWidth - 32),
+                    transform:
+                      templateMenuPosition?.placement === "above"
+                        ? "translateY(-100%)"
+                        : undefined,
+                    visibility: templateMenuPosition ? "visible" : "hidden",
+                  }}
+                >
+                  <PromptTemplateBrowser
+                    dataTestId="chat-input-template-menu"
+                    categories={immersiveTemplateBrowserCategories}
+                    className="w-full"
+                  />
+                </div>,
+                document.body,
+              )
+            : null}
         </div>
       );
     }
@@ -1124,7 +1285,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
             value={value}
             onChange={handleChange}
             onKeyDown={handleKeyDown}
-            onFocus={onInputFocus}
+            onFocus={handleTextareaFocus}
             onPaste={handlePaste}
             placeholder={placeholder}
             aria-label={"\u8f93\u5165\u6d88\u606f"}

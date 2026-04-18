@@ -8,6 +8,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, memo, type PointerEv
 
 import type { CanvasCollaborator, CanvasCursor } from "@loomic/shared";
 import type { WebSocketHandle } from "../hooks/use-websocket";
+import { resolveBrowserAssetUrl } from "../lib/browser-asset-url";
 import { getServerBaseUrl } from "../lib/env";
 import { saveCanvas, uploadThumbnail } from "../lib/server-api";
 import { VideoCanvasElement } from "./canvas/video-canvas-element";
@@ -116,6 +117,9 @@ function serializeCanvasContent(options: {
       dataURL: file.dataURL,
       mimeType: file.mimeType,
       created: file.created,
+      ...(typeof file.storageUrl === "string" && file.storageUrl
+        ? { storageUrl: file.storageUrl }
+        : {}),
     };
   }
 
@@ -270,7 +274,7 @@ export function CanvasEditor({
       await Promise.all(
         pendingUrls.map(async ({ fileId, url, meta }) => {
           try {
-            const resp = await fetch(url);
+            const resp = await fetch(resolveBrowserAssetUrl(url));
             if (!resp.ok) {
               console.warn(`[canvas-editor] Failed to fetch file ${fileId}: ${resp.status}`);
               return;
@@ -287,6 +291,9 @@ export function CanvasEditor({
               mimeType: meta.mimeType ?? blob.type,
               created: meta.created ?? Date.now(),
               dataURL,
+              ...(typeof meta.storageUrl === "string" && meta.storageUrl
+                ? { storageUrl: meta.storageUrl }
+                : { storageUrl: url }),
             };
           } catch (err) {
             console.warn(`[canvas-editor] Failed to resolve file ${fileId}:`, err);

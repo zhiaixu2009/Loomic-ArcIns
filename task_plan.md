@@ -1195,7 +1195,7 @@ Phase 7 complete for the current non-deferred PRD scope (all frozen PRD checkbox
   - stale background subagents were closed
 - The current bounded parity slice is now closed in local source:
   - `/home` `HomePrompt` now uses an in-shell upload trigger plus split `自动 / 1K` pills
-  - immersive `ChatInput` now keeps a fixed-height composer shell with a dedicated meta rail
+  - immersive `ChatInput` now keeps a fixed-height composer shell and returns image chips to the same main input row as `添加图片`
   - `CanvasToolMenu` now exposes a fixed responsive add-material shell plus anchored shape selection toolbar with real color pickers
   - `CanvasEditor` now re-emits selection updates when the selected element geometry changes even if the selected id set does not
 - Fresh verification completed for this closure:
@@ -1221,3 +1221,220 @@ Phase 7 complete for the current non-deferred PRD scope (all frozen PRD checkbox
     - `25.1-4 输入焦点冲突`
     - `25.1-7 历史定位失败提示`
     - `18.4-2 我的创作非空态 + 回插画布`
+
+## Latest Update: 2026-04-18 07:05 Asia/Shanghai
+
+- Composer parity rule tightened after the new user-reported layout drift:
+  - homepage `HomePrompt` and canvas immersive `ChatInput` must share the same “inline thumbnail + add button + textarea + send” composer geometry
+  - image chips are no longer allowed to create a separate vertical rail above the main input row for the default architecture composer flow
+- Long-term validation contract tightened:
+  - any future changes touching homepage composer, bottom canvas composer, docked right-panel composer, `添加图片`, pending chips, or confirmed attachments must cite authenticated `建筑学长` evidence or archived live screenshots in `docs/verification/...`
+  - unit tests alone are not sufficient closure evidence for these surfaces
+
+## Latest Update: 2026-04-18 09:10 Asia/Shanghai
+
+- Closed the frozen `25.1-7 历史定位失败提示` slice in local source and tests:
+  - `ChatSidebar` right-side record cards now expose a bounded `定位到画布` action when the reference attachment carries a stable `assetId`
+  - `apps/web/src/app/canvas/page.tsx` now resolves that `assetId` back into the live Excalidraw scene, restores selection, and scrolls the viewport to the target node
+  - locate failure is now explicit instead of silent: the right panel shows `未能定位到该画布节点`
+- Fresh verification for this slice is complete:
+  - focused red/green:
+    - `test/chat-sidebar.test.tsx`
+    - `test/canvas-page-history-locate.test.tsx`
+    - result: `31` tests passed
+  - bounded regression:
+    - `test/chat-sidebar.test.tsx`
+    - `test/canvas-page-history-locate.test.tsx`
+    - `test/canvas-page-selection-action-bar.test.tsx`
+    - `test/canvas-page-context-menu.test.tsx`
+    - result: `48` tests passed
+- Next recommended non-backend front-end closures now narrow to:
+  - `25.1-4 输入焦点冲突`
+  - `18.4-2 我的创作非空态 + 回插画布`
+
+## Latest Update: 2026-04-18 09:17 Asia/Shanghai
+
+- Re-audited the next two frozen items before reopening production code:
+  - `25.1-4 输入焦点冲突`
+  - `18.4-2 我的创作非空态 + 回插画布`
+- Result of the audit:
+  - both items were already implemented in local source
+  - the remaining gap was PRD / validation freeze, not missing product code
+- Fresh verification completed for the documentation closure:
+  - `test/chat-sidebar.test.tsx`
+  - `test/canvas-tool-menu.test.tsx`
+  - `test/canvas-page-shell.test.tsx`
+  - result: `3` files passed, `41` tests passed
+- Planning consequence:
+  - `25.1-4` is now frozen closed by fresh `ChatSidebar` regression evidence
+  - `18.4-2` is now frozen closed by fresh `CanvasToolMenu` + shell regression evidence
+  - the next recommended non-backend front-end closure now narrows to the next true implementation gap rather than these already-landed behaviors
+
+## Latest Update: 2026-04-18 09:37 Asia/Shanghai
+
+- Closed the next real `添加素材` browsing gap in production code:
+  - the `官方图库` category arrows now perform real horizontal scrolling
+  - `官方图库` and `我的创作` large-screen grids now freeze at `xl:6列`
+- Fresh verification completed for this slice:
+  - focused:
+    - `test/canvas-tool-menu.test.tsx`
+    - result: `9` tests passed
+  - bounded regression:
+    - `test/canvas-tool-menu.test.tsx`
+    - `test/canvas-page-shell.test.tsx`
+    - `test/architecture-neutral-palette.test.ts`
+    - result: `25` tests passed
+- Planning consequence:
+  - the add-material browsing shell is now tighter around the user-requested fixed-dialog / high-density browsing contract
+  - remaining future work should prefer deeper semantic gaps over already-closed shell density / arrow affordance polish
+
+## Latest Update: 2026-04-18 10:03 Asia/Shanghai
+
+- Closed the homepage `HomePrompt` template-hierarchy parity gap that was still open in source despite earlier PRD writeback:
+  - homepage `模版` no longer uses the legacy flat three-item list
+  - homepage now follows the same `类别 -> 模板项` interaction model as the immersive composer
+- Fresh verification completed for this slice:
+  - focused:
+    - `test/home-prompt.test.tsx`
+    - result: `4` tests passed
+  - bounded regression:
+    - `test/home-prompt.test.tsx`
+    - `test/chat-input.test.tsx`
+    - `test/home-page-shell.test.tsx`
+    - `test/chat-sidebar.test.tsx`
+    - result: `54` tests passed
+- Planning consequence:
+  - the homepage template IA is now actually closed in local source, not only in PRD text
+  - future homepage / canvas template work should move to deeper behavioral gaps rather than re-opening hierarchy parity
+
+## Latest Update: 2026-04-18 10:28 Asia/Shanghai
+
+- The newly reported composer / thumbnail persistence regression is now closed for the bounded front-end slice:
+  - uploaded attachment thumbnails now prefer durable asset URLs over stale blob previews
+  - the composer no longer stacks nested horizontal scroll containers inside the same input row
+  - immersive / homepage rails and the large-image viewer source path are all locked by fresh focused tests
+- Fresh verification captured for this closure:
+  - focused:
+    - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/home-prompt.test.tsx test/chat-input.test.tsx test/canvas-page-selection-action-bar.test.tsx --reporter=dot --pool forks"`
+    - result: `3` files passed, `28` tests passed
+  - bounded regression:
+    - `wsl.exe -e bash -lc "cd /mnt/d/97-CodingProject/Loomic-ArcIns/apps/web && NODE_OPTIONS=--max-old-space-size=4096 node ../../node_modules/vitest/vitest.mjs run test/home-prompt.test.tsx test/chat-input.test.tsx test/canvas-page-selection-action-bar.test.tsx test/chat-sidebar.test.tsx --reporter=dot --pool forks"`
+    - result: `4` files passed, `58` tests passed
+- Current next focus after this closure:
+  - continue the next unchecked or insufficiently product-faithful canvas-parity slice from the frozen PRD
+  - keep using authenticated `建筑学长` evidence for composer / popover / attachment surfaces, not only local component intuition
+
+## Latest Update: 2026-04-18 11:36 Asia/Shanghai
+
+- Closed the remaining half-landed homepage / immersive template-browser gap:
+  - homepage `HomePrompt` no longer carries the stale flat `模版` block or the dangling `activeTemplateCategory` path
+  - immersive `ChatInput` now uses the same shared browser-style template surface as homepage
+  - both surfaces now expose the live-aligned top-level browser entries `全部 / 热度 / 最新` plus the audited domain categories
+- Closed the add-image tile placement drift for the bounded slice:
+  - homepage and immersive composers now keep `添加图片/上传参考图` inside the same inline composer rail as pending / confirmed thumbnails
+  - this removes the last local divergence from the archived authenticated `建筑学长` composer screenshots for this surface
+- Fresh verification completed for this closure:
+  - focused:
+    - `test/home-prompt.test.tsx`
+    - `test/chat-input.test.tsx`
+    - result: `24` tests passed
+  - bounded regression:
+    - `test/home-prompt.test.tsx`
+    - `test/chat-input.test.tsx`
+    - `test/chat-sidebar.test.tsx`
+    - `test/canvas-page-selection-action-bar.test.tsx`
+    - `test/canvas-page-shell.test.tsx`
+    - result: `65` tests passed
+  - runtime refresh:
+    - dev web container restarted through `docker compose ... restart web`
+    - `/home` returned `HTTP/1.1 200 OK` after the boot window
+- Planning consequence:
+  - the shared template-browser / inline composer rail slice is now frozen by both tests and running local runtime evidence
+  - next work should move to the next unchecked or still under-specified PRD gap rather than re-opening this template/composer parity slice
+
+## Latest Update: 2026-04-18 12:47 Asia/Shanghai
+
+- Closed the local project-entry stability gap that surfaced as a fresh “数据库接口挂了吗？现在进不去项目了” report:
+  - database/API health was re-verified and did not fail
+  - local entry stability is now hardened against `localhost` / `127.0.0.1` split-session drift
+- Fresh verification completed for this slice:
+  - focused:
+    - `test/dev-origin-guard.test.ts`
+    - `test/env.test.ts`
+    - result: `7` tests passed
+  - bounded regression:
+    - `test/dev-origin-guard.test.ts`
+    - `test/env.test.ts`
+    - `test/login.test.tsx`
+    - `test/register.test.tsx`
+    - `test/root-layout.test.tsx`
+    - `test/root-page.test.tsx`
+    - `test/use-create-project.test.tsx`
+    - result: `17` tests passed
+  - runtime/API evidence:
+    - `http://127.0.0.1:3000/home => 200`
+    - `http://127.0.0.1:3001/api/health => 200`
+    - seeded-account `GET /api/projects => 200`
+    - seeded-account `GET /api/canvases/:id => 200`
+- Planning consequence:
+  - future local-entry debugging should stop treating “进不去项目” as an automatic DB failure
+  - next investigations should distinguish runtime outage vs auth expiration vs loopback-host session split
+
+## Latest Update: 2026-04-18 17:49 Asia/Shanghai
+
+- Closed the next red-proved composer/export behavior gap in production code:
+  - `ChatInput` no longer auto-confirms pending selected canvas refs during programmatic draft injection
+  - pending selected refs remain visible even when a different confirmed canvas-ref attachment shares the same persisted image URL
+  - single-image export fallback now opens a browser-reachable asset URL
+  - multi-image export / merge now reuse the blob-based fallback image loading path
+- Fresh verification completed for this slice:
+  - focused:
+    - `test/chat-input.test.tsx`
+    - `test/chat-sidebar.test.tsx`
+    - `test/canvas-page-selection-action-bar.test.tsx`
+    - `test/canvas-page-context-menu.test.tsx`
+    - result: `74` tests passed
+  - bounded regression:
+    - `test/browser-asset-url.test.ts`
+    - `test/canvas-elements.test.ts`
+    - `test/chat-input.test.tsx`
+    - `test/chat-sidebar.test.tsx`
+    - `test/canvas-page-selection-action-bar.test.tsx`
+    - `test/canvas-page-context-menu.test.tsx`
+    - `test/canvas-tool-menu.test.tsx`
+    - `test/canvas-page-shell.test.tsx`
+    - result: `94` tests passed
+- Planning consequence:
+  - the composer pending/confirmed state machine is now stable enough to support the next UI-faithfulness slice
+  - the next recommended task remains unfinished real-site parity work on visible canvas/chat surfaces, not another round of export fallback debugging
+
+## Latest Update: 2026-04-18 21:08 Asia/Shanghai
+
+- Closed the immersive canvas `chat input` geometry correction slice:
+  - the `添加图片` trigger is no longer mixed into the textarea row
+  - pending / confirmed thumbnails now use the compact audited card size instead of the earlier oversized `96px` body
+  - the immersive shell now keeps a stable `顶部素材轨道 -> 文本区 -> 底部控制条` structure
+- Fresh verification completed for this closure:
+  - focused:
+    - `test/chat-input.test.tsx`
+    - result: `15` tests passed
+  - chat/composer bounded:
+    - `test/chat-input.test.tsx`
+    - `test/chat-sidebar.test.tsx`
+    - result: `46` tests passed
+  - wider bounded regression:
+    - `test/browser-asset-url.test.ts`
+    - `test/canvas-elements.test.ts`
+    - `test/chat-input.test.tsx`
+    - `test/chat-sidebar.test.tsx`
+    - `test/canvas-page-selection-action-bar.test.tsx`
+    - `test/canvas-page-context-menu.test.tsx`
+    - `test/canvas-tool-menu.test.tsx`
+    - `test/canvas-page-shell.test.tsx`
+    - result: `86` tests passed
+  - runtime evidence:
+    - `D:/97-CodingProject/Loomic-ArcIns/.tmp/chatinput-canvas-check.png`
+    - `D:/97-CodingProject/Loomic-ArcIns/.tmp/chatinput-canvas-check-with-attachment.png`
+- Planning consequence:
+  - this `chat input` slice should now be treated as closed unless a new real-site gap is observed from the captured runtime screenshots
+  - the next work item should return to the next unchecked PRD parity item rather than re-open the now-verified composer shell geometry

@@ -1,17 +1,22 @@
 // @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import * as matchers from "@testing-library/jest-dom/matchers";
 import userEvent from "@testing-library/user-event";
 import * as React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+expect.extend(matchers);
+
 const {
   fetchCanvasMock,
+  fetchImageBlobWithFallbackMock,
   fetchProjectMock,
   replaceMock,
   setActiveToolMock,
 } = vi.hoisted(() => ({
   fetchCanvasMock: vi.fn(),
+  fetchImageBlobWithFallbackMock: vi.fn(),
   fetchProjectMock: vi.fn(),
   replaceMock: vi.fn(),
   setActiveToolMock: vi.fn(),
@@ -67,6 +72,7 @@ vi.mock("../src/lib/server-api", () => ({
 }));
 
 vi.mock("../src/lib/canvas-elements", () => ({
+  fetchImageBlobWithFallback: fetchImageBlobWithFallbackMock,
   insertImageOnCanvas: vi.fn(),
   insertVideoOnCanvas: vi.fn(),
 }));
@@ -86,6 +92,7 @@ vi.mock("../src/lib/architecture-canvas", () => {
   };
 
   return {
+    areArchitectureContextsEqual: vi.fn((left, right) => JSON.stringify(left) === JSON.stringify(right)),
     createEmptyArchitectureContext: vi.fn(() => defaultContext),
     deriveArchitectureContextFromScene: vi.fn(() => defaultContext),
     insertArchitectureBoardIntoScene: vi.fn(() => ({
@@ -134,7 +141,8 @@ vi.mock("../src/components/canvas-editor", () => ({
       y: 120,
       width: 240,
       height: 160,
-      storageUrl: "https://example.com/reference.png",
+      storageUrl:
+        "http://host.docker.internal:54321/storage/v1/object/public/assets/reference.png",
     };
 
     return (
@@ -255,7 +263,8 @@ vi.mock("../src/components/canvas-editor", () => ({
                 y: 240,
                 width: 240,
                 height: 160,
-                storageUrl: "https://example.com/reference.png",
+                storageUrl:
+                  "http://host.docker.internal:54321/storage/v1/object/public/assets/reference.png",
               },
             ]);
           }}
@@ -311,6 +320,9 @@ import CanvasPage from "../src/app/canvas/page";
 describe("CanvasPage selection action bar", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    fetchImageBlobWithFallbackMock.mockResolvedValue(
+      new Blob(["image"], { type: "image/png" }),
+    );
     fetchCanvasMock.mockResolvedValue({
       canvas: {
         id: "canvas-1",
@@ -418,6 +430,10 @@ describe("CanvasPage selection action bar", () => {
     await user.click(screen.getByRole("button", { name: "查看大图" }));
 
     expect(screen.getByRole("dialog", { name: "查看大图" })).toBeInTheDocument();
+    expect(screen.getByAltText("画布参考图 image-1")).toHaveAttribute(
+      "src",
+      `http://${window.location.hostname}:54321/storage/v1/object/public/assets/reference.png`,
+    );
     expect(
       screen.getByRole("button", { name: "逆时针旋转" }),
     ).toBeInTheDocument();
@@ -551,5 +567,58 @@ describe("CanvasPage selection action bar", () => {
 
     expect(actionBar.style.left).not.toBe(initialLeft);
     expect(actionBar.style.top).not.toBe(initialTop);
+  });
+
+  it("anchors the image floating action bar just above the native rotation handle clearance", async () => {
+    const user = userEvent.setup();
+
+    render(<CanvasPage />);
+
+    await waitFor(() => {
+      expect(fetchCanvasMock).toHaveBeenCalledWith("token-canvas", "canvas-1");
+    });
+
+    await user.click(screen.getByTestId("mock-select-canvas-image"));
+
+    const actionBar = screen.getByTestId("canvas-selection-action-bar");
+    const top = Number.parseFloat(actionBar.style.top);
+    expect(top).toBeGreaterThanOrEqual(80);
+    expect(top).toBeLessThanOrEqual(88);
+  });
+
+  it("opens a browser-reachable fallback url when single-image download export fails", async () => {
+    const user = userEvent.setup();
+    const windowOpenSpy = vi
+      .spyOn(window, "open")
+      .mockImplementation(() => null);
+
+    fetchImageBlobWithFallbackMock.mockRejectedValueOnce(
+      new Error("download failed"),
+    );
+
+    try {
+      render(<CanvasPage />);
+
+      await waitFor(() => {
+        expect(fetchCanvasMock).toHaveBeenCalledWith("token-canvas", "canvas-1");
+      });
+
+      await user.click(screen.getByTestId("mock-select-canvas-image"));
+      await user.click(screen.getByRole("button", { name: "下载" }));
+
+      await waitFor(() => {
+        expect(fetchImageBlobWithFallbackMock).toHaveBeenCalledWith(
+          "http://host.docker.internal:54321/storage/v1/object/public/assets/reference.png",
+        );
+      });
+
+      expect(windowOpenSpy).toHaveBeenCalledWith(
+        `http://${window.location.hostname}:54321/storage/v1/object/public/assets/reference.png`,
+        "_blank",
+        "noopener,noreferrer",
+      );
+    } finally {
+      windowOpenSpy.mockRestore();
+    }
   });
 });

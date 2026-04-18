@@ -17,6 +17,7 @@ const {
   fetchMessagesMock,
   fetchSessionsMock,
   saveMessageMock,
+  toastMock,
   updateSessionTitleMock,
 } = vi.hoisted(() => ({
   createSessionMock: vi.fn(),
@@ -24,8 +25,13 @@ const {
   fetchMessagesMock: vi.fn(),
   fetchSessionsMock: vi.fn(),
   saveMessageMock: vi.fn(),
+  toastMock: vi.fn(),
   updateSessionTitleMock: vi.fn(),
 }));
+
+const LOCATE_TO_CANVAS_LABEL = "\u5b9a\u4f4d\u5230\u753b\u5e03";
+const LOCATE_FAILURE_MESSAGE =
+  "\u672a\u80fd\u5b9a\u4f4d\u5230\u8be5\u753b\u5e03\u8282\u70b9";
 
 vi.mock("../src/lib/server-api", () => ({
   createSession: createSessionMock,
@@ -48,7 +54,7 @@ vi.mock("../src/components/credits/tier-limit-toast", () => ({
 
 vi.mock("../src/components/toast", () => ({
   useToast: () => ({
-    toast: vi.fn(),
+    toast: toastMock,
   }),
 }));
 
@@ -477,6 +483,53 @@ describe("ChatSidebar", () => {
     );
   });
 
+  it("renders a locate-to-canvas action on the immersive record card and forwards the reference asset id", async () => {
+    const onLocateCanvasElement = vi.fn(() => true);
+
+    render(
+      <ChatSidebar
+        accessToken="token_abc"
+        architectureContext={architectureContext as any}
+        canvasId="canvas-1"
+        immersive
+        open
+        onToggle={() => {}}
+        panelTitle="鍒涗綔璁板綍"
+        onLocateCanvasElement={onLocateCanvasElement}
+        composerCommand={{
+          id: "command-record-card-locate-1",
+          type: "attach-selection",
+        }}
+        onComposerCommandHandled={vi.fn()}
+        selectedCanvasElements={[
+          {
+            id: "image-1",
+            type: "image",
+            x: 0,
+            y: 0,
+            width: 640,
+            height: 480,
+            fileId: "file-1",
+            storageUrl: "https://example.com/reference-1.png",
+          },
+        ]}
+        ws={mockWs}
+      />,
+    );
+
+    const locateButton = await screen.findByRole("button", {
+      name: LOCATE_TO_CANVAS_LABEL,
+    });
+
+    await userEvent.click(locateButton);
+
+    expect(onLocateCanvasElement).toHaveBeenCalledWith("image-1");
+    expect(toastMock).not.toHaveBeenCalledWith(
+      LOCATE_FAILURE_MESSAGE,
+      "error",
+    );
+  });
+
   it("creates a persistent immersive record entry after sending selected references and marks it completed once generated files arrive", async () => {
     const generatedFilesApi = createGeneratedFilesApi();
     const selectedCanvasElements = [
@@ -548,6 +601,52 @@ describe("ChatSidebar", () => {
       const recordItem = screen.getByTestId("chat-sidebar-record-item");
       expect(within(recordItem).getAllByText("已生成 1 个文件")).toHaveLength(2);
     });
+  });
+
+  it("shows a locate failure toast when a record can no longer be mapped back to a canvas node", async () => {
+    const generatedFilesApi = createGeneratedFilesApi();
+    const onLocateCanvasElement = vi.fn(() => false);
+    const selectedCanvasElements = [
+      {
+        id: "image-1",
+        type: "image" as const,
+        x: 0,
+        y: 0,
+        width: 640,
+        height: 480,
+        fileId: "file-1",
+        storageUrl: "https://example.com/reference-1.png",
+      },
+    ];
+
+    render(
+      <ChatSidebar
+        accessToken="token_abc"
+        architectureContext={architectureContext as any}
+        canvasId="canvas-1"
+        immersive
+        open
+        onToggle={() => {}}
+        onLocateCanvasElement={onLocateCanvasElement}
+        selectedCanvasElements={selectedCanvasElements}
+        generatedFilesApi={generatedFilesApi}
+        ws={mockWs}
+      />,
+    );
+
+    const input = await screen.findByLabelText("\u8f93\u5165\u6d88\u606f");
+    await userEvent.type(input, "locate record prompt{Enter}");
+
+    await waitFor(() => expect(mockWs.startRun).toHaveBeenCalled());
+
+    const locateButton = await screen.findByRole("button", {
+      name: LOCATE_TO_CANVAS_LABEL,
+    });
+
+    await userEvent.click(locateButton);
+
+    expect(onLocateCanvasElement).toHaveBeenCalledWith("image-1");
+    expect(toastMock).toHaveBeenCalledWith(LOCATE_FAILURE_MESSAGE, "error");
   });
 
   it("keeps the collapsed immersive composer reactive to attach-selection commands", async () => {
@@ -727,8 +826,14 @@ describe("ChatSidebar", () => {
 
     expect(screen.getByAltText("画布参考图 1")).toBeInTheDocument();
 
+    expect(
+      screen.getByRole("button", { name: "将参考图 1 向前移动" }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "将参考图 1 向后移动" }),
+    ).toBeDisabled();
     await userEvent.click(
-      screen.getByRole("button", { name: "移除附件 1" }),
+      screen.getByRole("button", { name: "移除参考图 1" }),
     );
 
     expect(screen.queryByAltText("画布参考图 1")).not.toBeInTheDocument();
@@ -1022,6 +1127,50 @@ describe("ChatSidebar", () => {
       ),
     ).toBeInTheDocument();
     expect(onComposerCommandHandled).toHaveBeenCalledWith("command-template-1");
+  });
+
+  it("keeps selected canvas refs pending when an external draft is injected without explicit attach-selection", async () => {
+    const onComposerCommandHandled = vi.fn();
+
+    render(
+      <ChatSidebar
+        accessToken="token_abc"
+        architectureContext={architectureContext as any}
+        canvasId="canvas-1"
+        composerCommand={{
+          id: "command-template-pending-1",
+          type: "apply-template",
+          prompt: "请基于当前参考图整理一版立面深化方向。",
+          attachSelection: false,
+        }}
+        onComposerCommandHandled={onComposerCommandHandled}
+        immersive
+        open
+        onToggle={() => {}}
+        selectedCanvasElements={[
+          {
+            id: "image-1",
+            type: "image",
+            x: 0,
+            y: 0,
+            width: 640,
+            height: 480,
+            fileId: "file-1",
+            storageUrl: "https://example.com/reference-1.png",
+          },
+        ]}
+        ws={mockWs}
+      />,
+    );
+
+    expect(
+      await screen.findByDisplayValue("请基于当前参考图整理一版立面深化方向。"),
+    ).toBeInTheDocument();
+    expect(screen.getByAltText("参考图 1")).toBeInTheDocument();
+    expect(screen.queryByAltText("画布参考图 1")).not.toBeInTheDocument();
+    expect(onComposerCommandHandled).toHaveBeenCalledWith(
+      "command-template-pending-1",
+    );
   });
 
   it("shows architecture-specific quick actions in the empty state", async () => {
