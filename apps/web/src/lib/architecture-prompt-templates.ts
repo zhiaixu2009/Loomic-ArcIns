@@ -8,6 +8,14 @@ export type ArchitecturePromptTemplate = {
   label: string;
   prompt: string;
   recommendedImageModelId?: string;
+  coverImageUrl?: string;
+  outputImageUrl?: string | null;
+  previewImageUrls?: string[];
+  referenceImageUrls?: string[];
+  topCategoryKey?: string;
+  topCategoryLabel?: string;
+  leafCategoryKey?: string;
+  leafCategoryLabel?: string;
 };
 
 export type ArchitecturePromptTemplateCategory = {

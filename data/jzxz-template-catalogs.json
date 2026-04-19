@@ -1,0 +1,156 @@
+[
+  {
+    "name": "效果渲染",
+    "catalogId": "xiaoguoxuanran-n7bd",
+    "position": 1,
+    "children": [
+      { "name": "建筑渲染", "catalogId": "jianzhuxuanran-aibm", "position": 1 },
+      { "name": "室内渲染", "catalogId": "shineixuanran-re7h", "position": 2 },
+      { "name": "景观渲染", "catalogId": "jingguanxuanran-nn83", "position": 3 },
+      { "name": "规划渲染", "catalogId": "guihuaxuanran-f82h", "position": 4 }
+    ]
+  },
+  {
+    "name": "总平填色",
+    "catalogId": "zongpingtianse-ztpz",
+    "position": 2,
+    "children": [
+      { "name": "建筑总平填色", "catalogId": "jianzhuzongpingtianse-6a7c", "position": 1 },
+      { "name": "景观总平填色", "catalogId": "jingguanzongpingtianse-3hmt", "position": 2 },
+      { "name": "规划总平填色", "catalogId": "guihuazongpingtianse-jwaa", "position": 3 }
+    ]
+  },
+  {
+    "name": "户型填色 ",
+    "catalogId": "huxingtianse-z4fa",
+    "position": 3,
+    "children": [
+      { "name": "家装平面", "catalogId": "jiazhuangpingmian-hphx", "position": 1 },
+      { "name": "公装平面", "catalogId": "gongzhuangpingmian-casj", "position": 2 }
+    ]
+  },
+  {
+    "name": "风格迁移",
+    "catalogId": "limianqianyi-fpnr",
+    "position": 4,
+    "children": [
+      { "name": "建筑立面迁移", "catalogId": "limianqianyi-4znd", "position": 1 },
+      { "name": "建筑氛围迁移", "catalogId": "fenweiqianyi-jsaa", "position": 2 },
+      { "name": "室内元素迁移", "catalogId": "shineiyuansuqianyi-ch38", "position": 3 },
+      { "name": "平面风格迁移", "catalogId": "pingmianqianyi-r7s8", "position": 4 }
+    ]
+  },
+  {
+    "name": "剖立面",
+    "catalogId": "poulimian-6a7z",
+    "position": 5,
+    "children": [
+      { "name": "立面", "catalogId": "limian-t2d3", "position": 1 },
+      { "name": "剖面", "catalogId": "poumian-8xkj", "position": 2 },
+      { "name": "剖透视", "catalogId": "poutoushi-fyrs", "position": 3 }
+    ]
+  },
+  {
+    "name": "分析图",
+    "catalogId": "fenxitu-njti",
+    "position": 6,
+    "children": [
+      { "name": "场地分析图", "catalogId": "changdifenxitu-y68r", "position": 1 },
+      { "name": "建筑分析图", "catalogId": "jianzhufenxitu-heam", "position": 2 },
+      { "name": "室内分析图", "catalogId": "shineifenxitu-fzhx", "position": 3 },
+      { "name": "景观分析图", "catalogId": "jingguanfenxitu-nfs8", "position": 4 },
+      { "name": "规划分析图", "catalogId": "guihuafenxi-e33w", "position": 5 }
+    ]
+  },
+  {
+    "name": "展板生成",
+    "catalogId": "zhanbansheji-pw8f",
+    "position": 7,
+    "children": [
+      { "name": "建筑展板生成", "catalogId": "jianzhuzhanbanshengcheng-4kc2", "position": 1 },
+      { "name": "室内展板生成", "catalogId": "shineizhanbanshengcheng-58sm", "position": 2 },
+      { "name": "景观展板生成", "catalogId": "jingguanzhanbanshengcheng-wnmn", "position": 3 },
+      { "name": "规划展板生成", "catalogId": "guihuazhanbanshengcheng-n2rw", "position": 4 }
+    ]
+  },
+  {
+    "name": "灵感方案",
+    "catalogId": "lingganshengcheng-nxct",
+    "position": 8,
+    "children": [
+      { "name": "建筑设计灵感", "catalogId": "jianzhushejilingganzhanban-encn", "position": 1 },
+      { "name": "建筑立面灵感", "catalogId": "limianshejilingganzhanban-dps8", "position": 2 },
+      { "name": "家居设计灵感", "catalogId": "jiajushejilingganzhanban-adh4", "position": 3 },
+      { "name": "室内设计灵感", "catalogId": "shineishejilingganzhanban-ate5", "position": 4 },
+      { "name": "景观设计灵感", "catalogId": "jingguanshejilingganzhanban-wh3h", "position": 5 }
+    ]
+  },
+  {
+    "name": "氛围转换",
+    "catalogId": "fenweizhuanhuan-a2yn",
+    "position": 9,
+    "children": [
+      { "name": "光影转换", "catalogId": "guangyingzhuanhuan-ni8m", "position": 1 },
+      { "name": "色调转换", "catalogId": "sediaozhuanhuan-bjan", "position": 2 },
+      { "name": "时间转换", "catalogId": "shijianzhuanhuan-dske", "position": 3 },
+      { "name": "四季转换", "catalogId": "sijizhuanhuan-cb5e", "position": 4 },
+      { "name": "天气转换", "catalogId": "tianqizhuanhuan-dxt8", "position": 5 }
+    ]
+  },
+  {
+    "name": "画风转换",
+    "catalogId": "huafengzhuanhuan-sxz6",
+    "position": 10,
+    "children": [
+      { "name": "插画风格", "catalogId": "chahuafengge-chx5", "position": 1 },
+      { "name": "拼贴风格", "catalogId": "pintiefengge-4w8x", "position": 2 },
+      { "name": "线稿风格", "catalogId": "xiangaofengge-dkad", "position": 3 },
+      { "name": "白模风格", "catalogId": "baimofengge-7hw4", "position": 4 },
+      { "name": "模型风格", "catalogId": "moxingfengge-8tnf", "position": 5 },
+      { "name": "竞赛风格", "catalogId": "jingsaifengge-sfpx", "position": 6 }
+    ]
+  },
+  {
+    "name": "视角转换",
+    "catalogId": "shijiaozhuanhuan-cjif",
+    "position": 11,
+    "children": [
+      { "name": "平面鸟瞰互转", "catalogId": "pingmianniaokanhuzhuan-jh3b", "position": 1 },
+      { "name": "透视视角", "catalogId": "toushishijiao-7f28", "position": 2 },
+      { "name": "家装平面转三维", "catalogId": "jiazhuangpingmianzhuansanwei-38xs", "position": 3 },
+      { "name": "三视图", "catalogId": "sanshitu-abbi", "position": 4 },
+      { "name": "轴测图", "catalogId": "zhoucetu-6ab6", "position": 5 }
+    ]
+  },
+  {
+    "name": "方案设计",
+    "catalogId": "changdisheji-5k3f",
+    "position": 12,
+    "children": [
+      { "name": "建筑方案", "catalogId": "jianzhufangan-c4c2", "position": 1 },
+      { "name": "景观方案", "catalogId": "jingguanfangan-mzjm", "position": 2 },
+      { "name": "规划方案", "catalogId": "guihuafangan-df7z", "position": 3 },
+      { "name": "室内方案", "catalogId": "shineifangan-rins", "position": 4 }
+    ]
+  },
+  {
+    "name": "旧房改造",
+    "catalogId": "jiufanggaizao-fd8c",
+    "position": 13
+  },
+  {
+    "name": "室内装修",
+    "catalogId": "shineizhuangxiu-jw4w",
+    "position": 14
+  },
+  {
+    "name": "局部修改",
+    "catalogId": "jubuxiugai-574f",
+    "position": 15
+  },
+  {
+    "name": "分镜图",
+    "catalogId": "fenjingtu-j453",
+    "position": 16
+  }
+]

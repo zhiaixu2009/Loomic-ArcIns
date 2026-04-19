@@ -10,13 +10,100 @@ import type { ImageModelPreference } from "../src/hooks/use-image-model-preferen
 const {
   imageModelPreferenceState,
   setImageModelPreferenceMock,
+  toggleFavoriteMock,
 } = vi.hoisted(() => ({
   imageModelPreferenceState: {
     mode: "auto",
     models: [],
   } as ImageModelPreference,
   setImageModelPreferenceMock: vi.fn(),
+  toggleFavoriteMock: vi.fn(),
 }));
+
+const officialLibraryFixture = {
+  topCategories: [
+    {
+      key: "render",
+      name: "效果渲染",
+      sortOrder: 1,
+      templateCount: 2,
+      children: [
+        {
+          key: "building-render",
+          name: "建筑渲染",
+          sortOrder: 1,
+          templateCount: 1,
+        },
+        {
+          key: "interior-render",
+          name: "室内渲染",
+          sortOrder: 2,
+          templateCount: 1,
+        },
+      ],
+    },
+    {
+      key: "old-house",
+      name: "旧房改造",
+      sortOrder: 2,
+      templateCount: 1,
+      children: [],
+    },
+  ],
+  templates: [
+    {
+      id: "render-day",
+      title: "建筑晴天渲染",
+      promptText: "请基于当前建筑方案生成晴天写实效果图。",
+      coverImageUrl: "https://example.com/render-day-cover.png",
+      outputImageUrl: "https://example.com/render-day-output.png",
+      previewImageUrls: [
+        "https://example.com/render-day-cover.png",
+        "https://example.com/render-day-output.png",
+      ],
+      referenceImageUrls: ["https://example.com/render-day-reference.png"],
+      topCategoryKey: "render",
+      topCategoryName: "效果渲染",
+      leafCategoryKey: "building-render",
+      leafCategoryName: "建筑渲染",
+      sortOrder: 1,
+    },
+    {
+      id: "render-interior",
+      title: "室内黄昏渲染",
+      promptText: "请基于当前室内空间生成黄昏氛围效果图。",
+      coverImageUrl: "https://example.com/render-interior-cover.png",
+      outputImageUrl: "https://example.com/render-interior-output.png",
+      previewImageUrls: [
+        "https://example.com/render-interior-cover.png",
+        "https://example.com/render-interior-output.png",
+      ],
+      referenceImageUrls: ["https://example.com/render-interior-reference.png"],
+      topCategoryKey: "render",
+      topCategoryName: "效果渲染",
+      leafCategoryKey: "interior-render",
+      leafCategoryName: "室内渲染",
+      sortOrder: 2,
+    },
+    {
+      id: "old-house-facade",
+      title: "旧房立面改造",
+      promptText: "请基于当前旧房照片生成建筑立面改造方案。",
+      coverImageUrl: "https://example.com/old-house-cover.png",
+      outputImageUrl: "https://example.com/old-house-output.png",
+      previewImageUrls: [
+        "https://example.com/old-house-cover.png",
+        "https://example.com/old-house-output.png",
+      ],
+      referenceImageUrls: ["https://example.com/old-house-reference.png"],
+      topCategoryKey: "old-house",
+      topCategoryName: "旧房改造",
+      leafCategoryKey: "old-house",
+      leafCategoryName: "旧房改造",
+      sortOrder: 1,
+    },
+  ],
+};
 
 vi.mock("../src/hooks/use-image-model-preference", () => ({
   useImageModelPreference: () => ({
@@ -41,6 +128,20 @@ vi.mock("../src/components/agent-model-selector", () => ({
 
 vi.mock("../src/components/image-model-preference", () => ({
   ImageModelPreferencePopover: () => null,
+}));
+
+vi.mock("../src/hooks/use-official-prompt-template-library", () => ({
+  useOfficialPromptTemplateLibrary: () => ({
+    status: "ready",
+    library: officialLibraryFixture,
+    favoriteTemplateIds: new Set(["old-house-facade"]),
+    favoritePendingIds: new Set(),
+    isAuthenticated: true,
+    authLoading: false,
+    error: null,
+    refresh: vi.fn(),
+    toggleFavorite: toggleFavoriteMock,
+  }),
 }));
 
 afterEach(() => {
@@ -79,59 +180,48 @@ describe("HomePrompt", () => {
     ).toBeInTheDocument();
   });
 
-  it("renders the home template menu as an architecture browser without generic wrappers", async () => {
+  it("renders the home template menu from the shared official template browser", async () => {
     render(<HomePrompt onSubmit={vi.fn()} />);
 
     await userEvent.click(screen.getByRole("button", { name: "模板" }));
 
     const menu = screen.getByTestId("home-prompt-template-menu");
-    const grid = within(menu).getByTestId("template-browser-item-grid");
+    const grid = within(menu).getByTestId("template-browser-card-grid");
 
-    expect(within(menu).getByPlaceholderText("搜索")).toBeInTheDocument();
+    expect(within(menu).getByPlaceholderText("搜索模板")).toBeInTheDocument();
     expect(
-      within(menu).getByTestId("template-browser-category-list"),
+      within(menu).getByTestId("template-browser-top-category-list"),
     ).toBeInTheDocument();
-    expect(
-      within(menu).queryByRole("button", { name: "全部" }),
-    ).not.toBeInTheDocument();
-    expect(
-      within(menu).queryByRole("button", { name: "热度" }),
-    ).not.toBeInTheDocument();
-    expect(
-      within(menu).queryByRole("button", { name: "最新" }),
-    ).not.toBeInTheDocument();
     expect(within(menu).getByRole("button", { name: "效果渲染" })).toBeInTheDocument();
-    expect(within(menu).getByRole("button", { name: "总平填色" })).toBeInTheDocument();
+    expect(within(menu).getByRole("button", { name: "旧房改造" })).toBeInTheDocument();
     expect(
       within(grid).getByRole("button", { name: "建筑晴天渲染" }),
     ).toBeInTheDocument();
     expect(
-      within(grid).queryByRole("button", { name: "建筑平面清新填色" }),
+      within(grid).queryByRole("button", { name: "旧房立面改造" }),
     ).not.toBeInTheDocument();
 
-    await userEvent.click(within(menu).getByRole("button", { name: "总平填色" }));
+    await userEvent.click(within(menu).getByRole("button", { name: "旧房改造" }));
 
     expect(
-      within(grid).getByRole("button", { name: "建筑平面清新填色" }),
+      within(grid).getByRole("button", { name: "旧房立面改造" }),
     ).toBeInTheDocument();
     expect(
       within(grid).queryByRole("button", { name: "建筑晴天渲染" }),
     ).not.toBeInTheDocument();
   });
 
-  it("filters the home template browser through the live-style search input", async () => {
+  it("filters the home template browser through the shared search input", async () => {
     render(<HomePrompt onSubmit={vi.fn()} />);
 
     await userEvent.click(screen.getByRole("button", { name: "模板" }));
 
     const menu = screen.getByTestId("home-prompt-template-menu");
-    const grid = within(menu).getByTestId("template-browser-item-grid");
-
-    await userEvent.click(within(menu).getByRole("button", { name: "分析图" }));
-    await userEvent.type(within(menu).getByPlaceholderText("搜索"), "基地");
+    const grid = within(menu).getByTestId("template-browser-card-grid");
+    await userEvent.type(within(menu).getByPlaceholderText("搜索模板"), "旧房");
 
     expect(
-      within(grid).getByRole("button", { name: "基地现状分析" }),
+      within(grid).getByRole("button", { name: "旧房立面改造" }),
     ).toBeInTheDocument();
     expect(
       within(grid).queryByRole("button", { name: "建筑晴天渲染" }),
@@ -145,13 +235,15 @@ describe("HomePrompt", () => {
     render(<HomePrompt onSubmit={vi.fn()} />);
 
     await userEvent.click(screen.getByRole("button", { name: "模板" }));
-    await userEvent.click(screen.getByRole("button", { name: "分析图" }));
-    await userEvent.click(screen.getByRole("button", { name: "基地现状分析" }));
+    const menu = screen.getByTestId("home-prompt-template-menu");
+    await userEvent.type(within(menu).getByPlaceholderText("搜索模板"), "旧房");
+    await userEvent.click(within(menu).getByRole("button", { name: "旧房立面改造" }));
+    await userEvent.click(within(menu).getByRole("button", { name: "使用模板" }));
 
     expect(
       screen.getByPlaceholderText("添加图片输入文案开始创作之旅..."),
     ).toHaveValue(
-      "请基于当前场地现状资料，整理基地边界、周边关系、交通动线、视线资源与场地限制，输出一份可直接进入无限画布的现状分析提示。",
+      "请基于当前旧房照片生成建筑立面改造方案。",
     );
     expect(setImageModelPreferenceMock).toHaveBeenCalledWith({
       mode: "manual",

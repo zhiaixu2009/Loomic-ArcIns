@@ -2,14 +2,14 @@
 
 import { LayoutTemplate } from "lucide-react";
 import { createPortal } from "react-dom";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { useImageOutputPreference } from "../hooks/use-image-output-preference";
+import { useOfficialPromptTemplateLibrary } from "../hooks/use-official-prompt-template-library";
 import type { ArchitecturePromptTemplateSuggestion } from "../lib/architecture-prompt-templates";
 import { AgentModelSelector } from "./agent-model-selector";
 import {
   PromptTemplateBrowser,
-  type PromptTemplateBrowserCategory,
   type PromptTemplateBrowserLayout,
 } from "./prompt-template-browser";
 
@@ -51,7 +51,12 @@ function clamp(value: number, min: number, max: number) {
 
 function getPresetConfig(preset: ArchitectureChatControlsPreset): {
   outputWidth: number;
-  templateWidth: number;
+  templateMinWidth: number;
+  templateMaxWidth: number;
+  templateWidthRatio: number;
+  templateMinHeight: number;
+  templateMaxHeight: number;
+  templateViewportOffset: number;
   preferredPlacement: "above" | "below";
   align: "left" | "center" | "right";
   browserLayout: PromptTemplateBrowserLayout;
@@ -60,7 +65,12 @@ function getPresetConfig(preset: ArchitectureChatControlsPreset): {
     case "canvas":
       return {
         outputWidth: 332,
-        templateWidth: 720,
+        templateMinWidth: 820,
+        templateMaxWidth: 1080,
+        templateWidthRatio: 0.76,
+        templateMinHeight: 520,
+        templateMaxHeight: 700,
+        templateViewportOffset: 64,
         preferredPlacement: "above",
         align: "center",
         browserLayout: "comfortable",
@@ -68,21 +78,64 @@ function getPresetConfig(preset: ArchitectureChatControlsPreset): {
     case "sidebar":
       return {
         outputWidth: 300,
-        templateWidth: 430,
+        templateMinWidth: 760,
+        templateMaxWidth: 980,
+        templateWidthRatio: 0.72,
+        templateMinHeight: 500,
+        templateMaxHeight: 640,
+        templateViewportOffset: 72,
         preferredPlacement: "above",
-        align: "left",
+        align: "right",
         browserLayout: "compact",
       };
     case "home":
     default:
       return {
         outputWidth: 332,
-        templateWidth: 760,
+        templateMinWidth: 820,
+        templateMaxWidth: 1120,
+        templateWidthRatio: 0.78,
+        templateMinHeight: 520,
+        templateMaxHeight: 700,
+        templateViewportOffset: 56,
         preferredPlacement: "below",
         align: "left",
         browserLayout: "comfortable",
       };
   }
+}
+
+function resolveResponsivePopoverSize(
+  viewportWidth: number,
+  viewportHeight: number,
+  options: {
+    minWidth: number;
+    maxWidth: number;
+    widthRatio: number;
+    minHeight: number;
+    maxHeight: number;
+    viewportOffset: number;
+  },
+) {
+  const maxAvailableWidth = Math.max(360, viewportWidth - VIEWPORT_PADDING * 2);
+  const widthUpperBound = Math.min(options.maxWidth, maxAvailableWidth);
+  const widthLowerBound = Math.min(options.minWidth, widthUpperBound);
+  const maxAvailableHeight = Math.max(420, viewportHeight - VIEWPORT_PADDING * 2);
+  const heightUpperBound = Math.min(options.maxHeight, maxAvailableHeight);
+  const heightLowerBound = Math.min(options.minHeight, heightUpperBound);
+
+  return {
+    width: clamp(
+      Math.round(viewportWidth * options.widthRatio),
+      widthLowerBound,
+      widthUpperBound,
+    ),
+    height: clamp(
+      viewportHeight - options.viewportOffset,
+      heightLowerBound,
+      heightUpperBound,
+    ),
+  };
 }
 
 function formatAspectRatioLabel(value: (typeof IMAGE_ASPECT_RATIO_OPTIONS)[number]) {
@@ -132,14 +185,22 @@ function computePopoverPosition(
 
 export function ArchitectureChatControls({
   preset,
-  templateSuggestions = [],
+  templateSuggestions: _templateSuggestions,
   onApplyTemplate,
   className,
   outputMenuTestId,
   templateMenuTestId,
 }: ArchitectureChatControlsProps) {
-  const { preference, setAspectRatio, setResolution } =
-    useImageOutputPreference();
+  const { preference, setAspectRatio, setResolution } = useImageOutputPreference();
+  const {
+    status,
+    library,
+    favoriteTemplateIds,
+    favoritePendingIds,
+    error,
+    refresh,
+    toggleFavorite,
+  } = useOfficialPromptTemplateLibrary();
   const outputButtonRef = useRef<HTMLButtonElement>(null);
   const outputMenuRef = useRef<HTMLDivElement>(null);
   const templateButtonRef = useRef<HTMLButtonElement>(null);
@@ -150,43 +211,12 @@ export function ArchitectureChatControls({
     useState<PopoverPosition | null>(null);
   const [templateMenuPosition, setTemplateMenuPosition] =
     useState<PopoverPosition | null>(null);
+  const [templateMenuMaxHeightPx, setTemplateMenuMaxHeightPx] = useState<number | null>(
+    null,
+  );
   const presetConfig = getPresetConfig(preset);
 
   const outputLabel = `${formatAspectRatioLabel(preference.aspectRatio)} | ${preference.resolution}`;
-  const hasTemplates = templateSuggestions.length > 0;
-
-  const templateCategories = useMemo<PromptTemplateBrowserCategory[]>(() => {
-    const grouped = new Map<string, PromptTemplateBrowserCategory>();
-
-    templateSuggestions.forEach((template) => {
-      const categoryId = template.categoryId ?? "architecture";
-      const categoryLabel = template.categoryLabel ?? "建筑模板";
-      const category = grouped.get(categoryId);
-      const item = {
-        id: template.id,
-        label: template.label,
-        keywords: [categoryLabel, template.prompt],
-        onSelect: () => {
-          onApplyTemplate(template);
-          setTemplateMenuOpen(false);
-        },
-      };
-
-      if (category) {
-        category.items.push(item);
-        return;
-      }
-
-      grouped.set(categoryId, {
-        id: categoryId,
-        label: categoryLabel,
-        showChevron: true,
-        items: [item],
-      });
-    });
-
-    return Array.from(grouped.values());
-  }, [onApplyTemplate, templateSuggestions]);
 
   const updateOutputMenuPosition = useCallback(() => {
     if (!outputButtonRef.current) {
@@ -208,24 +238,37 @@ export function ArchitectureChatControls({
       return;
     }
 
+    const templateMenuSize = resolveResponsivePopoverSize(
+      window.innerWidth,
+      window.innerHeight,
+      {
+        minWidth: presetConfig.templateMinWidth,
+        maxWidth: presetConfig.templateMaxWidth,
+        widthRatio: presetConfig.templateWidthRatio,
+        minHeight: presetConfig.templateMinHeight,
+        maxHeight: presetConfig.templateMaxHeight,
+        viewportOffset: presetConfig.templateViewportOffset,
+      },
+    );
+
+    setTemplateMenuMaxHeightPx(templateMenuSize.height);
     setTemplateMenuPosition(
       computePopoverPosition(templateButtonRef.current.getBoundingClientRect(), {
         preferredPlacement: presetConfig.preferredPlacement,
-        align:
-          preset === "canvas"
-            ? "center"
-            : preset === "sidebar"
-              ? "left"
-              : "left",
-        width: presetConfig.templateWidth,
-        estimatedHeight: presetConfig.browserLayout === "compact" ? 360 : 420,
+        align: presetConfig.align,
+        width: templateMenuSize.width,
+        estimatedHeight: templateMenuSize.height,
       }),
     );
   }, [
-    preset,
-    presetConfig.browserLayout,
+    presetConfig.align,
+    presetConfig.templateMaxHeight,
+    presetConfig.templateMaxWidth,
+    presetConfig.templateMinHeight,
+    presetConfig.templateMinWidth,
     presetConfig.preferredPlacement,
-    presetConfig.templateWidth,
+    presetConfig.templateViewportOffset,
+    presetConfig.templateWidthRatio,
   ]);
 
   useEffect(() => {
@@ -248,6 +291,7 @@ export function ArchitectureChatControls({
   useEffect(() => {
     if (!templateMenuOpen) {
       setTemplateMenuPosition(null);
+      setTemplateMenuMaxHeightPx(null);
       return;
     }
 
@@ -322,26 +366,24 @@ export function ArchitectureChatControls({
           {outputLabel}
         </button>
 
-        {hasTemplates ? (
-          <button
-            ref={templateButtonRef}
-            type="button"
-            aria-label="模板"
-            title="模板"
-            onClick={() => {
-              setTemplateMenuOpen((previous) => !previous);
-              setOutputMenuOpen(false);
-            }}
-            className={`inline-flex h-8 items-center justify-center gap-1.5 rounded-full border px-3 text-[11px] font-medium text-slate-700 transition-colors ${
-              templateMenuOpen
-                ? "border-slate-300 bg-slate-100 text-slate-900"
-                : "border-slate-200 bg-white hover:bg-slate-50 hover:text-slate-900"
-            }`}
-          >
-            <LayoutTemplate className="h-3.5 w-3.5" />
-            <span>模板</span>
-          </button>
-        ) : null}
+        <button
+          ref={templateButtonRef}
+          type="button"
+          aria-label="模板"
+          title="模板"
+          onClick={() => {
+            setTemplateMenuOpen((previous) => !previous);
+            setOutputMenuOpen(false);
+          }}
+          className={`inline-flex h-8 items-center justify-center gap-1.5 rounded-full border px-3 text-[11px] font-medium text-slate-700 transition-colors ${
+            templateMenuOpen
+              ? "border-slate-300 bg-slate-100 text-slate-900"
+              : "border-slate-200 bg-white hover:bg-slate-50 hover:text-slate-900"
+          }`}
+        >
+          <LayoutTemplate className="h-3.5 w-3.5" />
+          <span>模板</span>
+        </button>
       </div>
 
       {outputMenuOpen && outputMenuPosition
@@ -349,7 +391,7 @@ export function ArchitectureChatControls({
             <div
               ref={outputMenuRef}
               data-testid={outputMenuTestId}
-              className="fixed z-[120] rounded-[24px] border border-slate-200 bg-white p-3 shadow-[0_24px_64px_rgba(15,23,42,0.12)]"
+              className="fixed z-[120] rounded-[10px] border border-slate-200 bg-white p-3 shadow-[0_20px_56px_rgba(15,23,42,0.12)]"
               style={{
                 left: outputMenuPosition.left,
                 top: outputMenuPosition.top,
@@ -373,7 +415,7 @@ export function ArchitectureChatControls({
                         key={option}
                         type="button"
                         onClick={() => setAspectRatio(option)}
-                        className={`inline-flex items-center rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+                        className={`inline-flex items-center rounded-[8px] border px-3 py-1.5 text-xs font-medium transition-colors ${
                           selected
                             ? "border-slate-300 bg-slate-100 text-slate-900"
                             : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:text-slate-900"
@@ -388,7 +430,7 @@ export function ArchitectureChatControls({
 
               <div>
                 <div className="mb-2 px-1 text-[11px] font-medium text-slate-500">
-                  输出清晰度
+                  输出分辨率
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {IMAGE_RESOLUTION_OPTIONS.map((option) => {
@@ -399,7 +441,7 @@ export function ArchitectureChatControls({
                         key={option}
                         type="button"
                         onClick={() => setResolution(option)}
-                        className={`inline-flex items-center rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+                        className={`inline-flex items-center rounded-[8px] border px-3 py-1.5 text-xs font-medium transition-colors ${
                           selected
                             ? "border-slate-300 bg-slate-100 text-slate-900"
                             : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:text-slate-900"
@@ -419,11 +461,10 @@ export function ArchitectureChatControls({
           )
         : null}
 
-      {templateMenuOpen && templateMenuPosition && hasTemplates
+      {templateMenuOpen && templateMenuPosition
         ? createPortal(
             <div
               ref={templateMenuRef}
-              data-testid={templateMenuTestId}
               className="fixed z-[120]"
               style={{
                 left: templateMenuPosition.left,
@@ -436,8 +477,22 @@ export function ArchitectureChatControls({
               }}
             >
               <PromptTemplateBrowser
-                categories={templateCategories}
+                status={status}
+                library={library}
+                error={error}
+                favoriteTemplateIds={favoriteTemplateIds}
+                favoritePendingIds={favoritePendingIds}
+                onToggleFavorite={toggleFavorite}
+                onRetry={refresh}
                 layout={presetConfig.browserLayout}
+                {...(templateMenuMaxHeightPx !== null
+                  ? { maxHeightPx: templateMenuMaxHeightPx }
+                  : {})}
+                {...(templateMenuTestId ? { dataTestId: templateMenuTestId } : {})}
+                onApplyTemplate={(template) => {
+                  onApplyTemplate(template);
+                  setTemplateMenuOpen(false);
+                }}
               />
             </div>,
             document.body,
