@@ -12,12 +12,16 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ChatInput } from "../src/components/chat-input";
+import type { ImageModelPreference } from "../src/hooks/use-image-model-preference";
 
 const {
   imageModelPreferenceState,
   setImageModelPreferenceMock,
 } = vi.hoisted(() => ({
-  imageModelPreferenceState: { mode: "auto" as const, models: [] as string[] },
+  imageModelPreferenceState: {
+    mode: "auto",
+    models: [],
+  } as ImageModelPreference,
   setImageModelPreferenceMock: vi.fn(),
 }));
 
@@ -408,7 +412,7 @@ describe("ChatInput", () => {
     expect(screen.getByAltText("画布参考图")).toBeInTheDocument();
   });
 
-  it("uses the architecture control strip in immersive mode and exposes template actions from the bottom bar", async () => {
+  it("uses the shared architecture control strip in immersive mode and exposes template actions from the bottom bar", async () => {
     imageModelPreferenceState.mode = "manual";
     imageModelPreferenceState.models = ["google/nano-banana-2"];
 
@@ -431,13 +435,16 @@ describe("ChatInput", () => {
       "Banana Pro",
     );
     expect(
-      screen.getByRole("button", { name: "自动 / 2K" }),
+      screen.getByRole("button", { name: "自动 | 1K" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "模版" }),
+      screen.getByRole("button", { name: "模板" }),
     ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "自动 / 2K" }),
+    ).not.toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole("button", { name: "模版" }));
+    await userEvent.click(screen.getByRole("button", { name: "模板" }));
 
     expect(
       screen.getByRole("button", { name: "保留视角深化立面" }),
@@ -601,7 +608,7 @@ describe("ChatInput", () => {
   it("opens an aspect-ratio menu from the merged immersive output button and keeps the selected ratio label", async () => {
     render(<ChatInput immersiveArchitecture onSend={vi.fn()} />);
 
-    await userEvent.click(screen.getByRole("button", { name: "自动 / 2K" }));
+    await userEvent.click(screen.getByRole("button", { name: "自动 | 1K" }));
 
     expect(screen.getByRole("button", { name: "16:9" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "4:3" })).toBeInTheDocument();
@@ -609,25 +616,26 @@ describe("ChatInput", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "16:9" }));
 
-    expect(screen.getByRole("button", { name: "16:9 / 2K" })).toBeInTheDocument();
-    expect(screen.queryByText("自动 / 2K")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "16:9 | 1K" })).toBeInTheDocument();
+    expect(screen.queryByText("自动 | 1K")).not.toBeInTheDocument();
   });
 
   it("opens a resolution menu from the merged immersive output button and keeps the selected resolution label", async () => {
     render(<ChatInput immersiveArchitecture onSend={vi.fn()} />);
 
-    await userEvent.click(screen.getByRole("button", { name: "自动 / 2K" }));
+    await userEvent.click(screen.getByRole("button", { name: "自动 | 1K" }));
 
+    expect(screen.getByRole("button", { name: "1K" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "2K" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "4K" })).toBeInTheDocument();
     expect(
-      screen.getByText("高分辨率实际生成受账号权限影响"),
+      screen.getByText(/高分辨率实际生成受账号权限影响/),
     ).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: "4K" }));
 
-    expect(screen.getByRole("button", { name: "自动 / 4K" })).toBeInTheDocument();
-    expect(screen.queryByText("自动 / 2K")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "自动 | 4K" })).toBeInTheDocument();
+    expect(screen.queryByText("自动 | 1K")).not.toBeInTheDocument();
   });
 
   it("renders the immersive template menu as category-to-item hierarchy instead of a flat list", async () => {
@@ -656,7 +664,7 @@ describe("ChatInput", () => {
       />,
     );
 
-    await userEvent.click(screen.getByRole("button", { name: "模版" }));
+    await userEvent.click(screen.getByRole("button", { name: "模板" }));
 
     expect(
       screen.getByRole("button", { name: "效果渲染" }),
@@ -698,7 +706,7 @@ describe("ChatInput", () => {
         const ariaLabel = this.getAttribute("aria-label");
         const testId = this.getAttribute("data-testid");
 
-        if (ariaLabel === "模版") {
+        if (ariaLabel === "模板") {
           return {
             x: 760,
             y: 820,
@@ -712,14 +720,14 @@ describe("ChatInput", () => {
           } as DOMRect;
         }
 
-        if (testId === "chat-input-template-menu-portal") {
+        if (testId === "chat-input-template-menu") {
           return {
             x: 0,
             y: 0,
-            width: 620,
+            width: 430,
             height: 248,
             top: 0,
-            right: 620,
+            right: 430,
             bottom: 248,
             left: 0,
             toJSON: () => ({}),
@@ -757,10 +765,10 @@ describe("ChatInput", () => {
         />,
       );
 
-      await userEvent.click(screen.getByRole("button", { name: "模版" }));
+      await userEvent.click(screen.getByRole("button", { name: "模板" }));
 
       await waitFor(() => {
-        const portal = screen.getByTestId("chat-input-template-menu-portal");
+        const portal = screen.getByTestId("chat-input-template-menu");
         expect(portal.style.top).toBe("808px");
         expect(portal.style.transform).toBe("translateY(-100%)");
       });

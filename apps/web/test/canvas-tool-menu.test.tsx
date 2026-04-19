@@ -69,6 +69,21 @@ function createMockExcalidrawApi() {
   };
 }
 
+type MockExcalidrawApi = ReturnType<typeof createMockExcalidrawApi>;
+
+function getRegisteredOnChange(api: MockExcalidrawApi) {
+  const onChangeRegistration = api.onChange.mock.calls.at(0);
+  expect(onChangeRegistration).toBeDefined();
+  const [onChange] = onChangeRegistration as unknown as [
+    (
+      elements: Record<string, unknown>[],
+      appState: Record<string, unknown>,
+    ) => void,
+  ];
+  expect(onChange).toBeTypeOf("function");
+  return onChange;
+}
+
 describe("CanvasToolMenu", () => {
   it("renders the compact architecture rail and hides the legacy bottom-toolbar actions", () => {
     const excalidrawApi = createMockExcalidrawApi();
@@ -318,11 +333,10 @@ describe("CanvasToolMenu", () => {
       />,
     );
 
-    const onChange = excalidrawApi.onChange.mock.calls[0]?.[0];
-    expect(onChange).toBeTypeOf("function");
+    const onChange = getRegisteredOnChange(excalidrawApi);
 
     act(() => {
-      onChange?.(
+      onChange(
         [
           {
             id: "shape-1",
@@ -377,7 +391,7 @@ describe("CanvasToolMenu", () => {
     expect(excalidrawApi.updateScene).toHaveBeenCalled();
 
     act(() => {
-      onChange?.(
+      onChange(
         [
           {
             id: "shape-1",
@@ -440,6 +454,40 @@ describe("CanvasToolMenu", () => {
     );
   });
 
+  it("does not reapply a stale activeTool snapshot when activating architecture shape tools", async () => {
+    const user = userEvent.setup();
+    const excalidrawApi = createMockExcalidrawApi();
+
+    render(
+      <CanvasToolMenu
+        {...({
+          accessToken: "token-canvas",
+          excalidrawApi,
+          immersiveArchitecture: true,
+        } as const)}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "形状" }));
+    await user.click(screen.getByRole("button", { name: "矩形" }));
+
+    const lastUpdateSceneCall =
+      excalidrawApi.updateScene.mock.calls[
+        excalidrawApi.updateScene.mock.calls.length - 1
+      ]?.[0];
+
+    expect(lastUpdateSceneCall?.appState).toEqual(
+      expect.objectContaining({
+        currentItemStrokeColor: "#0f172a",
+        currentItemBackgroundColor: "transparent",
+        currentItemStrokeWidth: 2,
+        currentItemRoughness: 0,
+        currentItemStrokeStyle: "solid",
+        currentItemFillStyle: "solid",
+      }),
+    );
+    expect(lastUpdateSceneCall?.appState).not.toHaveProperty("activeTool");
+  });
   it("renders a compact selected-shape toolbar without the legacy right-side spacer", async () => {
     const excalidrawApi = createMockExcalidrawApi();
 
@@ -453,10 +501,10 @@ describe("CanvasToolMenu", () => {
       />,
     );
 
-    const onChange = excalidrawApi.onChange.mock.calls[0]?.[0];
+    const onChange = getRegisteredOnChange(excalidrawApi);
 
     act(() => {
-      onChange?.(
+      onChange(
         [
           {
             id: "shape-compact",
@@ -504,10 +552,10 @@ describe("CanvasToolMenu", () => {
       />,
     );
 
-    const onChange = excalidrawApi.onChange.mock.calls[0]?.[0];
+    const onChange = getRegisteredOnChange(excalidrawApi);
 
     act(() => {
-      onChange?.(
+      onChange(
         [
           {
             id: "freedraw-1",
@@ -556,10 +604,10 @@ describe("CanvasToolMenu", () => {
       />,
     );
 
-    const onChange = excalidrawApi.onChange.mock.calls[0]?.[0];
+    const onChange = getRegisteredOnChange(excalidrawApi);
 
     act(() => {
-      onChange?.(
+      onChange(
         [
           {
             id: "text-1",

@@ -221,20 +221,30 @@ export function reorderSelectedCanvasElements(
 
   if (direction === "forward") {
     for (let index = nextElements.length - 2; index >= 0; index -= 1) {
-      if (isSelected(nextElements[index]) && !isSelected(nextElements[index + 1])) {
+      const currentElement = nextElements[index];
+      const nextElement = nextElements[index + 1];
+      if (!currentElement || !nextElement) {
+        continue;
+      }
+      if (isSelected(currentElement) && !isSelected(nextElement)) {
         [nextElements[index], nextElements[index + 1]] = [
-          nextElements[index + 1],
-          nextElements[index],
+          nextElement,
+          currentElement,
         ];
         movedCount += 1;
       }
     }
   } else if (direction === "backward") {
     for (let index = 1; index < nextElements.length; index += 1) {
-      if (isSelected(nextElements[index]) && !isSelected(nextElements[index - 1])) {
+      const currentElement = nextElements[index];
+      const previousElement = nextElements[index - 1];
+      if (!currentElement || !previousElement) {
+        continue;
+      }
+      if (isSelected(currentElement) && !isSelected(previousElement)) {
         [nextElements[index - 1], nextElements[index]] = [
-          nextElements[index],
-          nextElements[index - 1],
+          currentElement,
+          previousElement,
         ];
         movedCount += 1;
       }
@@ -328,7 +338,7 @@ export function reorderCanvasElementsByLayerOrder(
 
     const nextElement = nextLiveElements[nextLiveIndex];
     nextLiveIndex += 1;
-    return nextElement;
+    return nextElement ?? element;
   });
 
   api.updateScene({

@@ -3794,3 +3794,109 @@
 - Planning consequence:
   - the immersive composer shell now shrinks to content in empty state instead of reserving a tall fixed frame
   - future canvas-composer work should treat `272px` as an upper bound only, not a permanent empty-state height
+
+## 2026-04-19 16:19 Asia/Shanghai
+
+- Continued the debt-cleanup session from the previous pass instead of reopening already-green front-end work.
+- Runtime verification before fixing:
+  - `curl.exe -s http://127.0.0.1:3001/api/health`
+    - result: `{"ok":true,...}`
+  - `Invoke-WebRequest http://127.0.0.1:3000/home`
+    - result: `200`
+  - `docker compose ... ps`
+    - result: `server/web/worker` all running; `server` healthy after rebuild
+- Fresh real-browser reproduction on `debtfix4`:
+  - logged in with `free@test.loomic.com / opensourceloomic`
+  - opened real canvas `6b0178f0-e908-4f9c-8b1c-2944cf97f74a`
+  - drew a new rectangle
+  - observed browser console evidence:
+    - canvas save persisted
+    - thumbnail generation started
+    - `PUT /api/projects/e93a79dc-87eb-4688-8356-e5b259392359/thumbnail -> 500`
+  - screenshot captured:
+    - `D:/97-CodingProject/Loomic-ArcIns/.tmp/debtfix4-canvas-thumbnail-check.png`
+- Root-cause investigation completed before fixing:
+  - `docker logs loomic-arcins-server-1 | grep 'thumbnail upload error'`
+    - result:
+      - `Thumbnail upload failed: An invalid response was received from the upstream server`
+  - direct storage probe inside the server container using the admin client:
+    - succeeded
+  - direct route upload with the same user token:
+    - succeeded
+  - browser-page direct upload of a synthetic `image/webp` blob:
+    - succeeded
+  - captured-blob replay probe:
+    - the first automatic upload of the real Excalidraw thumbnail blob returned `500`
+    - replaying the exact same captured blob immediately returned `200`
+  - conclusion:
+    - the thumbnail route needed transient retry hardening for local storage upstream failures
+- Red/green for the code fix:
+  - added a failing test in `apps/server/src/features/projects/project-service.test.ts`
+    - new behavior under test:
+      - retry thumbnail upload when storage returns `An invalid response was received from the upstream server`
+  - red verification:
+    - `node ..\\..\\node_modules\\vitest\\vitest.mjs run src/features/projects/project-service.test.ts --reporter=dot --pool forks`
+    - result: `1` failed, `1` passed
+  - green implementation:
+    - updated `apps/server/src/features/projects/project-service.ts`
+      - added transient retry wrapper for thumbnail storage upload
+      - added retryable-message detection for local upstream/storage transport failures
+      - added retry warning log for future debugging
+  - green verification:
+    - `node ..\\..\\node_modules\\vitest\\vitest.mjs run src/features/projects/project-service.test.ts --reporter=dot --pool forks`
+    - result: `2` tests passed
+- Deployment + final runtime verification:
+  - rebuilt/restarted server:
+    - `docker compose -f docker-compose.local.yml -f docker-compose.dev.yml --env-file .tmp/loomic-local.env up -d --build server`
+  - post-rebuild health:
+    - `curl.exe -s http://127.0.0.1:3001/api/health`
+      - result: `{"ok":true,...}`
+  - fresh real-browser verification on new session `debtfix5`:
+    - logged in again
+    - reopened the same real canvas
+    - drew a new shape
+    - waited for the automatic thumbnail upload to finish
+    - result:
+      - `PUT /api/projects/e93a79dc-87eb-4688-8356-e5b259392359/thumbnail -> 200`
+      - no browser console errors on the page
+      - screenshot: `D:/97-CodingProject/Loomic-ArcIns/.tmp/debtfix5-thumbnail-green.png`
+  - fresh homepage asset-host check:
+    - browser resource entries containing `host.docker.internal`: `[]`
+    - browser console error query returned `0`
+- Additional verification note:
+  - `node ..\\..\\node_modules\\typescript\\bin\\tsc -p tsconfig.json --noEmit`
+    - result: still fails in pre-existing unrelated server files (`env.ts`, `export-service.ts`, `upload-service.ts`, `http/exports.ts`, `supabase/user.test.ts`)
+    - this is recorded as residual debt, not a regression from the thumbnail retry fix
+
+## 2026-04-19 17:05 Asia/Shanghai
+
+- Continued directly into the residual `apps/server` debt instead of treating the thumbnail retry fix as the end state.
+- Root-cause and implementation closure:
+  - updated `apps/server/src/features/exports/export-service.test.ts`
+    - added a failing regression that proves `buildManifest()` must reject invalid artifact bucket values coming back from the database
+  - updated `apps/server/src/features/exports/export-service.ts`
+    - changed queried artifact rows to accept raw `string` buckets at the DB boundary
+    - validated each bucket with `assetBucketSchema`
+    - added an explicit error log plus `ExportServiceError("application_error", "Unable to load project assets.", 500)` when invalid bucket data is encountered
+  - updated `apps/server/src/agent/tools/agent-plan.ts`
+    - added explicit `StructuredTool` return types for `createPublishPlanTool()` and `createUpdatePlanStepTool()` to eliminate non-portable inferred `zod` types during full `tsc`
+- Verification completed:
+  - red/green:
+    - `node ..\\..\\node_modules\\vitest\\vitest.mjs run src/features/exports/export-service.test.ts --reporter=dot --pool forks`
+    - result: red before fix, then green after fix (`3` tests passed)
+  - full server typecheck:
+    - `node ..\\..\\node_modules\\typescript\\bin\\tsc -p tsconfig.json --noEmit`
+    - result: passed with `0` errors
+  - deployment:
+    - `LOOMIC_ENV_FILE=.tmp/loomic-local.env docker compose -f docker-compose.local.yml up -d --build server`
+    - result: server rebuilt successfully with the existing local env file
+  - post-deploy health:
+    - `curl.exe -s http://127.0.0.1:3001/api/health`
+    - result: `{"ok":true,"service":"loomic-server","version":"0.0.0"}`
+  - real-browser sanity:
+    - Playwright CLI session `debtfix6`
+    - authenticated login path reached `/home`
+    - browser console errors: `0`
+- Closure status:
+  - the runtime thumbnail upload regression remains fixed
+  - the previously recorded residual `apps/server` type debt is now fully closed

@@ -1,6 +1,6 @@
 "use client";
 
-import { Search, ChevronDown } from "lucide-react";
+import { ChevronDown, Search } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 export type PromptTemplateBrowserItem = {
@@ -17,10 +17,13 @@ export type PromptTemplateBrowserCategory = {
   showChevron?: boolean;
 };
 
+export type PromptTemplateBrowserLayout = "comfortable" | "compact";
+
 type PromptTemplateBrowserProps = {
   categories: PromptTemplateBrowserCategory[];
   dataTestId?: string;
   className?: string;
+  layout?: PromptTemplateBrowserLayout;
 };
 
 const HIDDEN_SCROLLBAR_STYLE = {
@@ -36,11 +39,13 @@ export function PromptTemplateBrowser({
   categories,
   dataTestId,
   className,
+  layout = "comfortable",
 }: PromptTemplateBrowserProps) {
   const [query, setQuery] = useState("");
   const [activeCategoryId, setActiveCategoryId] = useState<string | null>(
     categories[0]?.id ?? null,
   );
+  const compact = layout === "compact";
 
   useEffect(() => {
     if (categories.length === 0) {
@@ -88,14 +93,20 @@ export function PromptTemplateBrowser({
     <div
       data-testid={dataTestId}
       className={[
-        "grid w-[620px] grid-cols-[168px_minmax(0,1fr)] gap-4 rounded-[10px] border border-slate-200 bg-white p-4 shadow-[0_18px_48px_rgba(15,23,42,0.1)]",
+        compact
+          ? "grid w-full grid-cols-[124px_minmax(0,1fr)] gap-3 rounded-[24px] border border-slate-200 bg-white p-3 shadow-[0_24px_64px_rgba(15,23,42,0.12)]"
+          : "grid w-full grid-cols-[172px_minmax(0,1fr)] gap-4 rounded-[28px] border border-slate-200 bg-white p-4 shadow-[0_24px_64px_rgba(15,23,42,0.12)]",
         className ?? "",
       ]
         .filter(Boolean)
         .join(" ")}
     >
       <div className="min-w-0">
-        <label className="flex h-10 items-center gap-2 rounded-[10px] border border-slate-200 bg-slate-50 px-3 text-sm text-slate-500">
+        <label
+          className={`flex items-center gap-2 rounded-[16px] border border-slate-200 bg-slate-50 px-3 text-sm text-slate-500 ${
+            compact ? "h-9" : "h-10"
+          }`}
+        >
           <Search className="h-4 w-4 shrink-0" />
           <input
             value={query}
@@ -108,7 +119,9 @@ export function PromptTemplateBrowser({
 
         <div
           data-testid="template-browser-category-list"
-          className="mt-3 flex max-h-[320px] flex-col gap-2 overflow-y-auto pr-1 [&::-webkit-scrollbar]:hidden"
+          className={`mt-3 flex flex-col gap-2 overflow-y-auto pr-1 [&::-webkit-scrollbar]:hidden ${
+            compact ? "max-h-[280px]" : "max-h-[340px]"
+          }`}
           style={HIDDEN_SCROLLBAR_STYLE}
         >
           {categories.map((category) => {
@@ -120,16 +133,18 @@ export function PromptTemplateBrowser({
                 type="button"
                 aria-pressed={active}
                 onClick={() => setActiveCategoryId(category.id)}
-                className={`flex h-9 items-center justify-between rounded-[10px] border px-3 text-left text-sm transition-colors ${
+                className={`flex h-9 items-center justify-between rounded-[14px] border px-3 text-left text-sm transition-colors ${
                   active
-                    ? "border-slate-900 bg-slate-800 text-white"
-                    : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                    ? "border-slate-300 bg-slate-100 text-slate-900"
+                    : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900"
                 }`}
               >
                 <span className="truncate">{category.label}</span>
                 {category.showChevron ? (
                   <ChevronDown
-                    className={`h-4 w-4 shrink-0 ${active ? "text-white/80" : "text-slate-400"}`}
+                    className={`h-4 w-4 shrink-0 ${
+                      active ? "text-slate-500" : "text-slate-400"
+                    }`}
                   />
                 ) : null}
               </button>
@@ -138,17 +153,27 @@ export function PromptTemplateBrowser({
         </div>
       </div>
 
-      <div className="min-w-0 border-l border-slate-200 pl-4">
-        <div className="mb-4 flex items-center gap-3">
-          <span className="h-7 w-[3px] rounded-full bg-slate-900" />
-          <div className="min-w-0 text-lg font-semibold text-slate-900">
-            {activeCategory?.label ?? "模版"}
+      <div
+        className={`min-w-0 border-l border-slate-200 ${
+          compact ? "pl-3" : "pl-4"
+        }`}
+      >
+        <div className={`flex items-center gap-3 ${compact ? "mb-3" : "mb-4"}`}>
+          <span className="h-7 w-[3px] rounded-full bg-slate-400" />
+          <div
+            className={`min-w-0 font-semibold text-slate-900 ${
+              compact ? "text-base" : "text-lg"
+            }`}
+          >
+            {activeCategory?.label ?? "模板"}
           </div>
         </div>
 
         <div
           data-testid="template-browser-item-grid"
-          className="grid max-h-[320px] grid-cols-3 gap-3 overflow-y-auto pr-1 [&::-webkit-scrollbar]:hidden"
+          className={`grid gap-3 overflow-y-auto pr-1 [&::-webkit-scrollbar]:hidden ${
+            compact ? "max-h-[280px] grid-cols-2" : "max-h-[340px] grid-cols-3"
+          }`}
           style={HIDDEN_SCROLLBAR_STYLE}
         >
           {visibleItems.map((item) => (
@@ -156,7 +181,9 @@ export function PromptTemplateBrowser({
               key={item.id}
               type="button"
               onClick={item.onSelect}
-              className="flex h-9 items-center rounded-[10px] border border-slate-200 bg-slate-50 px-3 text-left text-[13px] text-slate-700 transition-colors hover:border-slate-300 hover:bg-white hover:text-slate-900"
+              className={`flex items-center rounded-[16px] border border-slate-200 bg-slate-50 px-3 text-left text-[13px] text-slate-700 transition-colors hover:border-slate-300 hover:bg-white hover:text-slate-900 ${
+                compact ? "min-h-[44px]" : "min-h-[48px]"
+              }`}
               title={item.label}
             >
               <span className="truncate">{item.label}</span>
@@ -165,7 +192,7 @@ export function PromptTemplateBrowser({
         </div>
 
         {visibleItems.length === 0 ? (
-          <div className="mt-4 rounded-[10px] border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-500">
+          <div className="mt-4 rounded-[18px] border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-500">
             未找到匹配模板
           </div>
         ) : null}

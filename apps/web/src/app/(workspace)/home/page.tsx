@@ -19,6 +19,7 @@ import { useCreateProject } from "@/hooks/use-create-project";
 import { useDeleteProject } from "@/hooks/use-delete-project";
 import { useImageAttachments } from "@/hooks/use-image-attachments";
 import { useAuth } from "@/lib/auth-context";
+import { resolveBrowserAssetUrl } from "@/lib/browser-asset-url";
 import { loadHomeExampleCategories } from "@/lib/home-example-library";
 import {
   homeExampleSeedCategories,
@@ -337,7 +338,7 @@ export default function HomePage() {
                   <div className="flex h-[112px] items-end bg-[linear-gradient(135deg,#ffffff,#f3f4f6)] px-5 py-4 text-sm text-slate-500">
                     {project.thumbnailUrl ? (
                       <img
-                        src={project.thumbnailUrl}
+                        src={resolveBrowserAssetUrl(project.thumbnailUrl)}
                         alt=""
                         className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
                         loading="lazy"

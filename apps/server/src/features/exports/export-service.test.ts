@@ -295,6 +295,214 @@ describe("createExportService", () => {
     expect(reviewPackage.canvas.id).toBe("canvas_123");
     expect(reviewPackage.latestPlan).toBeUndefined();
   });
+
+  it("rejects invalid asset buckets when building a manifest", async () => {
+    const client = {
+      from(table: string) {
+        if (table === "projects") {
+          return {
+            select() {
+              return {
+                eq() {
+                  return {
+                    is() {
+                      return {
+                        async maybeSingle() {
+                          return {
+                            data: {
+                              id: "project_123",
+                              name: "Harbor Tower",
+                              slug: "harbor-tower",
+                              description: null,
+                              workspace_id: "workspace-shared",
+                              created_at: "2026-04-13T10:00:00.000Z",
+                              updated_at: "2026-04-13T10:00:00.000Z",
+                              thumbnail_path: null,
+                            },
+                            error: null,
+                          };
+                        },
+                      };
+                    },
+                  };
+                },
+              };
+            },
+          };
+        }
+
+        if (table === "workspaces") {
+          return {
+            select() {
+              return {
+                eq() {
+                  return {
+                    async maybeSingle() {
+                      return {
+                        data: {
+                          id: "workspace-shared",
+                          name: "Shared Studio",
+                          type: "team",
+                          owner_user_id: "owner_123",
+                        },
+                        error: null,
+                      };
+                    },
+                  };
+                },
+              };
+            },
+          };
+        }
+
+        if (table === "canvases") {
+          return {
+            select() {
+              return {
+                eq(_column: string, value: string | boolean) {
+                  if (value === "canvas_123") {
+                    return {
+                      async maybeSingle() {
+                        return {
+                          data: {
+                            id: "canvas_123",
+                            name: "Main Canvas",
+                            project_id: "project_123",
+                          },
+                          error: null,
+                        };
+                      },
+                    };
+                  }
+
+                  return {
+                    eq() {
+                      return {
+                        async maybeSingle() {
+                          return {
+                            data: {
+                              id: "canvas_123",
+                              is_primary: true,
+                              name: "Main Canvas",
+                            },
+                            error: null,
+                          };
+                        },
+                      };
+                    },
+                  };
+                },
+              };
+            },
+          };
+        }
+
+        if (table === "asset_objects") {
+          return {
+            select() {
+              return {
+                eq() {
+                  return {
+                    async order() {
+                      return {
+                        data: [
+                          {
+                            id: "asset_bad",
+                            bucket: "malformed-bucket",
+                            object_path: "workspace-shared/project_123/bad.bin",
+                            mime_type: "application/octet-stream",
+                            byte_size: 10,
+                            workspace_id: "workspace-shared",
+                            project_id: "project_123",
+                            created_at: "2026-04-13T10:00:00.000Z",
+                          },
+                        ],
+                        error: null,
+                      };
+                    },
+                  };
+                },
+              };
+            },
+          };
+        }
+
+        if (table === "chat_sessions") {
+          return {
+            select() {
+              return {
+                eq() {
+                  return {
+                    async order() {
+                      return {
+                        data: [],
+                        error: null,
+                      };
+                    },
+                  };
+                },
+              };
+            },
+          };
+        }
+
+        if (table === "chat_messages") {
+          return {
+            select() {
+              return {
+                eq() {
+                  return {
+                    async order() {
+                      return {
+                        data: [],
+                        error: null,
+                      };
+                    },
+                  };
+                },
+              };
+            },
+          };
+        }
+
+        throw new Error(`Unexpected table lookup: ${table}`);
+      },
+      storage: {
+        from() {
+          return {
+            getPublicUrl() {
+              return { data: { publicUrl: "https://cdn.example.com/thumbnail.png" } };
+            },
+          };
+        },
+      },
+    };
+
+    const service = createExportService({
+      createUserClient: vi.fn(() => client as never),
+      uploadService: {} as never,
+      viewerService: {} as never,
+    });
+
+    await expect(
+      service.buildManifest(
+        {
+          accessToken: "token_123",
+          email: "starter@test.loomic.com",
+          id: "user_123",
+          userMetadata: {},
+        },
+        {
+          projectId: "project_123",
+          canvasId: "canvas_123",
+        },
+      ),
+    ).rejects.toMatchObject({
+      code: "application_error",
+      message: "Unable to load project assets.",
+      statusCode: 500,
+    });
+  });
 });
 
 function createUserClientMock(data: {

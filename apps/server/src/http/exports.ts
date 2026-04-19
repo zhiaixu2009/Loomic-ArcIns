@@ -211,10 +211,12 @@ function parseExportBuildRequest(body: unknown): {
   }
 
   return {
-    architectureContext: parsedArchitectureContext,
     canvasId,
     projectId,
-    selection: parsedSelection,
+    ...(parsedArchitectureContext !== undefined
+      ? { architectureContext: parsedArchitectureContext }
+      : {}),
+    ...(parsedSelection !== undefined ? { selection: parsedSelection } : {}),
   };
 }
 

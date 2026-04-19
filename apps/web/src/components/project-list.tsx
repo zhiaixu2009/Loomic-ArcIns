@@ -6,6 +6,7 @@ import Link from "next/link";
 
 import { DeleteProjectDialog } from "./delete-project-dialog";
 import { useDeleteProject } from "@/hooks/use-delete-project";
+import { resolveBrowserAssetUrl } from "@/lib/browser-asset-url";
 import { buildCanvasUrl } from "@/lib/studio-routes";
 import { formatDate } from "@/lib/utils";
 
@@ -98,7 +99,7 @@ export function ProjectList({
             <div className="aspect-[395/227] w-full overflow-hidden rounded-lg bg-muted">
               {project.thumbnailUrl && (
                 <img
-                  src={project.thumbnailUrl}
+                  src={resolveBrowserAssetUrl(project.thumbnailUrl)}
                   alt={project.name}
                   className="h-full w-full object-cover"
                   loading="lazy"

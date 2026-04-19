@@ -165,7 +165,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     options.viewerService ?? createViewerService({ getAdminClient });
   const projectService =
     options.projectService ??
-    createProjectService({ createUserClient, viewerService });
+    createProjectService({ createUserClient, getAdminClient, viewerService });
   const brandKitService =
     options.brandKitService ?? createBrandKitService({ createUserClient });
   const canvasService =

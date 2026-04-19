@@ -199,6 +199,28 @@ function getSceneImageSource(
   );
 }
 
+type ImportedCanvasFileRecord = {
+  dataURL: string;
+  mimeType?: string;
+  created?: number;
+};
+
+type ImportedCanvasScene = {
+  elements?: Record<string, any>[];
+  appState?: Record<string, unknown>;
+  files?: Record<string, ImportedCanvasFileRecord>;
+};
+
+type ImportedCanvasDocument = ImportedCanvasScene & {
+  content?: ImportedCanvasScene;
+};
+
+function isImportedCanvasWrapper(
+  value: ImportedCanvasDocument,
+): value is ImportedCanvasDocument & { content: ImportedCanvasScene } {
+  return Boolean(value.content);
+}
+
 function CanvasPageContent() {
   const searchParams = useSearchParams();
   const canvasId = searchParams.get("id");
@@ -1123,14 +1145,8 @@ function CanvasPageContent() {
 
       try {
         const raw = await file.text();
-        const parsed = JSON.parse(raw) as {
-          content?: {
-            elements?: Record<string, any>[];
-            appState?: Record<string, unknown>;
-            files?: Record<string, { dataURL: string; mimeType?: string; created?: number }>;
-          };
-        };
-        const content = parsed.content ?? parsed;
+        const parsed = JSON.parse(raw) as ImportedCanvasDocument;
+        const content = isImportedCanvasWrapper(parsed) ? parsed.content : parsed;
         const files = Object.entries(content.files ?? {}).map(([id, value]) => ({
           id,
           dataURL: value.dataURL,

@@ -39,6 +39,35 @@ vi.mock("framer-motion", async () => {
       },
     ),
   };
+  it("rewrites docker-only project thumbnail urls to the active browser hostname before rendering", async () => {
+    fetchProjectsMock.mockResolvedValue({
+      projects: [
+        {
+          id: "project-thumb-1",
+          name: "Harbor Complex",
+          primaryCanvas: { id: "canvas-1" },
+          thumbnailUrl:
+            "http://host.docker.internal:54321/storage/v1/object/public/project-assets/workspace-1/project-thumb-1/thumbnail.webp",
+          updatedAt: "2026-04-14T10:00:00.000Z",
+        },
+      ],
+    });
+
+    render(<HomePage />);
+
+    const projectTitle = await screen.findByText("Harbor Complex");
+    const projectCard = projectTitle.closest("article");
+    const projectThumbnail = projectCard?.querySelector("img");
+
+    expect(projectThumbnail).not.toBeNull();
+
+    const parsedUrl = new URL((projectThumbnail as HTMLImageElement).src);
+    expect(parsedUrl.hostname).toBe(window.location.hostname);
+    expect(parsedUrl.port).toBe("54321");
+    expect(parsedUrl.pathname).toBe(
+      "/storage/v1/object/public/project-assets/workspace-1/project-thumb-1/thumbnail.webp",
+    );
+  });
 });
 
 vi.mock("next/navigation", () => ({

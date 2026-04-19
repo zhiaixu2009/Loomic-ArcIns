@@ -255,7 +255,7 @@ export function ArchitectureStudioRail({
         {onShareSnapshot && onDownloadReviewPackage && onDownloadExportManifest ? (
           <ArchitectureExportCard
             actionState={exportActionState ?? { status: "idle" }}
-            lastSnapshotUrl={lastSnapshotUrl}
+            lastSnapshotUrl={lastSnapshotUrl ?? null}
             onDownloadExportManifest={onDownloadExportManifest}
             onDownloadReviewPackage={onDownloadReviewPackage}
             onShareSnapshot={onShareSnapshot}

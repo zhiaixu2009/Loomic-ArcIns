@@ -2454,3 +2454,57 @@
 - This finding is now backed by both local runtime screenshots:
   - `D:/97-CodingProject/Loomic-ArcIns/.tmp/chatinput-canvas-check.png`
   - `D:/97-CodingProject/Loomic-ArcIns/.tmp/chatinput-canvas-check-with-attachment.png`
+
+## 2026-04-19 Thumbnail Upload Transient-Upstream Root Cause
+
+- Fresh browser evidence showed the thumbnail problem was still real after the earlier server rebuild:
+  - canvas save succeeded
+  - thumbnail generation started
+  - browser console then reported `PUT /api/projects/:projectId/thumbnail 500`
+- The server-side error was specific and stable across multiple reproductions:
+  - `Thumbnail upload failed: An invalid response was received from the upstream server`
+  - source location at reproduction time:
+    - `apps/server/src/features/projects/project-service.ts`
+- Evidence collected at each boundary:
+  - server container direct `service_role` upload to `project-assets` succeeded
+  - server route upload via `curl` with the same user token succeeded
+  - browser-page direct upload of a synthetic `image/webp` blob succeeded
+  - the exact auto-generated Excalidraw thumbnail blob failed on the first automatic upload
+  - replaying that same captured blob immediately afterward to the same route succeeded with `200`
+- Root cause conclusion:
+  - the failing condition was not the blob content, route shape, auth token, or permanent storage outage
+  - the failing condition was a transient upstream storage failure on the first thumbnail upload attempt in the local runtime
+  - `project-service.saveThumbnail()` lacked transient retry logic, unlike `apps/server/src/features/uploads/upload-service.ts`
+- Stable correction:
+  - add retry handling for transient thumbnail upload failures in `project-service`
+  - treat `invalid response was received from the upstream server` as retryable in addition to the existing local fetch/socket retry class
+  - keep the user-scoped project lookup and privileged storage upload split unchanged
+- Final runtime proof after the fix:
+  - same real-browser canvas draw flow now returns `200` for the automatic thumbnail upload
+  - homepage no longer emits `host.docker.internal` resource loads
+
+## 2026-04-19 Server Type-Debt Closure After Thumbnail Fix
+
+- The residual `apps/server` type debt turned out to be two separate contract issues, not a reopening of the thumbnail runtime bug:
+  - `apps/server/src/features/exports/export-service.ts`
+    - Supabase query rows still surfaced `bucket` as plain `string`
+    - the service layer previously pretended those rows already satisfied `AssetObject["bucket"]`
+    - stable correction:
+      - validate each queried artifact bucket with `assetBucketSchema`
+      - log and fail fast with `500` if corrupted bucket data ever escapes the database boundary
+  - `apps/server/src/agent/tools/agent-plan.ts`
+    - tool factory return types were inferred through nested `zod` package references
+    - TypeScript could not emit a portable inferred type name for those factories
+    - stable correction:
+      - add explicit `StructuredTool` return types to the two plan-tool factories
+- Verification proof for this closure:
+  - `apps/server/src/features/exports/export-service.test.ts`
+    - added a regression covering invalid artifact bucket rejection
+    - red before fix, green after fix (`3` tests passed)
+  - `node ..\\..\\node_modules\\typescript\\bin\\tsc -p tsconfig.json --noEmit`
+    - final result: `0` errors
+  - rebuilt `server` with the existing local env file:
+    - `LOOMIC_ENV_FILE=.tmp/loomic-local.env docker compose -f docker-compose.local.yml up -d --build server`
+  - post-rebuild sanity:
+    - `curl.exe -s http://127.0.0.1:3001/api/health`
+    - real browser session `debtfix6` reached authenticated `/home` with `0` console errors

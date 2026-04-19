@@ -1,5 +1,6 @@
 import {
   agentPlanSchema,
+  assetBucketSchema,
   exportSelectionSchema,
   type ArchitectureContext,
   type AssetObject,
@@ -83,6 +84,47 @@ type SessionEnvelope = {
   id: string;
   title: string;
   messages: SessionMessageRow[];
+};
+
+type ProjectSummaryRow = {
+  created_at: string;
+  description: string | null;
+  id: string;
+  name: string;
+  slug: string;
+  thumbnail_path: string | null;
+  updated_at: string;
+  workspace_id: string;
+};
+
+type WorkspaceSummaryRow = {
+  id: string;
+  name: string;
+  owner_user_id: string;
+  type: "personal" | "team";
+};
+
+type PrimaryCanvasSummaryRow = {
+  id: string;
+  is_primary: boolean;
+  name: string;
+};
+
+type CanvasSummaryRow = {
+  id: string;
+  name: string;
+  project_id: string;
+};
+
+type ProjectArtifactRow = {
+  bucket: string;
+  byte_size: number | null;
+  created_at: string;
+  id: string;
+  mime_type: string | null;
+  object_path: string;
+  project_id: string | null;
+  workspace_id: string;
 };
 
 export function createExportService(options: {
@@ -212,7 +254,7 @@ async function resolveProjectSummary(
   client: UserSupabaseClient,
   projectId: string,
 ): Promise<{ project: ProjectSummary }> {
-  const { data: projectRow, error: projectError } = await executeExportQuery({
+  const { data: projectRow, error: projectError } = await executeExportQuery<ProjectSummaryRow>({
     context: { projectId },
     label: "project summary",
     query: async () =>
@@ -249,7 +291,7 @@ async function resolveProjectSummary(
     );
   }
 
-  const workspaceResult = await executeExportQuery({
+  const workspaceResult = await executeExportQuery<WorkspaceSummaryRow>({
     context: {
       projectId,
       workspaceId: projectRow.workspace_id,
@@ -262,7 +304,7 @@ async function resolveProjectSummary(
         .eq("id", projectRow.workspace_id)
         .maybeSingle(),
   });
-  const canvasResult = await executeExportQuery({
+  const canvasResult = await executeExportQuery<PrimaryCanvasSummaryRow>({
     context: {
       projectId,
     },
@@ -338,7 +380,7 @@ async function resolveCanvasSummary(
   projectId: string,
   canvasId: string,
 ): Promise<{ id: string; name: string }> {
-  const { data: canvasRow, error } = await executeExportQuery({
+  const { data: canvasRow, error } = await executeExportQuery<CanvasSummaryRow>({
     context: {
       canvasId,
       projectId,
@@ -388,7 +430,7 @@ async function listProjectArtifacts(
   client: UserSupabaseClient,
   projectId: string,
 ): Promise<AssetObject[]> {
-  const { data, error } = await executeExportQuery({
+  const { data, error } = await executeExportQuery<ProjectArtifactRow[]>({
     context: { projectId },
     label: "project artifacts",
     query: async () =>
@@ -413,16 +455,9 @@ async function listProjectArtifacts(
     );
   }
 
-  return (data ?? []).map((row) => ({
-    bucket: row.bucket,
-    byteSize: row.byte_size,
-    createdAt: row.created_at,
-    id: row.id,
-    mimeType: row.mime_type,
-    objectPath: row.object_path,
-    projectId: row.project_id,
-    workspaceId: row.workspace_id,
-  }));
+  return (data ?? []).map((row) =>
+    mapProjectArtifactRow(row, { projectId }),
+  );
 }
 
 async function listCanvasSessionsWithMessages(
@@ -760,6 +795,38 @@ function isTransientSupabaseError(error: {
     combined.includes("UND_ERR_SOCKET") ||
     combined.includes("other side closed")
   );
+}
+
+function mapProjectArtifactRow(
+  row: ProjectArtifactRow,
+  context: { projectId: string },
+): AssetObject {
+  const parsedBucket = assetBucketSchema.safeParse(row.bucket);
+
+  if (!parsedBucket.success) {
+    console.error("[exports] invalid asset bucket in project artifacts", {
+      assetId: row.id,
+      bucket: row.bucket,
+      projectId: context.projectId,
+      workspaceId: row.workspace_id,
+    });
+    throw new ExportServiceError(
+      "application_error",
+      "Unable to load project assets.",
+      500,
+    );
+  }
+
+  return {
+    bucket: parsedBucket.data,
+    byteSize: row.byte_size,
+    createdAt: row.created_at,
+    id: row.id,
+    mimeType: row.mime_type,
+    objectPath: row.object_path,
+    projectId: row.project_id,
+    workspaceId: row.workspace_id,
+  };
 }
 
 function delay(ms: number) {

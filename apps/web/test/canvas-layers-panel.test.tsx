@@ -134,6 +134,9 @@ describe("CanvasLayersPanel", () => {
 
     await waitFor(() => {
       const [firstElement, secondElement] = api.getSceneElements();
+      if (!firstElement || !secondElement) {
+        throw new Error("Expected both scene elements to be present.");
+      }
       expect(firstElement.locked).toBe(true);
       expect(secondElement.locked).toBe(false);
       expect(api.getAppState().selectedElementIds).toEqual({
@@ -180,6 +183,9 @@ describe("CanvasLayersPanel", () => {
 
     await waitFor(() => {
       const [firstElement, secondElement] = api.getSceneElements();
+      if (!firstElement || !secondElement) {
+        throw new Error("Expected both scene elements to be present.");
+      }
       expect(firstElement.locked).toBe(true);
       expect(secondElement.locked).toBe(false);
     });
@@ -215,6 +221,9 @@ describe("CanvasLayersPanel", () => {
 
     await waitFor(() => {
       const [firstElement, secondElement] = api.getSceneElements();
+      if (!firstElement || !secondElement) {
+        throw new Error("Expected both scene elements to be present.");
+      }
       expect(firstElement.opacity ?? 100).toBe(100);
       expect(secondElement.opacity).toBe(0);
       expect(secondElement.customData?.hidden).toBe(true);

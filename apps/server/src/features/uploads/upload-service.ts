@@ -49,6 +49,17 @@ export type UploadService = {
   ): Promise<void>;
 };
 
+type UploadAssetRow = {
+  bucket: AssetBucket;
+  byte_size: number | null;
+  created_at: string;
+  id: string;
+  mime_type: string | null;
+  object_path: string;
+  project_id: string | null;
+  workspace_id: string;
+};
+
 const SIGNED_URL_EXPIRY_SECONDS = 3600;
 const PUBLIC_ASSET_BUCKETS: ReadonlySet<AssetBucket> = new Set([
   "project-assets",
@@ -100,10 +111,13 @@ export function createUploadService(options: {
         );
       }
 
-      const { data: assetRow, error: insertError } = await runTransientUploadOperation(
+      const { data: assetRow, error: insertError } = await runTransientUploadOperation<{
+        data: UploadAssetRow | null;
+        error: { message?: string | null } | null;
+      }>(
         "asset metadata insert",
-        () =>
-          privilegedClient
+        async () =>
+          await privilegedClient
             .from("asset_objects")
             .insert({
               workspace_id: workspaceId,
@@ -174,7 +188,11 @@ export function createUploadService(options: {
         );
       }
 
-      return getAssetUrl(privilegedClient, assetRow.bucket, assetRow.object_path);
+      return getAssetUrl(
+        privilegedClient,
+        assetRow.bucket as AssetBucket,
+        assetRow.object_path,
+      );
     },
 
     async deleteAsset(user, assetId) {

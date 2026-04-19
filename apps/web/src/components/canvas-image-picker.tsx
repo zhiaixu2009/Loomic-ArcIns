@@ -2,6 +2,8 @@
 
 import { useEffect, useRef } from "react";
 
+import { resolveBrowserAssetUrl } from "@/lib/browser-asset-url";
+
 export type CanvasImageItem = {
   kind: "canvas-image";
   id: string;
@@ -200,7 +202,7 @@ function PickerLeadingVisual({ item }: { item: MessageMentionPickerItem }) {
   if (item.kind === "canvas-image") {
     return (
       <img
-        src={item.thumbnailUrl}
+        src={resolveBrowserAssetUrl(item.thumbnailUrl)}
         alt={item.name}
         className="h-8 w-8 shrink-0 rounded border border-border object-cover"
       />
@@ -210,7 +212,7 @@ function PickerLeadingVisual({ item }: { item: MessageMentionPickerItem }) {
   if (item.kind === "brand-kit-asset" && item.thumbnailUrl) {
     return (
       <img
-        src={item.thumbnailUrl}
+        src={resolveBrowserAssetUrl(item.thumbnailUrl)}
         alt={item.label}
         className="h-8 w-8 shrink-0 rounded border border-border object-cover"
       />

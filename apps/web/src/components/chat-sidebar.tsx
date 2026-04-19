@@ -32,9 +32,10 @@ import { useImageOutputPreference } from "../hooks/use-image-output-preference";
 import { useVideoModelPreference } from "../hooks/use-video-model-preference";
 import type { WebSocketHandle } from "../hooks/use-websocket";
 import { fetchBrandKit } from "../lib/brand-kit-api";
+import { buildArchitectureTemplateSuggestions } from "../lib/architecture-prompt-templates";
 import { claimDailyCredits } from "../lib/credits-api";
 import { fetchImageModels, fetchWorkspaceSkills, saveMessage } from "../lib/server-api";
-import type { ArchitectureBoardKind, ArchitectureContext } from "../lib/architecture-canvas";
+import type { ArchitectureContext } from "../lib/architecture-canvas";
 import type { CanvasComposerCommand } from "../lib/canvas-context-actions";
 import type { CanvasSelectedElement } from "./canvas-editor";
 import {
@@ -46,7 +47,7 @@ import {
   type MessageMentionPickerItem,
 } from "./canvas-image-picker";
 import { AgentPlanPanel } from "./agent-plan-panel";
-import { ChatInput, type ChatInputTemplateSuggestion } from "./chat-input";
+import { ChatInput } from "./chat-input";
 import { ChatMessage } from "./chat-message";
 import { ChatSkills } from "./chat-skills";
 import { CanvasFilesPanel } from "./canvas-files-panel";
@@ -55,6 +56,8 @@ import { useTierLimitToast } from "./credits/tier-limit-toast";
 import { useToast } from "./toast";
 import { ErrorBoundary } from "./error-boundary";
 import { SessionSelector } from "./session-selector";
+
+export { buildArchitectureTemplateSuggestions } from "../lib/architecture-prompt-templates";
 
 type ChatSidebarProps = {
   accessToken: string;
@@ -320,33 +323,6 @@ function buildSelectedCanvasImageAttachments(
   return refs;
 }
 
-const RENDER_TEMPLATE_CATEGORY = {
-  id: "render",
-  label: "效果渲染",
-} as const;
-
-const SITE_COLOR_TEMPLATE_CATEGORY = {
-  id: "site-color",
-  label: "总平填色",
-} as const;
-
-function templateCategoryByBoard(boardKind: ArchitectureBoardKind) {
-  return boardKind === "site_analysis"
-    ? SITE_COLOR_TEMPLATE_CATEGORY
-    : RENDER_TEMPLATE_CATEGORY;
-}
-
-function withTemplateCategory(
-  category: { id: string; label: string },
-  suggestions: ChatInputTemplateSuggestion[],
-): ChatInputTemplateSuggestion[] {
-  return suggestions.map((suggestion) => ({
-    ...suggestion,
-    categoryId: category.id,
-    categoryLabel: category.label,
-  }));
-}
-
 function isCanvasImageSelection(
   element: CanvasSelectedElement,
 ): element is CanvasSelectedElement & {
@@ -395,306 +371,6 @@ function buildOrderedCanvasSelection(
     ],
     orderedSelectedCanvasImages,
   };
-}
-
-export function buildArchitectureTemplateSuggestions(args: {
-  architectureContext?: ArchitectureContext | null;
-  attachments?: ReadyAttachment[];
-  selectedCanvasElements?: CanvasSelectedElement[];
-}): ChatInputTemplateSuggestion[] {
-  const { architectureContext, attachments, selectedCanvasElements } = args;
-  if (!architectureContext) {
-    return [];
-  }
-
-  const referenceImageKeys = new Set<string>();
-  for (const element of selectedCanvasElements ?? []) {
-    if (
-      element.type === "image" &&
-      Boolean(element.storageUrl || element.dataUrl)
-    ) {
-      referenceImageKeys.add(`canvas:${element.id}`);
-    }
-  }
-  for (const attachment of attachments ?? []) {
-    if (attachment.mimeType.startsWith("image/")) {
-      referenceImageKeys.add(
-        attachment.source === "canvas-ref"
-          ? `canvas:${attachment.assetId || attachment.url}`
-          : attachment.assetId
-            ? `attachment:${attachment.assetId}`
-            : `attachment:${attachment.url}`,
-      );
-    }
-  }
-  const activeBoard =
-    architectureContext.boards.find(
-      (board) => board.boardId === architectureContext.activeBoardId,
-    ) ?? architectureContext.boards.find((board) => board.status === "active");
-
-  return templateSuggestionsByBoard(
-    activeBoard?.kind ?? "reference_board",
-    referenceImageKeys.size,
-  );
-}
-
-function templateSuggestionsByBoard(
-  boardKind: ArchitectureBoardKind,
-  referenceImageCount: number,
-): ChatInputTemplateSuggestion[] {
-  const hasReferenceImage = referenceImageCount > 0;
-  const hasReferenceGroup = referenceImageCount > 1;
-  const category = templateCategoryByBoard(boardKind);
-
-  if (hasReferenceGroup) {
-    switch (boardKind) {
-      case "site_analysis":
-        return withTemplateCategory(category, [
-          {
-            id: "site-analysis-reference-group",
-            label: "提炼多图场地线索",
-            prompt:
-              "请基于这组参考图提炼共同的场地信息，梳理动线、视线、边界与限制条件，并指出它们之间的关键差异。",
-          },
-          {
-            id: "site-analysis-reference-compare",
-            label: "输出多图差异结论",
-            prompt:
-              "请对比这组参考图在场地分析上的差异，输出一份适合直接放入画布的对比结论。",
-          },
-        ]);
-      case "massing_options":
-        return withTemplateCategory(category, [
-          {
-            id: "massing-reference-group",
-            label: "对比多张体量方向",
-            prompt:
-              "请基于这组参考图对比体量组织、天际线、退台和城市界面，输出 2 到 3 个可继续深化的方向。",
-          },
-          {
-            id: "massing-reference-merge",
-            label: "融合多图生成体量",
-            prompt:
-              "请把这组参考图里最有价值的体量特征融合成一版统一的建筑体量方向，并说明融合逻辑。",
-          },
-        ]);
-      case "render_variations":
-        return withTemplateCategory(category, [
-          {
-            id: "render-reference-group",
-            label: "提炼多图共同语言",
-            prompt:
-              "请基于这组参考图提炼共同的立面气质、材料语言和光影氛围，输出一份可直接用于效果图生成的合并提示。",
-          },
-          {
-            id: "render-reference-compare",
-            label: "输出多图差异结论",
-            prompt:
-              "请对比这组参考图在材料、肌理、光影和氛围上的差异，总结成一份设计结论。",
-          },
-        ]);
-      case "storyboard_shots":
-        return withTemplateCategory(category, [
-          {
-            id: "storyboard-reference-group",
-            label: "整理多图镜头顺序",
-            prompt:
-              "请基于这组参考图整理一组镜头顺序，说明每一张图适合承担的镜头角色和过渡关系。",
-          },
-          {
-            id: "storyboard-reference-focus",
-            label: "提炼多图叙事重点",
-            prompt:
-              "请从这组参考图中提炼叙事重点，生成一份适合建筑演示视频的镜头脚本提纲。",
-          },
-        ]);
-      case "video_output":
-        return withTemplateCategory(category, [
-          {
-            id: "video-reference-group",
-            label: "合并多图视频脚本",
-            prompt:
-              "请基于这组参考图生成一份建筑汇报视频脚本，整合每张图的关键亮点、镜头作用和解说重点。",
-          },
-          {
-            id: "video-reference-compare",
-            label: "生成多图对比解说",
-            prompt:
-              "请围绕这组参考图生成一版对比解说词，突出设计差异、共同点和最终推荐方向。",
-          },
-        ]);
-      case "reference_board":
-      default:
-        return withTemplateCategory(category, [
-          {
-            id: "reference-group-language",
-            label: "提炼多图共同语言",
-            prompt:
-              "请基于这组参考图提炼共同的建筑语言、材料气质、构图偏好与情绪方向，输出一份合并策略。",
-          },
-          {
-            id: "reference-group-diff",
-            label: "输出多图差异结论",
-            prompt:
-              "请对比这组参考图的差异点，总结哪些内容适合保留，哪些应当被删减或重新组合。",
-          },
-        ]);
-    }
-  }
-
-  if (hasReferenceImage) {
-    switch (boardKind) {
-      case "site_analysis":
-        return withTemplateCategory(category, [
-          {
-            id: "site-analysis-refine",
-            label: "保留视角强化场地分析",
-            prompt:
-              "请基于已选参考图，保留主要构图与视角关系，强化场地分析表达，补充动线、界面关系与关键约束标注。",
-          },
-          {
-            id: "site-analysis-variants",
-            label: "生成两版分析变体",
-            prompt:
-              "请基于已选参考图生成两版场地分析变体，保持主体位置与镜头方向，重点比较动线组织、景观层次和入口策略。",
-          },
-        ]);
-      case "massing_options":
-        return withTemplateCategory(category, [
-          {
-            id: "massing-preserve-view",
-            label: "保留视角深化体量",
-            prompt:
-              "请基于已选参考图，保持当前视角和主体体量关系，输出 3 个体量深化方向，突出基座、塔楼退台与公共界面差异。",
-          },
-          {
-            id: "massing-compare",
-            label: "生成体量对比",
-            prompt:
-              "请基于已选参考图生成两种体量对比方案，保留镜头关系，重点比较高度控制、轮廓变化和天际线表现。",
-          },
-        ]);
-      case "render_variations":
-        return withTemplateCategory(category, [
-          {
-            id: "render-preserve-angle",
-            label: "保留视角深化立面",
-            prompt:
-              "请基于已选参考图，保持当前视角和主体构图，继续深化建筑立面、材料与光影氛围。",
-          },
-          {
-            id: "render-lighting-variants",
-            label: "生成光影变体",
-            prompt:
-              "请基于已选参考图，在保持镜头不变的前提下生成白天、黄昏、夜景三种光影版本，并强化立面材质差异。",
-          },
-        ]);
-      case "storyboard_shots":
-        return withTemplateCategory(category, [
-          {
-            id: "storyboard-continue-shot",
-            label: "延展当前镜头脚本",
-            prompt:
-              "请基于已选参考图，保持当前画面视角，继续补完该镜头前后衔接的 3 个建筑展示镜头，并写出镜头目的与运动方式。",
-          },
-          {
-            id: "storyboard-shot-alt",
-            label: "重构镜头节奏",
-            prompt:
-              "请基于已选参考图，在保留核心主体的前提下重构镜头节奏，给出开场、转场和高潮三个关键镜头建议。",
-          },
-        ]);
-      case "video_output":
-        return withTemplateCategory(category, [
-          {
-            id: "video-output-refine",
-            label: "整理视频输出脚本",
-            prompt:
-              "请基于已选参考图，保持当前镜头主体关系，整理为可执行的建筑演示视频输出脚本，包含字幕、旁白与节奏建议。",
-          },
-          {
-            id: "video-output-review",
-            label: "生成汇报版说明",
-            prompt:
-              "请基于已选参考图，整理一版适合客户汇报的视频说明，突出设计亮点、场景顺序与重点镜头。",
-          },
-        ]);
-      case "reference_board":
-      default:
-        return withTemplateCategory(category, [
-          {
-            id: "reference-extract",
-            label: "提炼参考图方向",
-            prompt:
-              "请基于已选参考图，提炼建筑气质、材料语言、色彩氛围与镜头策略，并输出后续效果图生成建议。",
-          },
-          {
-            id: "reference-remix",
-            label: "重组参考图情绪",
-            prompt:
-              "请基于已选参考图，保留主要构图关系，重组为更适合建筑效果图推进的情绪方向，并说明关键变化点。",
-          },
-        ]);
-    }
-  }
-
-  switch (boardKind) {
-    case "site_analysis":
-      return withTemplateCategory(category, [
-        {
-          id: "site-analysis-create",
-          label: "生成场地分析板",
-          prompt:
-            "请为当前项目生成一版建筑场地分析板，包含区位、交通、视线、日照与限制条件，并给出画面组织建议。",
-        },
-      ]);
-    case "massing_options":
-      return withTemplateCategory(category, [
-        {
-          id: "massing-create",
-          label: "生成体量对比",
-          prompt:
-            "请输出 3 个建筑体量方向，对比基座组织、塔楼比例、退台策略与公共界面，并说明推荐方案。",
-        },
-      ]);
-    case "render_variations":
-      return withTemplateCategory(category, [
-        {
-          id: "render-create",
-          label: "生成立面表现方向",
-          prompt:
-            "请生成一组建筑效果图方向，比对立面材质、灯光氛围和镜头机位，并给出推荐理由。",
-        },
-      ]);
-    case "storyboard_shots":
-      return withTemplateCategory(category, [
-        {
-          id: "storyboard-create",
-          label: "生成镜头脚本",
-          prompt:
-            "请为建筑演示视频生成镜头脚本，包含开场、场地进入、主体展示、重点空间与结尾镜头。",
-        },
-      ]);
-    case "video_output":
-      return withTemplateCategory(category, [
-        {
-          id: "video-output-create",
-          label: "生成视频输出方案",
-          prompt:
-            "请整理一版建筑演示视频输出方案，包含镜头顺序、时长建议、旁白重点与输出格式。",
-        },
-      ]);
-    case "reference_board":
-    default:
-      return withTemplateCategory(category, [
-        {
-          id: "reference-create",
-          label: "生成参考图方向",
-          prompt:
-            "请基于当前项目目标生成一组建筑参考图方向，包含体量气质、材料氛围、景观关系与展示镜头建议。",
-        },
-      ]);
-  }
 }
 
 export function ChatSidebar({
@@ -1529,10 +1205,15 @@ export function ChatSidebar({
         }
 
         const nextOrder = [...baseOrder];
-        [nextOrder[currentIndex], nextOrder[targetIndex]] = [
-          nextOrder[targetIndex],
-          nextOrder[currentIndex],
-        ];
+        const currentImageId = nextOrder[currentIndex];
+        const targetImageId = nextOrder[targetIndex];
+
+        if (!currentImageId || !targetImageId) {
+          return prev;
+        }
+
+        nextOrder[currentIndex] = targetImageId;
+        nextOrder[targetIndex] = currentImageId;
 
         console.log("[chat-sidebar] reordered selected canvas references", {
           canvasId,
@@ -2358,6 +2039,7 @@ export function ChatSidebar({
             <ChatInput
               ref={chatInputRef}
               immersiveArchitecture
+              architectureControlsPreset="canvas"
               onSend={handleSend}
               draftValue={composerDraft}
               onDraftChange={setComposerDraft}
@@ -2448,6 +2130,9 @@ export function ChatSidebar({
       <ChatInput
         ref={chatInputRef}
         immersiveArchitecture={architectureImmersiveMode}
+        {...(architectureImmersiveMode
+          ? { architectureControlsPreset: "sidebar" as const }
+          : {})}
         onSend={handleSend}
         draftValue={composerDraft}
         onDraftChange={setComposerDraft}

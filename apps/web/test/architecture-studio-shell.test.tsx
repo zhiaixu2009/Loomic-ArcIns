@@ -219,6 +219,33 @@ describe("Architecture studio shell", () => {
     );
   });
 
+  it("rewrites docker-only project thumbnails inside the architecture project list", () => {
+    render(
+      <ProjectList
+        projects={[
+          {
+            ...project,
+            thumbnailUrl:
+              "http://host.docker.internal:54321/storage/v1/object/public/project-assets/workspace_123/p1/thumbnail.webp",
+          },
+        ]}
+        onCreateClick={() => {}}
+      />,
+    );
+
+    const projectLink = screen.getByRole("link", { name: /harbor tower/i });
+    const thumbnail = projectLink.querySelector("img");
+
+    expect(thumbnail).not.toBeNull();
+
+    const parsedUrl = new URL((thumbnail as HTMLImageElement).src);
+    expect(parsedUrl.hostname).toBe(window.location.hostname);
+    expect(parsedUrl.port).toBe("54321");
+    expect(parsedUrl.pathname).toBe(
+      "/storage/v1/object/public/project-assets/workspace_123/p1/thumbnail.webp",
+    );
+  });
+
   it("renders the compact agent header badge", () => {
     render(<ArchitectureAgentHeader />);
 

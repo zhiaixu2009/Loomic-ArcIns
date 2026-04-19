@@ -157,7 +157,10 @@ describe("downloadJsonFile", () => {
     downloadJsonFile({ manifestVersion: "1" }, "architecture-manifest.json");
 
     expect(createObjectURL).toHaveBeenCalledTimes(1);
-    expect(createObjectURL.mock.calls[0]?.[0]).toBeInstanceOf(Blob);
+    const firstCreateObjectUrlCall = createObjectURL.mock.calls.at(0);
+    expect(firstCreateObjectUrlCall).toBeDefined();
+    const [firstBlobArg] = firstCreateObjectUrlCall as unknown as [Blob];
+    expect(firstBlobArg).toBeInstanceOf(Blob);
     expect(clickSpy).toHaveBeenCalledTimes(1);
     expect(revokeObjectURL).toHaveBeenCalledWith("blob:manifest-download");
   });

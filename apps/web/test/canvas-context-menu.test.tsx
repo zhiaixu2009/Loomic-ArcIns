@@ -245,7 +245,7 @@ describe("CanvasContextMenu", () => {
 
     const rectSpy = vi
       .spyOn(HTMLElement.prototype, "getBoundingClientRect")
-      .mockImplementation(function () {
+      .mockImplementation(function (this: HTMLElement) {
         if (this.getAttribute?.("role") === "menu") {
           return {
             x: 0,

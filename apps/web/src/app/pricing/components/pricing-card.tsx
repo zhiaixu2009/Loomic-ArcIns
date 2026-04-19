@@ -28,6 +28,12 @@ export function PricingCard({
     billingPeriod === "monthly" ? tier.monthlyPrice : tier.yearlyPrice;
   const isCurrentPlan = currentPlan === tier.id;
   const [loading, setLoading] = useState(false);
+  const highlightedStyle = tier.highlighted
+    ? {
+        borderColor: "oklch(0.90 0.17 115)",
+        boxShadow: "0 0 20px oklch(0.90 0.17 115 / 0.15)",
+      }
+    : {};
 
   async function handleCheckout() {
     if (!onCheckout || tier.id === "free" || tier.id === "business") return;
@@ -105,14 +111,7 @@ export function PricingCard({
           ? "shadow-card-hover z-10 scale-[1.02] border-2"
           : "shadow-card hover:shadow-card-hover border"
       }`}
-      style={
-        tier.highlighted
-          ? {
-              borderColor: "oklch(0.90 0.17 115)",
-              boxShadow: "0 0 20px oklch(0.90 0.17 115 / 0.15)",
-            }
-          : undefined
-      }
+      style={highlightedStyle}
     >
       {/* Badge */}
       {tier.badge && (

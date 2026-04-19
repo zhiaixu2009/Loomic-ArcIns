@@ -9,7 +9,6 @@ import {
   useRef,
   useState,
 } from "react";
-import { createPortal } from "react-dom";
 import { ArrowLeft, ArrowRight, LayoutTemplate, X } from "lucide-react";
 
 import type { MessageMention } from "@loomic/shared";
@@ -18,15 +17,16 @@ import type { CanvasSelectedElement } from "./canvas-editor";
 import { useImageModelPreference } from "../hooks/use-image-model-preference";
 import { useImageOutputPreference } from "../hooks/use-image-output-preference";
 import { useVideoModelPreference } from "../hooks/use-video-model-preference";
+import type { ArchitecturePromptTemplateSuggestion } from "../lib/architecture-prompt-templates";
 import { resolveBrowserAssetUrl } from "../lib/browser-asset-url";
 import { buildTemplateRecommendedImagePreference } from "../lib/image-model-utils";
 import { AgentModelSelector } from "./agent-model-selector";
+import {
+  ArchitectureChatControls,
+  type ArchitectureChatControlsPreset,
+} from "./architecture-chat-controls";
 import { ImageAttachmentBar } from "./image-attachment-bar";
 import { ImageModelPreferencePopover } from "./image-model-preference";
-import {
-  PromptTemplateBrowser,
-  type PromptTemplateBrowserCategory,
-} from "./prompt-template-browser";
 
 type ChatInputProps = {
   onSend: (message: string) => void;
@@ -50,6 +50,7 @@ type ChatInputProps = {
   selectedCanvasElements?: CanvasSelectedElement[];
   templateSuggestions?: ChatInputTemplateSuggestion[];
   immersiveArchitecture?: boolean;
+  architectureControlsPreset?: ArchitectureChatControlsPreset;
   externalDraft?: {
     id: string;
     prompt: string;
@@ -63,14 +64,7 @@ export type ChatInputHandle = {
   clearAtQuery: () => void;
 };
 
-export type ChatInputTemplateSuggestion = {
-  id: string;
-  label: string;
-  prompt: string;
-  categoryId?: string;
-  categoryLabel?: string;
-  recommendedImageModelId?: string;
-};
+export type ChatInputTemplateSuggestion = ArchitecturePromptTemplateSuggestion;
 
 type ChatInputTemplateCategory = {
   id: string;
@@ -128,6 +122,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
       selectedCanvasElements,
       templateSuggestions = [],
       immersiveArchitecture = false,
+      architectureControlsPreset = "sidebar",
       externalDraft = null,
       draftValue,
       onDraftChange,
@@ -641,22 +636,6 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
         updateValue,
       ],
     );
-    const immersiveTemplateBrowserCategories = useMemo<
-      PromptTemplateBrowserCategory[]
-    >(
-      () =>
-        templateCategories.map((category) => ({
-          id: category.id,
-          label: category.label,
-          items: category.suggestions.map((template) => ({
-            id: template.id,
-            label: template.label,
-            keywords: [category.label, template.prompt],
-            onSelect: () => handleApplyTemplate(template),
-          })),
-        })),
-      [handleApplyTemplate, templateCategories],
-    );
 
     const handleSelectAspectRatio = useCallback(
       (nextAspectRatio: (typeof IMAGE_ASPECT_RATIO_OPTIONS)[number]) => {
@@ -937,164 +916,17 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
                 data-testid="chat-input-immersive-control-row"
                 className="mt-2 flex items-center justify-between gap-2 border-t border-slate-100 pt-2"
               >
-                <div className="flex items-center gap-1">
-                  <AgentModelSelector
-                    compact
-                    fallbackLabel="Banana Pro"
-                    source="image"
-                  />
-
-                  <button
-                    ref={immersiveOutputBtnRef}
-                    type="button"
-                    onClick={() => {
-                      setImmersiveOutputMenuOpen((prev) => !prev);
-                      setAspectRatioMenuOpen(false);
-                      setResolutionMenuOpen(false);
-                      setTemplateMenuOpen(false);
-                    }}
-                    title={immersiveOutputLabel}
-                    aria-label={immersiveOutputLabel}
-                    className={`flex h-8 items-center justify-center gap-1 rounded-[10px] border px-2.5 text-[11px] font-medium transition-colors ${
-                      immersiveOutputMenuOpen
-                        ? "border-slate-300 bg-slate-100 text-foreground"
-                        : "border-slate-200 bg-white text-foreground hover:bg-slate-50"
-                    }`}
-                  >
-                    <span>{architectureAspectRatioLabel}</span>
-                    <span className="text-slate-300">/</span>
-                    <span>{architectureResolutionLabel}</span>
-                  </button>
-
-                  {templateCategories.length > 0 ? (
-                    <div className="relative">
-                      <button
-                        ref={templateBtnRef}
-                        type="button"
-                        aria-label="模版"
-                        onClick={() => {
-                          setTemplateMenuPosition(null);
-                          setTemplateMenuOpen((prev) => !prev);
-                          setAspectRatioMenuOpen(false);
-                          setResolutionMenuOpen(false);
-                          setImmersiveOutputMenuOpen(false);
-                        }}
-                        className={`flex h-8 items-center gap-1.5 rounded-[10px] border border-slate-200 px-2.5 text-[11px] font-medium transition-colors ${
-                          templateMenuOpen
-                            ? "border-slate-300 bg-slate-100 text-foreground"
-                            : "bg-white text-foreground hover:bg-slate-50"
-                        }`}
-                      >
-                        <LayoutTemplate className="h-3.5 w-3.5" />
-                        <span>模版</span>
-                      </button>
-                    </div>
-                  ) : null}
-                </div>
+                <ArchitectureChatControls
+                  preset={architectureControlsPreset}
+                  templateSuggestions={templateSuggestions}
+                  onApplyTemplate={handleApplyTemplate}
+                  outputMenuTestId="chat-input-immersive-output-menu"
+                  templateMenuTestId="chat-input-template-menu"
+                />
               </div>
             </div>
           </div>
-          </div>
-          {immersiveOutputMenuOpen && immersiveOutputMenuPosition
-            ? createPortal(
-                <div
-                  ref={immersiveOutputMenuRef}
-                  data-testid="chat-input-immersive-output-menu"
-                  className="fixed z-[120] rounded-[10px] border border-slate-200 bg-white p-3 shadow-[0_18px_48px_rgba(15,23,42,0.12)]"
-                  style={{
-                    left: immersiveOutputMenuPosition.left,
-                    top: Math.max(immersiveOutputMenuPosition.top, 16),
-                    width: immersiveOutputMenuPosition.width,
-                  }}
-                >
-                  <div className="mb-3">
-                    <div className="mb-2 px-1 text-[11px] font-medium text-muted-foreground">
-                      画幅比例
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {IMAGE_ASPECT_RATIO_OPTIONS.map((option) => {
-                        const selected =
-                          imageOutputPreference.aspectRatio === option;
-                        const label = option === "auto" ? "自动" : option;
-                        return (
-                          <button
-                            key={option}
-                            type="button"
-                            onClick={() => handleSelectAspectRatio(option)}
-                            className={`inline-flex items-center rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
-                              selected
-                                ? "border-slate-300 bg-slate-100 text-foreground"
-                                : "border-slate-200 bg-white text-foreground hover:bg-slate-50"
-                            }`}
-                          >
-                            {label}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="mb-2 px-1 text-[11px] font-medium text-muted-foreground">
-                      输出清晰度
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {IMAGE_RESOLUTION_OPTIONS.map((option) => {
-                        const selected =
-                          imageOutputPreference.resolution === option;
-                        return (
-                          <button
-                            key={option}
-                            type="button"
-                            onClick={() => handleSelectResolution(option)}
-                            className={`inline-flex items-center rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
-                              selected
-                                ? "border-slate-300 bg-slate-100 text-foreground"
-                                : "border-slate-200 bg-white text-foreground hover:bg-slate-50"
-                            }`}
-                          >
-                            {option}
-                          </button>
-                        );
-                      })}
-                    </div>
-                    <p className="mt-2 px-1 text-[11px] text-muted-foreground">
-                      高分辨率实际生成受账号权限影响
-                    </p>
-                  </div>
-                </div>,
-                document.body,
-              )
-            : null}
-          {templateMenuOpen &&
-          immersiveTemplateBrowserCategories.length > 0
-            ? createPortal(
-                <div
-                  ref={templateMenuRef}
-                  data-testid="chat-input-template-menu-portal"
-                  className="fixed z-[120]"
-                  style={{
-                    left: templateMenuPosition?.left ?? 16,
-                    top: templateMenuPosition?.top ?? 16,
-                    width:
-                      templateMenuPosition?.width ??
-                      Math.min(620, window.innerWidth - 32),
-                    transform:
-                      templateMenuPosition?.placement === "above"
-                        ? "translateY(-100%)"
-                        : undefined,
-                    visibility: templateMenuPosition ? "visible" : "hidden",
-                  }}
-                >
-                  <PromptTemplateBrowser
-                    dataTestId="chat-input-template-menu"
-                    categories={immersiveTemplateBrowserCategories}
-                    className="w-full"
-                  />
-                </div>,
-                document.body,
-              )
-            : null}
+        </div>
         </div>
       );
     }

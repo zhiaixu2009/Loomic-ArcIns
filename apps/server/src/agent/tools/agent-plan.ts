@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 
+import type { StructuredTool } from "@langchain/core/tools";
 import { tool } from "langchain";
 import {
   agentPlanStepStatusSchema,
@@ -116,7 +117,7 @@ export function createAgentPlanStore(): AgentPlanStore {
   return { currentPlan: null };
 }
 
-export function createPublishPlanTool() {
+export function createPublishPlanTool(): StructuredTool {
   return tool(
     async (input: PublishPlanInput, config) => {
       const store = readPlanStore(config);
@@ -164,7 +165,7 @@ export function createPublishPlanTool() {
   );
 }
 
-export function createUpdatePlanStepTool() {
+export function createUpdatePlanStepTool(): StructuredTool {
   return tool(
     async (input: UpdatePlanStepInput, config) => {
       const store = readPlanStore(config);

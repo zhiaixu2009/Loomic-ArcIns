@@ -520,7 +520,7 @@ describe("CanvasPage context menu mode", () => {
         if (tagName === "canvas") {
           vi.spyOn(element as HTMLCanvasElement, "getContext").mockReturnValue({
             drawImage: drawImageMock,
-          } as CanvasRenderingContext2D);
+          } as unknown as CanvasRenderingContext2D);
           vi.spyOn(element as HTMLCanvasElement, "toBlob").mockImplementation(
             ((callback: BlobCallback, type?: string) => {
               callback?.(new Blob(["selection"], { type: type ?? "image/png" }));
@@ -592,7 +592,10 @@ describe("CanvasPage context menu mode", () => {
       expect(drawImageMock).toHaveBeenCalledTimes(2);
       expect(clickedAnchors).toHaveLength(1);
       expect(clickedAnchors[0]?.download).toBe("canvas-selection-export.png");
-      expect((createObjectUrlMock.mock.calls[0]?.[0] as Blob).type).toBe("image/png");
+      const firstCreateObjectUrlCall = createObjectUrlMock.mock.calls.at(0);
+      expect(firstCreateObjectUrlCall).toBeDefined();
+      const [firstBlobArg] = firstCreateObjectUrlCall as unknown as [Blob];
+      expect(firstBlobArg.type).toBe("image/png");
       expect(consoleWarnSpy).not.toHaveBeenCalledWith(
         expect.stringContaining("multi-selection export is not implemented yet"),
       );

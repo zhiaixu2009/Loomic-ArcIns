@@ -62,17 +62,22 @@ vi.mock("../src/hooks/use-breakpoint", () => ({
   useBreakpoint: () => "desktop",
 }));
 
-function createMockWs(): WebSocketHandle {
+function createMockWs() {
   return {
     connected: true,
-    startRun: vi.fn((payload, onAck) => {
-      // Simulate server ack
-      onAck?.({
-        type: "command.ack",
-        action: "agent.run",
-        payload: { runId: "run_123" },
-      });
-    }),
+    startRun: vi.fn(
+      (
+        payload: Parameters<WebSocketHandle["startRun"]>[0],
+        onAck?: Parameters<WebSocketHandle["startRun"]>[1],
+      ) => {
+        // Simulate server ack
+        onAck?.({
+          type: "command.ack",
+          action: "agent.run",
+          payload: { runId: "run_123" },
+        });
+      },
+    ),
     cancelRun: vi.fn(),
     interruptRun: vi.fn(),
     resumeRun: vi.fn(),
@@ -84,7 +89,7 @@ function createMockWs(): WebSocketHandle {
     setPresence: vi.fn(() => true),
     updateCursor: vi.fn(() => true),
     updateSelection: vi.fn(() => true),
-  };
+  } satisfies WebSocketHandle;
 }
 
 function createGeneratedFilesApi(
@@ -113,7 +118,7 @@ function createGeneratedFilesApi(
 }
 
 describe("ChatSidebar", () => {
-  let mockWs: WebSocketHandle;
+  let mockWs: ReturnType<typeof createMockWs>;
   const architectureContext = {
     studio: "architecture",
     boards: [

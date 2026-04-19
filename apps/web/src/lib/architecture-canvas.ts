@@ -489,6 +489,9 @@ export function areArchitectureContextsEqual(
   for (let index = 0; index < left.strategyOptions.length; index += 1) {
     const leftOption = left.strategyOptions[index];
     const rightOption = right.strategyOptions[index];
+    if (!leftOption || !rightOption) {
+      return false;
+    }
     if (
       leftOption.optionId !== rightOption.optionId ||
       leftOption.title !== rightOption.title ||
@@ -502,6 +505,9 @@ export function areArchitectureContextsEqual(
   for (let index = 0; index < left.boards.length; index += 1) {
     const leftBoard = left.boards[index];
     const rightBoard = right.boards[index];
+    if (!leftBoard || !rightBoard) {
+      return false;
+    }
 
     if (
       leftBoard.boardId !== rightBoard.boardId ||
@@ -714,7 +720,7 @@ function createTextElement(args: {
 }
 
 function createBaseElement(args: {
-  id?: string;
+  id?: string | undefined;
   type: string;
   x: number;
   y: number;

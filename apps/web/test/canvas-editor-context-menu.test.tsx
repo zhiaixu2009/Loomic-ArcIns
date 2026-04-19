@@ -73,7 +73,11 @@ vi.mock("next/dynamic", async () => {
               return;
             }
 
-            setComponent(() => ("default" in mod ? mod.default : mod));
+            const loadedComponent: React.ComponentType<any> | null =
+              typeof mod === "function"
+                ? mod
+                : mod.default ?? null;
+            setComponent(() => loadedComponent);
           });
 
           return () => {

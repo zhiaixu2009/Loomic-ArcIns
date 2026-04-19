@@ -175,7 +175,13 @@ export async function fetchAsDataURL(url: string): Promise<string> {
 export async function insertImageOnCanvas(
   api: {
     addFiles: (
-      files: { id: any; dataURL: any; mimeType: string; created: number }[],
+      files: {
+        id: any;
+        dataURL: any;
+        mimeType: string;
+        created: number;
+        storageUrl?: string;
+      }[],
     ) => void;
     getSceneElements: () => readonly any[];
     getAppState: () => any;

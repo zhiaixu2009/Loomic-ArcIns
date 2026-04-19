@@ -21,6 +21,8 @@ const PROJECT_NOT_FOUND_MESSAGE = "Project not found.";
 const PROJECT_UPDATE_FAILED_MESSAGE = "Unable to update project.";
 const PROJECT_SLUG_TAKEN_MESSAGE =
   "Project slug is already taken in this workspace.";
+const TRANSIENT_THUMBNAIL_UPLOAD_RETRY_ATTEMPTS = 3;
+const TRANSIENT_THUMBNAIL_UPLOAD_RETRY_DELAY_MS = 100;
 
 export type ProjectService = {
   archiveProject(
@@ -87,6 +89,7 @@ export class ProjectServiceError extends Error {
 
 export function createProjectService(options: {
   createUserClient: (accessToken: string) => UserSupabaseClient;
+  getAdminClient?: () => UserSupabaseClient;
   viewerService: ViewerService;
 }): ProjectService {
   return {
@@ -279,6 +282,7 @@ export function createProjectService(options: {
 
     async saveThumbnail(user, projectId, buffer, mimeType) {
       const client = options.createUserClient(user.accessToken);
+      const privilegedClient = options.getAdminClient?.() ?? client;
 
       // Resolve workspace_id — RLS requires first path segment to be the workspace UUID
       const { data: proj } = await client
@@ -293,9 +297,13 @@ export function createProjectService(options: {
       const ext = mimeType === "image/webp" ? "webp" : "png";
       const objectPath = `${proj.workspace_id}/${projectId}/thumbnail.${ext}`;
 
-      const { error: uploadError } = await client.storage
-        .from(THUMBNAIL_BUCKET)
-        .upload(objectPath, buffer, { contentType: mimeType, upsert: true });
+      const { error: uploadError } = await runTransientThumbnailUploadOperation(
+        () =>
+          privilegedClient.storage
+            .from(THUMBNAIL_BUCKET)
+            .upload(objectPath, buffer, { contentType: mimeType, upsert: true }),
+        (result) => getRetryableThumbnailUploadErrorMessage(result.error),
+      );
 
       if (uploadError) {
         throw new ProjectServiceError(
@@ -305,7 +313,7 @@ export function createProjectService(options: {
         );
       }
 
-      const { error: updateError } = await client
+      const { error: updateError } = await privilegedClient
         .from("projects")
         .update({ thumbnail_path: objectPath })
         .eq("id", projectId);
@@ -318,9 +326,15 @@ export function createProjectService(options: {
         );
       }
 
-      const { data: urlData } = client.storage
+      const { data: urlData } = privilegedClient.storage
         .from(THUMBNAIL_BUCKET)
         .getPublicUrl(objectPath);
+
+      console.info("[projects] thumbnail saved", {
+        projectId,
+        objectPath,
+        mimeType,
+      });
 
       return { thumbnailUrl: urlData.publicUrl };
     },
@@ -505,4 +519,82 @@ function generateThumbnailUrls(
   }
 
   return urlMap;
+}
+
+async function runTransientThumbnailUploadOperation<T>(
+  operation: () => Promise<T>,
+  getRetryMessage: (result: T) => string | null,
+): Promise<T> {
+  for (
+    let attempt = 1;
+    attempt <= TRANSIENT_THUMBNAIL_UPLOAD_RETRY_ATTEMPTS;
+    attempt += 1
+  ) {
+    const result = await operation();
+    const retryMessage = getRetryMessage(result);
+
+    if (
+      !retryMessage ||
+      attempt === TRANSIENT_THUMBNAIL_UPLOAD_RETRY_ATTEMPTS
+    ) {
+      return result;
+    }
+
+    console.warn("[projects] transient thumbnail upload failed, retrying", {
+      attempt,
+      maxAttempts: TRANSIENT_THUMBNAIL_UPLOAD_RETRY_ATTEMPTS,
+      message: retryMessage,
+    });
+
+    await delay(TRANSIENT_THUMBNAIL_UPLOAD_RETRY_DELAY_MS * attempt);
+  }
+
+  throw new Error("Unreachable thumbnail upload retry loop.");
+}
+
+function getRetryableThumbnailUploadErrorMessage(error: unknown): string | null {
+  const message = extractThumbnailUploadErrorMessage(error);
+  if (!message) {
+    return null;
+  }
+
+  const normalized = message.toLowerCase();
+  if (
+    normalized.includes("fetch failed") ||
+    normalized.includes("und_err_") ||
+    normalized.includes("econnreset") ||
+    normalized.includes("etimedout") ||
+    normalized.includes("invalid response was received from the upstream server")
+  ) {
+    return message;
+  }
+
+  return null;
+}
+
+function extractThumbnailUploadErrorMessage(error: unknown): string | null {
+  if (!error) {
+    return null;
+  }
+
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "message" in error &&
+    typeof error.message === "string"
+  ) {
+    return error.message;
+  }
+
+  return null;
+}
+
+function delay(ms: number) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
 }

@@ -1438,3 +1438,66 @@ Phase 7 complete for the current non-deferred PRD scope (all frozen PRD checkbox
 - Planning consequence:
   - this `chat input` slice should now be treated as closed unless a new real-site gap is observed from the captured runtime screenshots
   - the next work item should return to the next unchecked PRD parity item rather than re-open the now-verified composer shell geometry
+
+## Latest Update: 2026-04-19 16:19 Asia/Shanghai
+
+- Closed the remaining runtime debt that was still open at the start of this session:
+  - browser-level canvas thumbnail autosave/upload no longer returns `500`
+  - homepage recent-project thumbnail resources still avoid `host.docker.internal`
+- Root-cause closure for the thumbnail upload regression is now evidence-backed:
+  - first real-browser reproduction still showed `PUT /api/projects/:projectId/thumbnail -> 500`
+  - server logs pinned the failure to `project-service.saveThumbnail()` storage upload with message:
+    - `An invalid response was received from the upstream server`
+  - controlled probes then narrowed the issue further:
+    - direct admin-client upload inside the server container succeeded
+    - direct route upload with the same user token succeeded
+    - browser-page direct upload of a synthetic `image/webp` blob succeeded
+    - the exact auto-generated thumbnail blob failed on the first automatic request but succeeded when immediately replayed with the same bytes
+  - frozen conclusion:
+    - the bug was a transient local Supabase Storage upstream failure on the first thumbnail upload attempt
+    - `project-service` needed the same transient retry hardening already used in `upload-service`
+- Fresh verification for this closure:
+  - focused red/green:
+    - `apps/server/src/features/projects/project-service.test.ts`
+    - result: red before fix, green after fix (`2` tests passed)
+  - real browser after rebuilding `server`:
+    - login with seeded user
+    - open real canvas project
+    - draw a new shape
+    - wait for autosave + thumbnail debounce/upload
+    - result:
+      - `PUT /api/projects/e93a79dc-87eb-4688-8356-e5b259392359/thumbnail -> 200`
+      - screenshot evidence: `D:/97-CodingProject/Loomic-ArcIns/.tmp/debtfix5-thumbnail-green.png`
+  - homepage asset-host regression check:
+    - browser resource entries containing `host.docker.internal`: `[]`
+- Remaining visible debt after this closure:
+  - `apps/server` full typecheck still has pre-existing unrelated failures in `env.ts`, `export-service.ts`, `upload-service.ts`, `http/exports.ts`, and `supabase/user.test.ts`
+  - this debt is now explicitly separated from the fixed thumbnail runtime regression so it is not confused as a reopening of the browser issue
+
+## Latest Update: 2026-04-19 17:05 Asia/Shanghai
+
+- Closed the server-side residual debt that was still open after the thumbnail runtime fix:
+  - `apps/server` full typecheck is now green
+  - export artifact hydration no longer trusts raw database bucket strings without validation
+  - agent plan tools now expose explicit portable return types instead of leaking cross-package `zod` inference through `tsc`
+- Root-cause closure for this final debt slice:
+  - `export-service.ts` still typed project artifact rows as `AssetObject["bucket"]` even though Supabase query results arrive as plain `string`
+  - `agent-plan.ts` relied on inferred tool factory return types that TypeScript could not serialize cleanly because of nested `@loomic/shared/node_modules/zod` references
+- Fresh verification completed for this closure:
+  - red/green:
+    - `node ..\\..\\node_modules\\vitest\\vitest.mjs run src/features/exports/export-service.test.ts --reporter=dot --pool forks`
+    - result: new invalid-bucket regression test failed before the fix, then full file passed (`3` tests passed)
+  - full server typecheck:
+    - `node ..\\..\\node_modules\\typescript\\bin\\tsc -p tsconfig.json --noEmit`
+    - result: `0` errors
+  - deployment sanity:
+    - `LOOMIC_ENV_FILE=.tmp/loomic-local.env docker compose -f docker-compose.local.yml up -d --build server`
+    - `curl.exe -s http://127.0.0.1:3001/api/health`
+    - result: `{"ok":true,"service":"loomic-server","version":"0.0.0"}`
+  - real-browser sanity after rebuild:
+    - Playwright CLI session `debtfix6`
+    - authenticated homepage landed on `/home`
+    - browser console errors: `0`
+- Current planning consequence:
+  - the runtime thumbnail regression and the exposed `apps/server` type debt should both now be treated as closed
+  - no residual known debt from this session remains open in `apps/server`

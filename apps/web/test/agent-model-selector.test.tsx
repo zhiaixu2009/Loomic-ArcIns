@@ -4,6 +4,7 @@ import "@testing-library/jest-dom/vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { ImageModelPreference } from "../src/hooks/use-image-model-preference";
 
 const {
   fetchModelsMock,
@@ -11,7 +12,10 @@ const {
   setModelMock,
 } = vi.hoisted(() => ({
   fetchModelsMock: vi.fn(),
-  imageModelPreferenceState: { mode: "auto" as const, models: [] as string[] },
+  imageModelPreferenceState: {
+    mode: "auto",
+    models: [],
+  } as ImageModelPreference,
   setModelMock: vi.fn(),
 }));
 

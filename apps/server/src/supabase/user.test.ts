@@ -118,7 +118,9 @@ describe("createSupabaseRequestAuthenticator", () => {
       }),
     );
 
-    const firstCreateClientCall = createClient.mock.calls[0];
+    const firstCreateClientCall = createClient.mock.calls.at(0) as
+      | unknown[]
+      | undefined;
     expect(firstCreateClientCall).toBeDefined();
 
     const options = firstCreateClientCall?.[2] as unknown as {
@@ -147,7 +149,9 @@ describe("createSupabaseRequestAuthenticator", () => {
 
     createUserClient("access-token-3");
 
-    const firstCreateClientCall = createClient.mock.calls[0];
+    const firstCreateClientCall = createClient.mock.calls.at(0) as
+      | unknown[]
+      | undefined;
     expect(firstCreateClientCall).toBeDefined();
 
     const options = firstCreateClientCall?.[2] as unknown as {

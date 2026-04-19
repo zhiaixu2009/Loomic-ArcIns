@@ -1114,13 +1114,15 @@ export function CanvasToolMenu({
         setActiveArchitectureShapeItemId(null);
       }
       setActiveTool((prev: string) => (prev === tool ? prev : tool));
+      console.log("[canvas-tool-menu] activate tool", {
+        tool,
+        shapeFlyoutItemId: options?.shapeFlyoutItemId ?? null,
+      });
       excalidrawApi?.setActiveTool({ type: tool });
 
       if (!excalidrawApi?.updateScene) {
         return;
       }
-
-      const currentAppState = excalidrawApi.getAppState?.() ?? {};
 
       if (
         tool === "rectangle" ||
@@ -1130,7 +1132,6 @@ export function CanvasToolMenu({
       ) {
         excalidrawApi.updateScene({
           appState: {
-            ...currentAppState,
             currentItemStrokeColor: shapeToolbarStyle.strokeColor,
             currentItemBackgroundColor: shapeToolbarStyle.backgroundColor,
             currentItemStrokeWidth: shapeToolbarStyle.strokeWidth,
@@ -1146,7 +1147,6 @@ export function CanvasToolMenu({
       if (tool === "freedraw") {
         excalidrawApi.updateScene({
           appState: {
-            ...currentAppState,
             currentItemStrokeColor: shapeToolbarStyle.strokeColor,
             currentItemStrokeWidth: shapeToolbarStyle.strokeWidth,
             currentItemRoughness: 0,
@@ -1162,7 +1162,6 @@ export function CanvasToolMenu({
         setTextToolbarStyle(nextTextStyle);
         excalidrawApi.updateScene({
           appState: {
-            ...currentAppState,
             currentItemStrokeColor: nextTextStyle.color,
             currentItemFontSize: nextTextStyle.fontSize,
           },
@@ -1183,12 +1182,10 @@ export function CanvasToolMenu({
         ...shapeToolbarStyle,
         ...partialStyle,
       });
-      const currentAppState = excalidrawApi.getAppState?.() ?? {};
 
       setShapeToolbarStyle(nextStyle);
       excalidrawApi.updateScene({
         appState: {
-          ...currentAppState,
           currentItemStrokeColor: nextStyle.strokeColor,
           currentItemBackgroundColor: nextStyle.backgroundColor,
           currentItemStrokeWidth: nextStyle.strokeWidth,
@@ -1244,7 +1241,6 @@ export function CanvasToolMenu({
           });
         },
       );
-      const currentAppState = excalidrawApi.getAppState?.() ?? {};
 
       setSelectedShapeElement({
         ...selectedShapeElement,
@@ -1256,7 +1252,6 @@ export function CanvasToolMenu({
       excalidrawApi.updateScene({
         elements: nextElements,
         appState: {
-          ...currentAppState,
           currentItemStrokeColor: nextStyle.strokeColor,
           currentItemBackgroundColor: nextStyle.backgroundColor,
           currentItemStrokeWidth: nextStyle.strokeWidth,
@@ -1326,7 +1321,6 @@ export function CanvasToolMenu({
           });
         },
       );
-      const currentAppState = excalidrawApi.getAppState?.() ?? {};
 
       setSelectedTextElement({
         ...selectedTextElement,
@@ -1336,7 +1330,6 @@ export function CanvasToolMenu({
       excalidrawApi.updateScene({
         elements: nextElements,
         appState: {
-          ...currentAppState,
           currentItemStrokeColor: nextStyle.color,
           currentItemFontSize: nextStyle.fontSize,
         },
@@ -1361,12 +1354,10 @@ export function CanvasToolMenu({
         ...textToolbarStyle,
         ...nextValues,
       });
-      const currentAppState = excalidrawApi.getAppState?.() ?? {};
 
       setTextToolbarStyle(nextStyle);
       excalidrawApi.updateScene({
         appState: {
-          ...currentAppState,
           currentItemStrokeColor: nextStyle.color,
           currentItemFontSize: nextStyle.fontSize,
         },

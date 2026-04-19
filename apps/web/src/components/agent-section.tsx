@@ -33,8 +33,9 @@ export function AgentSection({
       .then((data) => {
         setModels(data.models);
         const ids = data.models.map((m: ModelInfo) => m.id);
-        if (ids.length > 0 && !ids.includes(selectedModel)) {
-          setSelectedModel(ids[0]);
+        const fallbackModelId = ids[0];
+        if (fallbackModelId && !ids.includes(selectedModel)) {
+          setSelectedModel(fallbackModelId);
         }
       })
       .catch(() => setModels([]))

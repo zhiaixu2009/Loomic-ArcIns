@@ -5,12 +5,16 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { HomePrompt } from "../src/components/home-prompt";
+import type { ImageModelPreference } from "../src/hooks/use-image-model-preference";
 
 const {
   imageModelPreferenceState,
   setImageModelPreferenceMock,
 } = vi.hoisted(() => ({
-  imageModelPreferenceState: { mode: "auto" as const, models: [] as string[] },
+  imageModelPreferenceState: {
+    mode: "auto",
+    models: [],
+  } as ImageModelPreference,
   setImageModelPreferenceMock: vi.fn(),
 }));
 
@@ -51,18 +55,22 @@ describe("HomePrompt", () => {
     imageModelPreferenceState.models = [];
   });
 
-  it("shows the home prompt control strip with split 自动 / 2K buttons and an in-shell upload trigger", () => {
+  it("shows the shared home control strip with Banana Pro / 自动 | 1K / 模板 and an in-shell upload trigger", () => {
     render(<HomePrompt onSubmit={vi.fn()} />);
 
     expect(screen.getByTitle("上传参考图")).toBeInTheDocument();
     expect(screen.getByTestId("agent-model-selector")).toHaveTextContent(
       "Banana Pro",
     );
-    expect(screen.getByRole("button", { name: "自动" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "2K" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "模版" })).toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: "自动 1K" }),
+      screen.getByRole("button", { name: "自动 | 1K" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "模板" })).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "自动" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "2K" }),
     ).not.toBeInTheDocument();
 
     const inputRow = screen.getByTestId("home-prompt-input-row");
@@ -71,10 +79,10 @@ describe("HomePrompt", () => {
     ).toBeInTheDocument();
   });
 
-  it("renders the home template menu as a left-nav browser with search and an item grid", async () => {
+  it("renders the home template menu as an architecture browser without generic wrappers", async () => {
     render(<HomePrompt onSubmit={vi.fn()} />);
 
-    await userEvent.click(screen.getByRole("button", { name: "模版" }));
+    await userEvent.click(screen.getByRole("button", { name: "模板" }));
 
     const menu = screen.getByTestId("home-prompt-template-menu");
     const grid = within(menu).getByTestId("template-browser-item-grid");
@@ -83,17 +91,23 @@ describe("HomePrompt", () => {
     expect(
       within(menu).getByTestId("template-browser-category-list"),
     ).toBeInTheDocument();
-    expect(within(menu).getByRole("button", { name: "全部" })).toBeInTheDocument();
-    expect(within(menu).getByRole("button", { name: "热度" })).toBeInTheDocument();
-    expect(within(menu).getByRole("button", { name: "最新" })).toBeInTheDocument();
+    expect(
+      within(menu).queryByRole("button", { name: "全部" }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(menu).queryByRole("button", { name: "热度" }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(menu).queryByRole("button", { name: "最新" }),
+    ).not.toBeInTheDocument();
     expect(within(menu).getByRole("button", { name: "效果渲染" })).toBeInTheDocument();
     expect(within(menu).getByRole("button", { name: "总平填色" })).toBeInTheDocument();
     expect(
       within(grid).getByRole("button", { name: "建筑晴天渲染" }),
     ).toBeInTheDocument();
     expect(
-      within(grid).getByRole("button", { name: "建筑平面清新填色" }),
-    ).toBeInTheDocument();
+      within(grid).queryByRole("button", { name: "建筑平面清新填色" }),
+    ).not.toBeInTheDocument();
 
     await userEvent.click(within(menu).getByRole("button", { name: "总平填色" }));
 
@@ -108,11 +122,12 @@ describe("HomePrompt", () => {
   it("filters the home template browser through the live-style search input", async () => {
     render(<HomePrompt onSubmit={vi.fn()} />);
 
-    await userEvent.click(screen.getByRole("button", { name: "模版" }));
+    await userEvent.click(screen.getByRole("button", { name: "模板" }));
 
     const menu = screen.getByTestId("home-prompt-template-menu");
     const grid = within(menu).getByTestId("template-browser-item-grid");
 
+    await userEvent.click(within(menu).getByRole("button", { name: "分析图" }));
     await userEvent.type(within(menu).getByPlaceholderText("搜索"), "基地");
 
     expect(
@@ -129,7 +144,7 @@ describe("HomePrompt", () => {
 
     render(<HomePrompt onSubmit={vi.fn()} />);
 
-    await userEvent.click(screen.getByRole("button", { name: "模版" }));
+    await userEvent.click(screen.getByRole("button", { name: "模板" }));
     await userEvent.click(screen.getByRole("button", { name: "分析图" }));
     await userEvent.click(screen.getByRole("button", { name: "基地现状分析" }));
 
