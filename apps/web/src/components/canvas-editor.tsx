@@ -101,7 +101,20 @@ const SAVE_DEBOUNCE_MS = 1500;
 const THUMBNAIL_DEBOUNCE_MS = 10_000;
 const THUMBNAIL_MAX_SIZE = 400;
 
-function serializeCanvasContent(options: {
+function serializeCanvasFile(file: any): Record<string, unknown> {
+  const hasStorageUrl =
+    typeof file.storageUrl === "string" && file.storageUrl.length > 0;
+
+  return {
+    id: file.id,
+    mimeType: file.mimeType,
+    created: file.created,
+    ...(hasStorageUrl ? {} : { dataURL: file.dataURL }),
+    ...(hasStorageUrl ? { storageUrl: file.storageUrl } : {}),
+  };
+}
+
+export function serializeCanvasContent(options: {
   api: {
     getFiles?: () => Record<string, any>;
   };
@@ -112,15 +125,9 @@ function serializeCanvasContent(options: {
   const rawFiles = options.api.getFiles?.() as Record<string, any> | undefined;
 
   for (const [id, file] of Object.entries(rawFiles ?? {})) {
-    files[id] = {
-      id: file.id,
-      dataURL: file.dataURL,
-      mimeType: file.mimeType,
-      created: file.created,
-      ...(typeof file.storageUrl === "string" && file.storageUrl
-        ? { storageUrl: file.storageUrl }
-        : {}),
-    };
+    // Keep storage-backed files lean so opening an existing project does not
+    // immediately re-save large base64 payloads back to the server.
+    files[id] = serializeCanvasFile(file);
   }
 
   return {
@@ -385,7 +392,7 @@ export function CanvasEditor({
           const files: Record<string, Record<string, unknown>> = {};
           const rawFiles = excalidrawApi.getFiles() as Record<string, any>;
           for (const [id, file] of Object.entries(rawFiles)) {
-            files[id] = { id: file.id, dataURL: file.dataURL, mimeType: file.mimeType, created: file.created };
+            files[id] = serializeCanvasFile(file);
           }
           const appState = excalidrawApi.getAppState();
           saveCanvas(accessTokenRef.current, canvasIdRef.current, {

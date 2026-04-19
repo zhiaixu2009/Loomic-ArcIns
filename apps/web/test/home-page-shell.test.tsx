@@ -8,13 +8,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const {
   createProjectMock,
   fetchProjectsMock,
-  loadHomeDiscoveryCategoriesMock,
   loadHomeExampleCategoriesMock,
+  routerPrefetchMock,
+  routerPushMock,
+  routerReplaceMock,
 } = vi.hoisted(() => ({
   createProjectMock: vi.fn(),
   fetchProjectsMock: vi.fn(),
-  loadHomeDiscoveryCategoriesMock: vi.fn(),
   loadHomeExampleCategoriesMock: vi.fn(),
+  routerPrefetchMock: vi.fn(),
+  routerPushMock: vi.fn(),
+  routerReplaceMock: vi.fn(),
 }));
 
 vi.mock("framer-motion", async () => {
@@ -39,41 +43,13 @@ vi.mock("framer-motion", async () => {
       },
     ),
   };
-  it("rewrites docker-only project thumbnail urls to the active browser hostname before rendering", async () => {
-    fetchProjectsMock.mockResolvedValue({
-      projects: [
-        {
-          id: "project-thumb-1",
-          name: "Harbor Complex",
-          primaryCanvas: { id: "canvas-1" },
-          thumbnailUrl:
-            "http://host.docker.internal:54321/storage/v1/object/public/project-assets/workspace-1/project-thumb-1/thumbnail.webp",
-          updatedAt: "2026-04-14T10:00:00.000Z",
-        },
-      ],
-    });
-
-    render(<HomePage />);
-
-    const projectTitle = await screen.findByText("Harbor Complex");
-    const projectCard = projectTitle.closest("article");
-    const projectThumbnail = projectCard?.querySelector("img");
-
-    expect(projectThumbnail).not.toBeNull();
-
-    const parsedUrl = new URL((projectThumbnail as HTMLImageElement).src);
-    expect(parsedUrl.hostname).toBe(window.location.hostname);
-    expect(parsedUrl.port).toBe("54321");
-    expect(parsedUrl.pathname).toBe(
-      "/storage/v1/object/public/project-assets/workspace-1/project-thumb-1/thumbnail.webp",
-    );
-  });
 });
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({
-    push: vi.fn(),
-    replace: vi.fn(),
+    push: routerPushMock,
+    replace: routerReplaceMock,
+    prefetch: routerPrefetchMock,
   }),
 }));
 
@@ -121,10 +97,6 @@ vi.mock("../src/lib/home-example-library", () => ({
   loadHomeExampleCategories: loadHomeExampleCategoriesMock,
 }));
 
-vi.mock("../src/lib/home-discovery-library", () => ({
-  loadHomeDiscoveryCategories: loadHomeDiscoveryCategoriesMock,
-}));
-
 vi.mock("../src/components/home-prompt", () => ({
   HomePrompt: React.forwardRef(function HomePromptStub(_props, _ref) {
     return <div data-testid="home-prompt">HomePrompt</div>;
@@ -133,10 +105,6 @@ vi.mock("../src/components/home-prompt", () => ({
 
 vi.mock("../src/components/home-example-browser", () => ({
   HomeExampleBrowser: () => <div data-testid="home-example-browser" />,
-}));
-
-vi.mock("../src/components/home-discovery-gallery", () => ({
-  HomeDiscoveryGallery: () => <div data-testid="home-discovery-gallery" />,
 }));
 
 vi.mock("../src/components/skeletons/home-skeleton", () => ({
@@ -164,11 +132,80 @@ describe("HomePage shell", () => {
       ],
     });
     loadHomeExampleCategoriesMock.mockResolvedValue([]);
-    loadHomeDiscoveryCategoriesMock.mockResolvedValue([]);
   });
 
   afterEach(() => {
     cleanup();
+  });
+
+  it("rewrites docker-only project thumbnail urls to the active browser hostname before rendering", async () => {
+    fetchProjectsMock.mockResolvedValue({
+      projects: [
+        {
+          id: "project-thumb-1",
+          name: "Harbor Complex",
+          primaryCanvas: { id: "canvas-1" },
+          thumbnailUrl:
+            "http://host.docker.internal:54321/storage/v1/object/public/project-assets/workspace-1/project-thumb-1/thumbnail.webp",
+          updatedAt: "2026-04-14T10:00:00.000Z",
+        },
+      ],
+    });
+
+    render(<HomePage />);
+
+    const projectTitle = await screen.findByText("Harbor Complex");
+    const projectCard = projectTitle.closest("article");
+    const projectThumbnail = projectCard?.querySelector("img");
+
+    expect(projectThumbnail).not.toBeNull();
+
+    const parsedUrl = new URL((projectThumbnail as HTMLImageElement).src);
+    expect(parsedUrl.hostname).toBe(window.location.hostname);
+    expect(parsedUrl.port).toBe("54321");
+    expect(parsedUrl.pathname).toBe(
+      "/storage/v1/object/public/project-assets/workspace-1/project-thumb-1/thumbnail.webp",
+    );
+  });
+
+  it("prefetches each recent project canvas route after loading recent projects", async () => {
+    render(<HomePage />);
+
+    await screen.findByText("Harbor Complex");
+
+    expect(routerPrefetchMock).toHaveBeenCalledWith(
+      "/canvas?id=canvas-1&studio=architecture",
+    );
+  });
+
+  it("renders recent project cards with the updated date visible and keeps the media wrapper positioned", async () => {
+    fetchProjectsMock.mockResolvedValue({
+      projects: [
+        {
+          id: "project-thumb-1",
+          name: "Harbor Complex",
+          primaryCanvas: { id: "canvas-1" },
+          thumbnailUrl:
+            "http://host.docker.internal:54321/storage/v1/object/public/project-assets/workspace-1/project-thumb-1/thumbnail.webp",
+          updatedAt: "2026-04-14T10:00:00.000Z",
+        },
+      ],
+    });
+
+    render(<HomePage />);
+
+    const projectTitle = await screen.findByText("Harbor Complex");
+    const projectCard = projectTitle.closest("article");
+
+    expect(projectCard).not.toBeNull();
+    expect(
+      within(projectCard as HTMLElement).getByText(/2026-04-14/),
+    ).toBeInTheDocument();
+    expect(
+      within(projectCard as HTMLElement).getByTestId(
+        "recent-project-card-media-project-thumb-1",
+      ),
+    ).toHaveClass("relative");
   });
 
   it("renders the white architecture home shell with site navigation, product-title h1, recent projects, and a single reference-case entry", async () => {
@@ -191,11 +228,6 @@ describe("HomePage shell", () => {
       screen.getByRole("button", { name: "打开参考案例" }),
     ).toBeInTheDocument();
     expect(screen.queryByTestId("home-example-browser")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("home-discovery-gallery")).not.toBeInTheDocument();
-    expect(screen.queryByText("查看全部")).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "删除 Harbor Complex" }),
-    ).not.toBeInTheDocument();
   });
 
   it("opens the reference-case browser from the single entry card instead of rendering the grid inline", async () => {
@@ -203,7 +235,9 @@ describe("HomePage shell", () => {
 
     expect(screen.queryByTestId("home-example-browser")).not.toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole("button", { name: "打开参考案例" }));
+    await userEvent.click(
+      screen.getByRole("button", { name: "打开参考案例" }),
+    );
 
     const dialog = await screen.findByRole("dialog", { name: "参考案例" });
     expect(dialog).toBeInTheDocument();
@@ -216,8 +250,6 @@ describe("HomePage shell", () => {
     render(<HomePage />);
 
     const [recentProjectsHeading] = screen.getAllByRole("heading", { level: 2 });
-    expect(recentProjectsHeading).toBeDefined();
-
     const recentProjectsSection = recentProjectsHeading!.closest("section");
 
     expect(recentProjectsSection).not.toBeNull();
@@ -235,7 +267,9 @@ describe("HomePage shell", () => {
     expect(createProjectMock).not.toHaveBeenCalled();
 
     const dialog = await screen.findByRole("dialog");
-    expect(within(dialog).getByRole("heading", { name: "添加项目" })).toBeInTheDocument();
+    expect(
+      within(dialog).getByRole("heading", { name: "添加项目" }),
+    ).toBeInTheDocument();
     expect(within(dialog).getByLabelText("项目名称")).toBeInTheDocument();
     expect(
       within(dialog).getByRole("button", { name: "导入画布项目" }),
@@ -253,7 +287,10 @@ describe("HomePage shell", () => {
     await userEvent.click(screen.getByRole("button", { name: /新建项目/ }));
 
     const dialog = await screen.findByRole("dialog");
-    await userEvent.type(within(dialog).getByLabelText("项目名称"), "Harbor Studio");
+    await userEvent.type(
+      within(dialog).getByLabelText("项目名称"),
+      "Harbor Studio",
+    );
     await userEvent.click(within(dialog).getByRole("button", { name: "确定" }));
 
     expect(createProjectMock).toHaveBeenCalledWith({

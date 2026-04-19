@@ -460,6 +460,100 @@ describe("createUploadService", () => {
     expect(result.url).toBe("https://public.example.com/retried-upload.png");
   });
 
+  it("retries upstream-response storage upload failures before returning success", async () => {
+    vi.spyOn(Date, "now").mockReturnValue(1_776_188_150_000);
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const userClient = {
+      storage: {
+        from: vi.fn(() => ({
+          upload: vi.fn(() => {
+            throw new Error("user client storage should not be used");
+          }),
+        })),
+      },
+      from: vi.fn(() => {
+        throw new Error("user client data writes should not be used");
+      }),
+    };
+
+    const upload = vi
+      .fn()
+      .mockResolvedValueOnce({
+        error: {
+          message: "An invalid response was received from the upstream server",
+        },
+      })
+      .mockResolvedValueOnce({ error: null });
+    const getPublicUrl = vi.fn().mockReturnValue({
+      data: { publicUrl: "https://public.example.com/retried-upstream-upload.png" },
+    });
+    const adminClient = {
+      storage: {
+        from: vi.fn(() => ({
+          upload,
+          remove: vi.fn().mockResolvedValue({ error: null }),
+          getPublicUrl,
+          createSignedUrl: vi.fn(),
+        })),
+      },
+      from: vi.fn((table: string) => {
+        if (table === "asset_objects") {
+          return {
+            insert: vi.fn(() => ({
+              select: vi.fn(() => ({
+                single: vi.fn().mockResolvedValue({
+                  data: {
+                    id: "asset_retry_upstream_123",
+                    bucket: "project-assets",
+                    object_path:
+                      "workspace-shared/project_123/1776188150000-retried-upstream-upload.png",
+                    mime_type: "image/png",
+                    byte_size: 68,
+                    workspace_id: "workspace-shared",
+                    project_id: "project_123",
+                    created_at: "2026-04-15T01:49:10.000Z",
+                  },
+                  error: null,
+                }),
+              })),
+            })),
+          };
+        }
+
+        throw new Error(`Unexpected table: ${table}`);
+      }),
+    };
+
+    const service = createUploadService({
+      createUserClient: vi.fn(() => userClient as never),
+      getAdminClient: vi.fn(() => adminClient as never),
+    });
+
+    const result = await service.uploadFile(
+      {
+        accessToken: "token_retry_upstream",
+        email: "pro@test.loomic.com",
+        id: "user_admin",
+        userMetadata: {},
+      },
+      {
+        bucket: "project-assets",
+        fileName: "retried-upstream-upload.png",
+        fileBuffer: Buffer.from("png"),
+        mimeType: "image/png",
+        projectId: "project_123",
+        workspaceId: "workspace-shared",
+      },
+    );
+
+    expect(upload).toHaveBeenCalledTimes(2);
+    expect(result.asset.id).toBe("asset_retry_upstream_123");
+    expect(result.url).toBe(
+      "https://public.example.com/retried-upstream-upload.png",
+    );
+  });
+
   it("retries transient asset metadata insert failures without re-uploading the file", async () => {
     vi.spyOn(Date, "now").mockReturnValue(1_776_188_200_000);
     vi.spyOn(console, "warn").mockImplementation(() => {});

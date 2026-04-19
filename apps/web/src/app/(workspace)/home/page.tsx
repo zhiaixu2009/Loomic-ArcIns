@@ -84,6 +84,13 @@ export default function HomePage() {
   const hasInitialized = useRef(false);
 
   const getToken = useCallback(() => accessTokenRef.current, []);
+  const getProjectCanvasUrl = useCallback(
+    (project: ProjectSummary) =>
+      buildCanvasUrl(project.primaryCanvas.id, {
+        studio: "architecture",
+      }),
+    [],
+  );
 
   const loadProjects = useCallback(async () => {
     const token = getToken();
@@ -139,6 +146,21 @@ export default function HomePage() {
       cancelled = true;
     };
   }, [session]);
+
+  useEffect(() => {
+    if (projects.length === 0) {
+      return;
+    }
+
+    const urls = projects.map(getProjectCanvasUrl);
+    urls.forEach((url) => {
+      router.prefetch?.(url);
+    });
+
+    console.info("[home] prefetched recent project canvases", {
+      count: urls.length,
+    });
+  }, [getProjectCanvasUrl, projects, router]);
 
   const handlePromptSubmit = useCallback(
     (
@@ -327,15 +349,12 @@ export default function HomePage() {
                 <article
                   key={project.id}
                   className="group relative flex min-h-[188px] cursor-pointer flex-col overflow-hidden rounded-[10px] border border-slate-200 bg-white shadow-[0_12px_28px_rgba(15,23,42,0.04)] transition-shadow hover:shadow-[0_18px_36px_rgba(15,23,42,0.08)]"
-                  onClick={() =>
-                    router.push(
-                      buildCanvasUrl(project.primaryCanvas.id, {
-                        studio: "architecture",
-                      }),
-                    )
-                  }
+                  onClick={() => router.push(getProjectCanvasUrl(project))}
                 >
-                  <div className="flex h-[112px] items-end bg-[linear-gradient(135deg,#ffffff,#f3f4f6)] px-5 py-4 text-sm text-slate-500">
+                  <div
+                    data-testid={`recent-project-card-media-${project.id}`}
+                    className="relative flex h-[112px] items-end overflow-hidden bg-[linear-gradient(135deg,#ffffff,#f3f4f6)] px-5 py-4 text-sm text-slate-500"
+                  >
                     {project.thumbnailUrl ? (
                       <img
                         src={resolveBrowserAssetUrl(project.thumbnailUrl)}
@@ -352,7 +371,7 @@ export default function HomePage() {
                     )}
                   </div>
 
-                  <div className="flex flex-1 items-end justify-between gap-3 px-5 py-4">
+                  <div className="relative z-10 flex flex-1 items-end justify-between gap-3 px-5 py-4">
                     <div className="min-w-0">
                       <p className="truncate text-base font-semibold text-slate-900">
                         {project.name}
