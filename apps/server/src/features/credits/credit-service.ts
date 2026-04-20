@@ -152,14 +152,17 @@ export function createCreditService(options: {
 
     async refundCredits(workspaceId, userId, amount, jobId, description) {
       const admin = options.getAdminClient();
-
-      const { data, error } = await admin.rpc("refund_credits", {
+      const refundRpcArgs = {
         p_workspace_id: workspaceId,
         p_user_id: userId,
         p_amount: amount,
         p_job_id: jobId ?? null,
-        p_description: description ?? null,
-      });
+        ...(description !== undefined
+          ? { p_description: description }
+          : {}),
+      };
+
+      const { data, error } = await admin.rpc("refund_credits", refundRpcArgs);
 
       if (error) {
         throw new CreditServiceError(
