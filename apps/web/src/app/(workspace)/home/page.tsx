@@ -50,7 +50,7 @@ export default function HomePage() {
   const handleDeleted = useCallback((id: string) => {
     setProjects((prev) => prev.filter((project) => project.id !== id));
   }, []);
-  const { pendingId, deleting, confirmDelete, cancelDelete } =
+  const { pendingId, deleting, requestDelete, confirmDelete, cancelDelete } =
     useDeleteProject({ onDeleted: handleDeleted });
 
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
@@ -84,6 +84,13 @@ export default function HomePage() {
   const hasInitialized = useRef(false);
 
   const getToken = useCallback(() => accessTokenRef.current, []);
+  const getProjectCanvasUrl = useCallback(
+    (project: ProjectSummary) =>
+      buildCanvasUrl(project.primaryCanvas.id, {
+        studio: "architecture",
+      }),
+    [],
+  );
 
   const loadProjects = useCallback(async () => {
     const token = getToken();
@@ -139,6 +146,21 @@ export default function HomePage() {
       cancelled = true;
     };
   }, [session]);
+
+  useEffect(() => {
+    if (projects.length === 0) {
+      return;
+    }
+
+    const urls = projects.map(getProjectCanvasUrl);
+    urls.forEach((url) => {
+      router.prefetch?.(url);
+    });
+
+    console.info("[home] prefetched recent project canvases", {
+      count: urls.length,
+    });
+  }, [getProjectCanvasUrl, projects, router]);
 
   const handlePromptSubmit = useCallback(
     (
@@ -299,19 +321,21 @@ export default function HomePage() {
             <h2 className="text-xl font-semibold text-slate-900">最近项目</h2>
           </div>
 
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,280px)_repeat(3,minmax(0,1fr))]">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <button
               type="button"
+              aria-label="鏂板缓椤圭洰"
               disabled={creating}
               onClick={handleCreateProject}
-              className="flex min-h-[188px] flex-col justify-between rounded-[10px] border border-dashed border-slate-300 bg-slate-50 px-5 py-5 text-left transition-colors hover:bg-slate-100"
+              data-testid="home-new-project-card"
+              className="flex aspect-square flex-col justify-between rounded-[10px] border border-dashed border-slate-300 bg-slate-50 px-5 py-5 text-left transition-colors hover:bg-slate-100"
             >
               <div className="flex h-12 w-12 items-center justify-center rounded-[10px] bg-slate-100 text-2xl text-slate-700 shadow-[inset_0_0_0_1px_rgba(15,23,42,0.04)]">
                 +
               </div>
               <div>
                 <p className="text-lg font-semibold text-slate-900">新建项目</p>
-                <p className="mt-2 text-sm leading-6 text-slate-500">
+                <p className="mt-2 line-clamp-3 text-sm leading-6 text-slate-500">
                   从一句需求或一张参考图开始新的无限画布创作。
                 </p>
               </div>
@@ -326,16 +350,39 @@ export default function HomePage() {
               projects.map((project) => (
                 <article
                   key={project.id}
-                  className="group relative flex min-h-[188px] cursor-pointer flex-col overflow-hidden rounded-[10px] border border-slate-200 bg-white shadow-[0_12px_28px_rgba(15,23,42,0.04)] transition-shadow hover:shadow-[0_18px_36px_rgba(15,23,42,0.08)]"
-                  onClick={() =>
-                    router.push(
-                      buildCanvasUrl(project.primaryCanvas.id, {
-                        studio: "architecture",
-                      }),
-                    )
-                  }
+                  className="group relative flex aspect-square cursor-pointer flex-col overflow-hidden rounded-[10px] border border-slate-200 bg-white shadow-[0_12px_28px_rgba(15,23,42,0.04)] transition-shadow hover:shadow-[0_18px_36px_rgba(15,23,42,0.08)]"
+                  onClick={() => router.push(getProjectCanvasUrl(project))}
                 >
-                  <div className="flex h-[112px] items-end bg-[linear-gradient(135deg,#ffffff,#f3f4f6)] px-5 py-4 text-sm text-slate-500">
+                  <button
+                    type="button"
+                    aria-label={`鍒犻櫎椤圭洰 ${project.name}`}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      requestDelete(project.id);
+                    }}
+                    className="absolute right-3 top-3 z-20 inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white/94 text-slate-500 shadow-[0_8px_18px_rgba(15,23,42,0.08)] backdrop-blur transition-colors hover:bg-slate-100 hover:text-slate-900"
+                  >
+                    <svg
+                      className="h-4 w-4"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth={1.8}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M3 6h18" />
+                      <path d="M8 6V4.75A1.75 1.75 0 0 1 9.75 3h4.5A1.75 1.75 0 0 1 16 4.75V6" />
+                      <path d="M18 6l-1 12.25A1.75 1.75 0 0 1 15.26 20H8.74A1.75 1.75 0 0 1 7 18.25L6 6" />
+                      <path d="M10 10.5v5" />
+                      <path d="M14 10.5v5" />
+                    </svg>
+                  </button>
+                  <div
+                    data-testid={`recent-project-card-media-${project.id}`}
+                    className="relative flex min-h-[132px] flex-[1.12] items-end overflow-hidden bg-[linear-gradient(135deg,#ffffff,#f3f4f6)] px-5 py-4 text-sm text-slate-500"
+                  >
                     {project.thumbnailUrl ? (
                       <img
                         src={resolveBrowserAssetUrl(project.thumbnailUrl)}
@@ -352,7 +399,7 @@ export default function HomePage() {
                     )}
                   </div>
 
-                  <div className="flex flex-1 items-end justify-between gap-3 px-5 py-4">
+                  <div className="relative z-10 flex flex-1 items-end justify-between gap-3 px-5 py-4">
                     <div className="min-w-0">
                       <p className="truncate text-base font-semibold text-slate-900">
                         {project.name}

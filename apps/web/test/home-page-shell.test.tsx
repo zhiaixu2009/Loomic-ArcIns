@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import * as React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -8,13 +8,19 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const {
   createProjectMock,
   fetchProjectsMock,
-  loadHomeDiscoveryCategoriesMock,
   loadHomeExampleCategoriesMock,
+  requestDeleteMock,
+  routerPrefetchMock,
+  routerPushMock,
+  routerReplaceMock,
 } = vi.hoisted(() => ({
   createProjectMock: vi.fn(),
   fetchProjectsMock: vi.fn(),
-  loadHomeDiscoveryCategoriesMock: vi.fn(),
   loadHomeExampleCategoriesMock: vi.fn(),
+  requestDeleteMock: vi.fn(),
+  routerPrefetchMock: vi.fn(),
+  routerPushMock: vi.fn(),
+  routerReplaceMock: vi.fn(),
 }));
 
 vi.mock("framer-motion", async () => {
@@ -39,6 +45,101 @@ vi.mock("framer-motion", async () => {
       },
     ),
   };
+});
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({
+    push: routerPushMock,
+    replace: routerReplaceMock,
+    prefetch: routerPrefetchMock,
+  }),
+}));
+
+vi.mock("../src/lib/auth-context", () => ({
+  useAuth: () => ({
+    session: { access_token: "token-home" },
+    signOut: vi.fn(),
+  }),
+}));
+
+vi.mock("../src/hooks/use-create-project", () => ({
+  useCreateProject: () => ({
+    create: createProjectMock,
+    creating: false,
+  }),
+}));
+
+vi.mock("../src/hooks/use-delete-project", () => ({
+  useDeleteProject: () => ({
+    pendingId: null,
+    deleting: false,
+    requestDelete: requestDeleteMock,
+    confirmDelete: vi.fn(),
+    cancelDelete: vi.fn(),
+  }),
+}));
+
+vi.mock("../src/hooks/use-image-attachments", () => ({
+  useImageAttachments: () => ({
+    attachments: [],
+    addFiles: vi.fn(),
+    removeAttachment: vi.fn(),
+    clearAll: vi.fn(),
+    isUploading: false,
+    readyAttachments: [],
+  }),
+}));
+
+vi.mock("../src/lib/server-api", () => ({
+  ApiAuthError: class ApiAuthError extends Error {},
+  fetchProjects: fetchProjectsMock,
+}));
+
+vi.mock("../src/lib/home-example-library", () => ({
+  loadHomeExampleCategories: loadHomeExampleCategoriesMock,
+}));
+
+vi.mock("../src/components/home-prompt", () => ({
+  HomePrompt: React.forwardRef(function HomePromptStub(_props, _ref) {
+    return <div data-testid="home-prompt">HomePrompt</div>;
+  }),
+}));
+
+vi.mock("../src/components/home-example-browser", () => ({
+  HomeExampleBrowser: () => <div data-testid="home-example-browser" />,
+}));
+
+vi.mock("../src/components/skeletons/home-skeleton", () => ({
+  HomeProjectsSkeleton: () => <div data-testid="home-projects-skeleton" />,
+}));
+
+vi.mock("../src/components/delete-project-dialog", () => ({
+  DeleteProjectDialog: () => null,
+}));
+
+import HomePage from "../src/app/(workspace)/home/page";
+
+describe("HomePage shell", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    fetchProjectsMock.mockResolvedValue({
+      projects: [
+        {
+          id: "project-1",
+          name: "Harbor Complex",
+          primaryCanvas: { id: "canvas-1" },
+          thumbnailUrl: null,
+          updatedAt: "2026-04-14T10:00:00.000Z",
+        },
+      ],
+    });
+    loadHomeExampleCategoriesMock.mockResolvedValue([]);
+  });
+
+  afterEach(() => {
+    cleanup();
+  });
+
   it("rewrites docker-only project thumbnail urls to the active browser hostname before rendering", async () => {
     fetchProjectsMock.mockResolvedValue({
       projects: [
@@ -68,107 +169,80 @@ vi.mock("framer-motion", async () => {
       "/storage/v1/object/public/project-assets/workspace-1/project-thumb-1/thumbnail.webp",
     );
   });
-});
 
-vi.mock("next/navigation", () => ({
-  useRouter: () => ({
-    push: vi.fn(),
-    replace: vi.fn(),
-  }),
-}));
+  it("prefetches each recent project canvas route after loading recent projects", async () => {
+    render(<HomePage />);
 
-vi.mock("../src/lib/auth-context", () => ({
-  useAuth: () => ({
-    session: { access_token: "token-home" },
-    signOut: vi.fn(),
-  }),
-}));
+    await screen.findByText("Harbor Complex");
 
-vi.mock("../src/hooks/use-create-project", () => ({
-  useCreateProject: () => ({
-    create: createProjectMock,
-    creating: false,
-  }),
-}));
+    await waitFor(() => {
+      expect(routerPrefetchMock).toHaveBeenCalledWith(
+        "/canvas?id=canvas-1&studio=architecture",
+      );
+    });
+  });
 
-vi.mock("../src/hooks/use-delete-project", () => ({
-  useDeleteProject: () => ({
-    pendingId: null,
-    deleting: false,
-    requestDelete: vi.fn(),
-    confirmDelete: vi.fn(),
-    cancelDelete: vi.fn(),
-  }),
-}));
-
-vi.mock("../src/hooks/use-image-attachments", () => ({
-  useImageAttachments: () => ({
-    attachments: [],
-    addFiles: vi.fn(),
-    removeAttachment: vi.fn(),
-    clearAll: vi.fn(),
-    isUploading: false,
-    readyAttachments: [],
-  }),
-}));
-
-vi.mock("../src/lib/server-api", () => ({
-  ApiAuthError: class ApiAuthError extends Error {},
-  fetchProjects: fetchProjectsMock,
-}));
-
-vi.mock("../src/lib/home-example-library", () => ({
-  loadHomeExampleCategories: loadHomeExampleCategoriesMock,
-}));
-
-vi.mock("../src/lib/home-discovery-library", () => ({
-  loadHomeDiscoveryCategories: loadHomeDiscoveryCategoriesMock,
-}));
-
-vi.mock("../src/components/home-prompt", () => ({
-  HomePrompt: React.forwardRef(function HomePromptStub(_props, _ref) {
-    return <div data-testid="home-prompt">HomePrompt</div>;
-  }),
-}));
-
-vi.mock("../src/components/home-example-browser", () => ({
-  HomeExampleBrowser: () => <div data-testid="home-example-browser" />,
-}));
-
-vi.mock("../src/components/home-discovery-gallery", () => ({
-  HomeDiscoveryGallery: () => <div data-testid="home-discovery-gallery" />,
-}));
-
-vi.mock("../src/components/skeletons/home-skeleton", () => ({
-  HomeProjectsSkeleton: () => <div data-testid="home-projects-skeleton" />,
-}));
-
-vi.mock("../src/components/delete-project-dialog", () => ({
-  DeleteProjectDialog: () => null,
-}));
-
-import HomePage from "../src/app/(workspace)/home/page";
-
-describe("HomePage shell", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
+  it("renders recent project cards with the updated date visible and keeps the media wrapper positioned", async () => {
     fetchProjectsMock.mockResolvedValue({
       projects: [
         {
-          id: "project-1",
+          id: "project-thumb-1",
           name: "Harbor Complex",
           primaryCanvas: { id: "canvas-1" },
-          thumbnailUrl: null,
+          thumbnailUrl:
+            "http://host.docker.internal:54321/storage/v1/object/public/project-assets/workspace-1/project-thumb-1/thumbnail.webp",
           updatedAt: "2026-04-14T10:00:00.000Z",
         },
       ],
     });
-    loadHomeExampleCategoriesMock.mockResolvedValue([]);
-    loadHomeDiscoveryCategoriesMock.mockResolvedValue([]);
+
+    render(<HomePage />);
+
+    const projectTitle = await screen.findByText("Harbor Complex");
+    const projectCard = projectTitle.closest("article");
+
+    expect(projectCard).not.toBeNull();
+    expect(
+      within(projectCard as HTMLElement).getByText(/2026-04-14/),
+    ).toBeInTheDocument();
+    expect(
+      within(projectCard as HTMLElement).getByTestId(
+        "recent-project-card-media-project-thumb-1",
+      ),
+    ).toHaveClass("relative");
   });
 
-  afterEach(() => {
-    cleanup();
+  it("keeps the new-project tile and existing recent-project tiles square, and exposes a delete action on existing projects", async () => {
+    render(<HomePage />);
+
+    const newProjectTile = screen.getByRole("button", { name: /鏂板缓椤圭洰/ });
+    const projectTitle = await screen.findByText("Harbor Complex");
+    const projectCard = projectTitle.closest("article");
+
+    expect(newProjectTile).toHaveClass("aspect-square");
+    expect(projectCard).not.toBeNull();
+    expect(projectCard).toHaveClass("aspect-square");
+    expect(
+      within(projectCard as HTMLElement).getByRole("button", {
+        name: "鍒犻櫎椤圭洰 Harbor Complex",
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it("requests deletion from the existing project-card delete action without opening the canvas", async () => {
+    render(<HomePage />);
+
+    const projectTitle = await screen.findByText("Harbor Complex");
+    const projectCard = projectTitle.closest("article");
+
+    await userEvent.click(
+      within(projectCard as HTMLElement).getByRole("button", {
+        name: "鍒犻櫎椤圭洰 Harbor Complex",
+      }),
+    );
+
+    expect(requestDeleteMock).toHaveBeenCalledWith("project-1");
+    expect(routerPushMock).not.toHaveBeenCalled();
   });
 
   it("renders the white architecture home shell with site navigation, product-title h1, recent projects, and a single reference-case entry", async () => {
@@ -191,11 +265,6 @@ describe("HomePage shell", () => {
       screen.getByRole("button", { name: "打开参考案例" }),
     ).toBeInTheDocument();
     expect(screen.queryByTestId("home-example-browser")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("home-discovery-gallery")).not.toBeInTheDocument();
-    expect(screen.queryByText("查看全部")).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "删除 Harbor Complex" }),
-    ).not.toBeInTheDocument();
   });
 
   it("opens the reference-case browser from the single entry card instead of rendering the grid inline", async () => {
@@ -203,7 +272,9 @@ describe("HomePage shell", () => {
 
     expect(screen.queryByTestId("home-example-browser")).not.toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole("button", { name: "打开参考案例" }));
+    await userEvent.click(
+      screen.getByRole("button", { name: "打开参考案例" }),
+    );
 
     const dialog = await screen.findByRole("dialog", { name: "参考案例" });
     expect(dialog).toBeInTheDocument();
@@ -216,8 +287,6 @@ describe("HomePage shell", () => {
     render(<HomePage />);
 
     const [recentProjectsHeading] = screen.getAllByRole("heading", { level: 2 });
-    expect(recentProjectsHeading).toBeDefined();
-
     const recentProjectsSection = recentProjectsHeading!.closest("section");
 
     expect(recentProjectsSection).not.toBeNull();
@@ -230,12 +299,14 @@ describe("HomePage shell", () => {
   it("opens the add-project dialog shell from the new project card before any project is created", async () => {
     render(<HomePage />);
 
-    await userEvent.click(screen.getByRole("button", { name: /新建项目/ }));
+    await userEvent.click(screen.getByTestId("home-new-project-card"));
 
     expect(createProjectMock).not.toHaveBeenCalled();
 
     const dialog = await screen.findByRole("dialog");
-    expect(within(dialog).getByRole("heading", { name: "添加项目" })).toBeInTheDocument();
+    expect(
+      within(dialog).getByRole("heading", { name: "添加项目" }),
+    ).toBeInTheDocument();
     expect(within(dialog).getByLabelText("项目名称")).toBeInTheDocument();
     expect(
       within(dialog).getByRole("button", { name: "导入画布项目" }),
@@ -250,10 +321,13 @@ describe("HomePage shell", () => {
   it("submits the custom project name only after the dialog confirmation", async () => {
     render(<HomePage />);
 
-    await userEvent.click(screen.getByRole("button", { name: /新建项目/ }));
+    await userEvent.click(screen.getByTestId("home-new-project-card"));
 
     const dialog = await screen.findByRole("dialog");
-    await userEvent.type(within(dialog).getByLabelText("项目名称"), "Harbor Studio");
+    await userEvent.type(
+      within(dialog).getByLabelText("项目名称"),
+      "Harbor Studio",
+    );
     await userEvent.click(within(dialog).getByRole("button", { name: "确定" }));
 
     expect(createProjectMock).toHaveBeenCalledWith({

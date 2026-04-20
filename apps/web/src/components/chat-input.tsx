@@ -918,7 +918,6 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
               >
                 <ArchitectureChatControls
                   preset={architectureControlsPreset}
-                  templateSuggestions={templateSuggestions}
                   onApplyTemplate={handleApplyTemplate}
                   outputMenuTestId="chat-input-immersive-output-menu"
                   templateMenuTestId="chat-input-template-menu"

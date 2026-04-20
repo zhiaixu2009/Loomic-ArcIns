@@ -27,9 +27,11 @@ import { ChatSidebar } from "../../components/chat-sidebar";
 import { CanvasEmptyHint } from "../../components/canvas-empty-hint";
 import { CanvasLogoMenu } from "../../components/canvas-logo-menu";
 import { EditableProjectName } from "../../components/editable-project-name";
+import { useToast } from "../../components/toast";
 import {
   createExcalidrawImageElement,
   fetchImageBlobWithFallback,
+  insertImageFileOnCanvas,
   insertImageOnCanvas,
   insertVideoOnCanvas,
 } from "../../lib/canvas-elements";
@@ -38,8 +40,11 @@ import {
   ApiAuthError,
   fetchCanvas,
   fetchProject,
-  uploadFile,
 } from "../../lib/server-api";
+import {
+  ImageUploadPreparationError,
+  prepareImageFileForInteractiveUpload,
+} from "../../lib/image-upload-preprocessing";
 import { buildCanvasUrl, isArchitectureStudio } from "../../lib/studio-routes";
 import {
   areArchitectureContextsEqual,
@@ -109,30 +114,6 @@ function createSceneCloneId() {
 
 function getBaseName(fileName: string) {
   return fileName.replace(/\.[^.]+$/, "").trim() || "参考图";
-}
-
-async function readImageFileDimensions(file: File) {
-  const objectUrl = URL.createObjectURL(file);
-
-  try {
-    const dimensions = await new Promise<{ width: number; height: number }>(
-      (resolve, reject) => {
-        const image = new Image();
-        image.onload = () => {
-          resolve({
-            width: image.naturalWidth || image.width,
-            height: image.naturalHeight || image.height,
-          });
-        };
-        image.onerror = () => reject(new Error("Failed to read image dimensions"));
-        image.src = objectUrl;
-      },
-    );
-
-    return dimensions;
-  } finally {
-    URL.revokeObjectURL(objectUrl);
-  }
 }
 
 async function readBlobAsDataUrl(blob: Blob) {
@@ -231,6 +212,7 @@ function CanvasPageContent() {
   const [initialPrompt] = useState(() => searchParams.get("prompt") ?? undefined);
   const { user, session, loading: authLoading, signOut } = useAuth();
   const { balance: creditBalance, loading: creditsLoading } = useCredits();
+  const { error: toastError } = useToast();
   const router = useRouter();
 
   const [canvasData, setCanvasData] = useState<{
@@ -625,28 +607,44 @@ function CanvasPageContent() {
 
       for (const file of files) {
         try {
-          const [uploadResponse, dimensions] = await Promise.all([
-            uploadFile(token, file, canvasData.projectId),
-            readImageFileDimensions(file),
-          ]);
+          const prepared = await prepareImageFileForInteractiveUpload(file);
+          if (prepared.optimized) {
+            console.info(
+              "[canvas-page] optimized local reference image before inserting into canvas",
+              {
+                fileName: file.name,
+                originalBytes: file.size,
+                optimizedBytes: prepared.file.size,
+                optimizedType: prepared.file.type,
+                width: prepared.width,
+                height: prepared.height,
+              },
+            );
+          }
 
-          await insertImageOnCanvas(api, {
-            type: "image",
+          // Insert from the local file first so the canvas feels immediate.
+          // Persistence still happens through the normal canvas save pipeline.
+          await insertImageFileOnCanvas(api, {
+            file: prepared.file,
             title: getBaseName(file.name),
-            url: uploadResponse.url,
-            mimeType: file.type || "image/png",
-            width: dimensions.width,
-            height: dimensions.height,
+            width: prepared.width,
+            height: prepared.height,
           });
         } catch (error) {
+          const message =
+            error instanceof ImageUploadPreparationError
+              ? error.message
+              : "图片插入失败，请重试。";
           console.error("[canvas-page] failed to upload reference image", {
             fileName: file.name,
             error,
+            projectId: canvasData.projectId,
           });
+          toastError(message);
         }
       }
     },
-    [canvasData],
+    [canvasData, toastError],
   );
 
   const selectedCanvasImage = useMemo(() => {

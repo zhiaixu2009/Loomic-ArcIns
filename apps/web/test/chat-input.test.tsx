@@ -25,6 +25,91 @@ const {
   setImageModelPreferenceMock: vi.fn(),
 }));
 
+const officialLibraryFixture = {
+  topCategories: [
+    {
+      key: "render",
+      name: "效果渲染",
+      sortOrder: 1,
+      templateCount: 2,
+      children: [
+        {
+          key: "building-render",
+          name: "建筑渲染",
+          sortOrder: 1,
+          templateCount: 1,
+        },
+        {
+          key: "interior-render",
+          name: "室内渲染",
+          sortOrder: 2,
+          templateCount: 1,
+        },
+      ],
+    },
+    {
+      key: "old-house",
+      name: "旧房改造",
+      sortOrder: 2,
+      templateCount: 1,
+      children: [],
+    },
+  ],
+  templates: [
+    {
+      id: "render-day",
+      title: "建筑晴天渲染",
+      promptText: "请基于当前建筑方案生成晴天写实效果图。",
+      coverImageUrl: "https://example.com/render-day-cover.png",
+      outputImageUrl: "https://example.com/render-day-output.png",
+      previewImageUrls: [
+        "https://example.com/render-day-cover.png",
+        "https://example.com/render-day-output.png",
+      ],
+      referenceImageUrls: ["https://example.com/render-day-reference.png"],
+      topCategoryKey: "render",
+      topCategoryName: "效果渲染",
+      leafCategoryKey: "building-render",
+      leafCategoryName: "建筑渲染",
+      sortOrder: 1,
+    },
+    {
+      id: "render-interior",
+      title: "室内黄昏渲染",
+      promptText: "请基于当前室内空间生成黄昏氛围效果图。",
+      coverImageUrl: "https://example.com/render-interior-cover.png",
+      outputImageUrl: "https://example.com/render-interior-output.png",
+      previewImageUrls: [
+        "https://example.com/render-interior-cover.png",
+        "https://example.com/render-interior-output.png",
+      ],
+      referenceImageUrls: ["https://example.com/render-interior-reference.png"],
+      topCategoryKey: "render",
+      topCategoryName: "效果渲染",
+      leafCategoryKey: "interior-render",
+      leafCategoryName: "室内渲染",
+      sortOrder: 2,
+    },
+    {
+      id: "old-house-facade",
+      title: "旧房立面改造",
+      promptText: "请基于当前旧房照片生成建筑立面改造方案。",
+      coverImageUrl: "https://example.com/old-house-cover.png",
+      outputImageUrl: "https://example.com/old-house-output.png",
+      previewImageUrls: [
+        "https://example.com/old-house-cover.png",
+        "https://example.com/old-house-output.png",
+      ],
+      referenceImageUrls: ["https://example.com/old-house-reference.png"],
+      topCategoryKey: "old-house",
+      topCategoryName: "旧房改造",
+      leafCategoryKey: "old-house",
+      leafCategoryName: "旧房改造",
+      sortOrder: 1,
+    },
+  ],
+};
+
 vi.mock("../src/hooks/use-image-model-preference", () => ({
   useImageModelPreference: () => ({
     preference: imageModelPreferenceState,
@@ -48,6 +133,20 @@ vi.mock("../src/components/agent-model-selector", () => ({
 
 vi.mock("../src/components/image-model-preference", () => ({
   ImageModelPreferencePopover: () => null,
+}));
+
+vi.mock("../src/hooks/use-official-prompt-template-library", () => ({
+  useOfficialPromptTemplateLibrary: () => ({
+    status: "ready",
+    library: officialLibraryFixture,
+    favoriteTemplateIds: new Set(["old-house-facade"]),
+    favoritePendingIds: new Set(),
+    isAuthenticated: true,
+    authLoading: false,
+    error: null,
+    refresh: vi.fn(),
+    toggleFavorite: vi.fn(),
+  }),
 }));
 
 afterEach(() => {
@@ -420,14 +519,6 @@ describe("ChatInput", () => {
       <ChatInput
         immersiveArchitecture
         onSend={vi.fn()}
-        templateSuggestions={[
-          {
-            id: "preserve-view",
-            label: "保留视角深化立面",
-            prompt:
-              "请基于当前建筑参考图，保持主体视角与构图关系，进一步细化立面层次与材质细节。",
-          },
-        ]}
       />,
     );
 
@@ -446,20 +537,17 @@ describe("ChatInput", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "模板" }));
 
-    expect(
-      screen.getByRole("button", { name: "保留视角深化立面" }),
-    ).toBeInTheDocument();
-
-    await userEvent.click(
-      screen.getByRole("button", { name: "保留视角深化立面" }),
-    );
+    const menu = screen.getByTestId("chat-input-template-menu");
+    await userEvent.type(within(menu).getByPlaceholderText("搜索模板"), "旧房");
+    await userEvent.click(within(menu).getByRole("button", { name: "旧房立面改造" }));
+    await userEvent.click(within(menu).getByRole("button", { name: "使用模板" }));
 
     expect(setImageModelPreferenceMock).toHaveBeenCalledWith({
       mode: "manual",
       models: ["google/nano-banana-pro"],
     });
     expect(screen.getByLabelText("输入消息")).toHaveValue(
-      "请基于当前建筑参考图，保持主体视角与构图关系，进一步细化立面层次与材质细节。",
+      "请基于当前旧房照片生成建筑立面改造方案。",
     );
   });
 
@@ -638,68 +726,32 @@ describe("ChatInput", () => {
     expect(screen.queryByText("自动 | 1K")).not.toBeInTheDocument();
   });
 
-  it("renders the immersive template menu as category-to-item hierarchy instead of a flat list", async () => {
+  it("renders the immersive template menu from the shared official browser instead of a flat list", async () => {
     render(
       <ChatInput
         immersiveArchitecture
         onSend={vi.fn()}
-        templateSuggestions={[
-          {
-            id: "render-1",
-            label: "保留视角深化立面",
-            prompt:
-              "请基于当前建筑参考图，保持主体视角与构图关系，进一步细化立面层次与材质细节。",
-            categoryId: "render",
-            categoryLabel: "效果渲染",
-          },
-          {
-            id: "site-1",
-            label: "总平填色优化",
-            prompt:
-              "请基于当前总平图，增强场地层次、道路辨识度与绿化填色效果。",
-            categoryId: "site-color",
-            categoryLabel: "总平填色",
-          },
-        ]}
       />,
     );
 
     await userEvent.click(screen.getByRole("button", { name: "模板" }));
 
+    const menu = screen.getByTestId("chat-input-template-menu");
+    expect(within(menu).getByRole("button", { name: "效果渲染" })).toBeInTheDocument();
+    expect(within(menu).getByRole("button", { name: "旧房改造" })).toBeInTheDocument();
+    expect(within(menu).getByRole("button", { name: "建筑渲染" })).toBeInTheDocument();
+    expect(within(menu).getByRole("button", { name: "室内渲染" })).toBeInTheDocument();
+
+    await userEvent.click(within(menu).getByRole("button", { name: "室内渲染" }));
     expect(
-      screen.getByRole("button", { name: "效果渲染" }),
+      within(menu).getByRole("button", { name: "室内黄昏渲染" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "总平填色" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "保留视角深化立面" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "总平填色优化" }),
+      within(menu).queryByRole("button", { name: "建筑晴天渲染" }),
     ).not.toBeInTheDocument();
-
-    await userEvent.click(
-      screen.getByRole("button", { name: "总平填色" }),
-    );
-
-    expect(
-      screen.getByRole("button", { name: "总平填色优化" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "保留视角深化立面" }),
-    ).not.toBeInTheDocument();
-
-    await userEvent.click(
-      screen.getByRole("button", { name: "总平填色优化" }),
-    );
-
-    expect(screen.getByLabelText("输入消息")).toHaveValue(
-      "请基于当前总平图，增强场地层次、道路辨识度与绿化填色效果。",
-    );
   });
 
-  it("anchors the immersive template browser to the template button instead of sending it far above the composer", async () => {
+  it("anchors the immersive template browser to the template button with the adaptive sidebar width", async () => {
     const rectSpy = vi
       .spyOn(HTMLElement.prototype, "getBoundingClientRect")
       .mockImplementation(function mockRect(this: HTMLElement) {
@@ -716,20 +768,6 @@ describe("ChatInput", () => {
             right: 824,
             bottom: 852,
             left: 760,
-            toJSON: () => ({}),
-          } as DOMRect;
-        }
-
-        if (testId === "chat-input-template-menu") {
-          return {
-            x: 0,
-            y: 0,
-            width: 430,
-            height: 248,
-            top: 0,
-            right: 430,
-            bottom: 248,
-            left: 0,
             toJSON: () => ({}),
           } as DOMRect;
         }
@@ -752,25 +790,19 @@ describe("ChatInput", () => {
         <ChatInput
           immersiveArchitecture
           onSend={vi.fn()}
-          templateSuggestions={[
-            {
-              id: "render-1",
-              label: "保留视角深化立面",
-              prompt:
-                "请基于当前建筑参考图，保持主体视角与构图关系，进一步细化立面层次与材质细节。",
-              categoryId: "render",
-              categoryLabel: "效果渲染",
-            },
-          ]}
         />,
       );
 
       await userEvent.click(screen.getByRole("button", { name: "模板" }));
 
       await waitFor(() => {
-        const portal = screen.getByTestId("chat-input-template-menu");
-        expect(portal.style.top).toBe("808px");
-        expect(portal.style.transform).toBe("translateY(-100%)");
+        const portalContent = screen.getByTestId("chat-input-template-menu");
+        const portal = portalContent.parentElement as HTMLElement | null;
+        expect(portal).not.toBeNull();
+        expect(portal?.style.left).toBe("64px");
+        expect(portal?.style.width).toBe("760px");
+        expect(portal?.style.top).toBe("808px");
+        expect(portal?.style.transform).toBe("translateY(-100%)");
       });
     } finally {
       rectSpy.mockRestore();

@@ -1,6 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+
+import {
+  ImageUploadPreparationError,
+  prepareImageFileForInteractiveUpload,
+} from "../lib/image-upload-preprocessing";
 import { uploadFile } from "../lib/server-api";
 
 export type ImageAttachmentState = {
@@ -45,8 +50,13 @@ export type ReadyAttachment = {
   name?: string;
 };
 
-const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10MB
-const ALLOWED_TYPES = new Set(["image/png", "image/jpeg", "image/webp", "image/gif"]);
+const ALLOWED_TYPES = new Set([
+  "image/png",
+  "image/jpeg",
+  "image/webp",
+  "image/gif",
+  "image/svg+xml",
+]);
 
 export function useImageAttachments(accessToken: string, projectId?: string) {
   const [attachments, setAttachments] = useState<ImageAttachmentState[]>([]);
@@ -70,6 +80,102 @@ export function useImageAttachments(accessToken: string, projectId?: string) {
     };
   }, []);
 
+  const markAttachmentError = useCallback(
+    (
+      id: string,
+      error: unknown,
+      options?: {
+        clearRetryFile?: boolean;
+      },
+    ) => {
+      const message =
+        error instanceof Error ? error.message : "Upload failed";
+      setAttachments((prev) =>
+        prev.map((a) =>
+          a.id === id
+            ? options?.clearRetryFile
+              ? (() => {
+                  const { file: _file, ...rest } = a;
+                  return {
+                    ...rest,
+                    uploading: false,
+                    error: message,
+                  };
+                })()
+              : {
+                  ...a,
+                  uploading: false,
+                  error: message,
+                }
+            : a,
+        ),
+      );
+    },
+    [],
+  );
+
+  const prepareAndUploadAttachment = useCallback(
+    async (id: string, file: File) => {
+      try {
+        const prepared = await prepareImageFileForInteractiveUpload(file);
+        if (prepared.optimized) {
+          console.info("[image-attachments] optimized image before upload", {
+            attachmentId: id,
+            fileName: file.name,
+            originalBytes: file.size,
+            optimizedBytes: prepared.file.size,
+            originalType: file.type,
+            optimizedType: prepared.file.type,
+            width: prepared.width,
+            height: prepared.height,
+          });
+        }
+
+        setAttachments((prev) =>
+          prev.map((a) =>
+            a.id === id
+              ? {
+                  ...a,
+                  file: prepared.file,
+                  mimeType: prepared.file.type || a.mimeType,
+                  name: prepared.file.name,
+                }
+              : a,
+          ),
+        );
+
+        const res = await uploadFile(
+          accessTokenRef.current,
+          prepared.file,
+          projectId,
+        );
+
+        setAttachments((prev) =>
+          prev.map((a) =>
+            a.id === id
+              ? {
+                  ...a,
+                  uploading: false,
+                  assetId: res.asset.id,
+                  url: res.url,
+                  mimeType: prepared.file.type || a.mimeType,
+                }
+              : a,
+          ),
+        );
+      } catch (error) {
+        const clearRetryFile =
+          error instanceof ImageUploadPreparationError &&
+          error.code === "image_too_large";
+        console.warn("[image-attachments] Attachment upload failed:", error);
+        markAttachmentError(id, error, {
+          clearRetryFile,
+        });
+      }
+    },
+    [markAttachmentError, projectId],
+  );
+
   const addFiles = useCallback(
     (files: File[]) => {
       const newAttachments: ImageAttachmentState[] = [];
@@ -77,19 +183,6 @@ export function useImageAttachments(accessToken: string, projectId?: string) {
       for (const file of files) {
         if (!ALLOWED_TYPES.has(file.type)) {
           console.warn("[image-attachments] Rejected file type:", file.type);
-          continue;
-        }
-        if (file.size > MAX_FILE_SIZE_BYTES) {
-          const id = crypto.randomUUID();
-          newAttachments.push({
-            id,
-            file,
-            preview: "",
-            uploading: false,
-            error: "File exceeds 10MB limit",
-            mimeType: file.type,
-            source: "upload",
-          });
           continue;
         }
 
@@ -105,34 +198,14 @@ export function useImageAttachments(accessToken: string, projectId?: string) {
           name: file.name,
         });
 
-        // Start upload
-        uploadFile(accessTokenRef.current, file, projectId)
-          .then((res) => {
-            setAttachments((prev) =>
-              prev.map((a) =>
-                a.id === id
-                  ? { ...a, uploading: false, assetId: res.asset.id, url: res.url }
-                  : a,
-              ),
-            );
-          })
-          .catch((err) => {
-            console.warn("[image-attachments] Upload failed:", err);
-            setAttachments((prev) =>
-              prev.map((a) =>
-                a.id === id
-                  ? { ...a, uploading: false, error: err instanceof Error ? err.message : "Upload failed" }
-                  : a,
-              ),
-            );
-          });
+        void prepareAndUploadAttachment(id, file);
       }
 
       if (newAttachments.length > 0) {
         setAttachments((prev) => [...prev, ...newAttachments]);
       }
     },
-    [projectId],
+    [prepareAndUploadAttachment],
   );
 
   const addCanvasRef = useCallback((ref: CanvasImageRef) => {
@@ -217,28 +290,9 @@ export function useImageAttachments(accessToken: string, projectId?: string) {
         ),
       );
 
-      uploadFile(accessTokenRef.current, att.file, projectId)
-        .then((res) => {
-          setAttachments((prev) =>
-            prev.map((a) =>
-              a.id === id
-                ? { ...a, uploading: false, assetId: res.asset.id, url: res.url }
-                : a,
-            ),
-          );
-        })
-        .catch((err) => {
-          console.warn("[image-attachments] Retry upload failed:", err);
-          setAttachments((prev) =>
-            prev.map((a) =>
-              a.id === id
-                ? { ...a, uploading: false, error: err instanceof Error ? err.message : "Upload failed" }
-                : a,
-            ),
-          );
-        });
+      void prepareAndUploadAttachment(id, att.file);
     },
-    [projectId],
+    [prepareAndUploadAttachment],
   );
 
   const removeAttachment = useCallback((id: string) => {

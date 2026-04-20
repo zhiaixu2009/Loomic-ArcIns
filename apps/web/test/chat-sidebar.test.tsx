@@ -33,6 +33,58 @@ const LOCATE_TO_CANVAS_LABEL = "\u5b9a\u4f4d\u5230\u753b\u5e03";
 const LOCATE_FAILURE_MESSAGE =
   "\u672a\u80fd\u5b9a\u4f4d\u5230\u8be5\u753b\u5e03\u8282\u70b9";
 
+vi.mock("../src/hooks/use-official-prompt-template-library", () => ({
+  useOfficialPromptTemplateLibrary: () => ({
+    status: "ready",
+    library: {
+      topCategories: [
+        {
+          key: "render",
+          name: "效果渲染",
+          sortOrder: 1,
+          templateCount: 1,
+          children: [
+            {
+              key: "building-render",
+              name: "建筑渲染",
+              sortOrder: 1,
+              templateCount: 1,
+            },
+          ],
+        },
+      ],
+      templates: [
+        {
+          id: "render-day",
+          title: "建筑晴天渲染",
+          promptText: "请基于当前建筑方案生成晴天写实效果图。",
+          coverImageUrl: "https://example.com/render-day-cover.png",
+          outputImageUrl: "https://example.com/render-day-output.png",
+          previewImageUrls: [
+            "https://example.com/render-day-cover.png",
+            "https://example.com/render-day-output.png",
+          ],
+          referenceImageUrls: [
+            "https://example.com/render-day-reference.png",
+          ],
+          topCategoryKey: "render",
+          topCategoryName: "效果渲染",
+          leafCategoryKey: "building-render",
+          leafCategoryName: "建筑渲染",
+          sortOrder: 1,
+        },
+      ],
+    },
+    favoriteTemplateIds: new Set<string>(),
+    favoritePendingIds: new Set<string>(),
+    isAuthenticated: true,
+    authLoading: false,
+    error: null,
+    refresh: vi.fn(),
+    toggleFavorite: vi.fn(),
+  }),
+}));
+
 vi.mock("../src/lib/server-api", () => ({
   createSession: createSessionMock,
   deleteSession: deleteSessionMock,

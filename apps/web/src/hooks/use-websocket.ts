@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type {
   AgentPlan,
@@ -403,19 +403,36 @@ export function useWebSocket(
     [sendCommand],
   );
 
-  return {
-    connected,
-    startRun,
-    cancelRun,
-    interruptRun,
-    resumeRun,
-    retryRun,
-    onEvent,
-    registerRPC,
-    resumeCanvas,
-    setPresence,
-    updateCursor,
-    updateSelection,
-    publishCanvasMutation,
-  };
+  return useMemo(
+    () => ({
+      connected,
+      startRun,
+      cancelRun,
+      interruptRun,
+      resumeRun,
+      retryRun,
+      onEvent,
+      registerRPC,
+      resumeCanvas,
+      setPresence,
+      updateCursor,
+      updateSelection,
+      publishCanvasMutation,
+    }),
+    [
+      cancelRun,
+      connected,
+      interruptRun,
+      onEvent,
+      publishCanvasMutation,
+      registerRPC,
+      resumeCanvas,
+      resumeRun,
+      retryRun,
+      setPresence,
+      startRun,
+      updateCursor,
+      updateSelection,
+    ],
+  );
 }

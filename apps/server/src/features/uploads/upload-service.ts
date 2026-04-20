@@ -360,7 +360,8 @@ function getRetryableSupabaseErrorMessage(error: unknown): string | null {
     normalized.includes("fetch failed") ||
     normalized.includes("und_err_") ||
     normalized.includes("econnreset") ||
-    normalized.includes("etimedout")
+    normalized.includes("etimedout") ||
+    normalized.includes("invalid response was received from the upstream server")
   ) {
     return message;
   }

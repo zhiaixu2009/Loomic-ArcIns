@@ -4,7 +4,6 @@ import {
   forwardRef,
   useCallback,
   useImperativeHandle,
-  useMemo,
   useRef,
   useState,
 } from "react";
@@ -18,11 +17,7 @@ import type {
   ReadyAttachment,
 } from "../hooks/use-image-attachments";
 import type { HomeExampleSelection } from "@/lib/home-example-seeds";
-import {
-  flattenArchitecturePromptTemplates,
-  HOME_PROMPT_TEMPLATE_CATEGORIES,
-  type ArchitecturePromptTemplateSuggestion,
-} from "../lib/home-prompt-template-data";
+import type { ArchitecturePromptTemplateSuggestion } from "../lib/architecture-prompt-templates";
 import { ArchitectureChatControls } from "./architecture-chat-controls";
 import { ImageAttachmentBar } from "./image-attachment-bar";
 import { useAgentModel } from "../hooks/use-agent-model";
@@ -58,12 +53,6 @@ const toolbarButtons = [
     title: "上传参考图",
     viewBox: "0 0 24 24",
     path: "M16 1.1A4.9 4.9 0 0 1 20.9 6a4.9 4.9 0 0 1-1.429 3.457h.001l-8.414 8.587-.007.006a2.9 2.9 0 0 1-3.887.193l-.213-.192a2.9 2.9 0 0 1-.007-4.095l8.414-8.586a.9.9 0 0 1 1.286 1.26L8.23 15.216l-.007.006a1.1 1.1 0 0 0 1.556 1.555l8.407-8.579.007-.007a3.1 3.1 0 0 0 .105-4.271l-.105-.112a3.1 3.1 0 0 0-4.384 0L5.4 12.387l-.007.006a5.1 5.1 0 0 0 7.214 7.213l7.749-7.934a.9.9 0 0 1 1.288 1.256l-7.753 7.938q-.005.007-.012.014a6.9 6.9 0 0 1-9.758-9.76l8.408-8.578.007-.007A4.9 4.9 0 0 1 16 1.1",
-  },
-  {
-    key: "template",
-    title: "模版",
-    viewBox: "0 0 24 24",
-    path: "M4 5.75A1.75 1.75 0 0 1 5.75 4h12.5A1.75 1.75 0 0 1 20 5.75v12.5A1.75 1.75 0 0 1 18.25 20H5.75A1.75 1.75 0 0 1 4 18.25zm1.5 0v3.75h13V5.75a.25.25 0 0 0-.25-.25H5.75a.25.25 0 0 0-.25.25m13 5.25h-13v7.25c0 .138.112.25.25.25h12.5a.25.25 0 0 0 .25-.25zM7.75 7a.75.75 0 0 1 .75.75v.5a.75.75 0 0 1-1.5 0v-.5A.75.75 0 0 1 7.75 7m3.75 0a.75.75 0 0 1 .75.75v.5a.75.75 0 0 1-1.5 0v-.5A.75.75 0 0 1 11.5 7m4.5.75a.75.75 0 0 0-1.5 0v.5a.75.75 0 0 0 1.5 0z",
   },
 ] as const;
 
@@ -180,11 +169,6 @@ export const HomePrompt = forwardRef<HomePromptHandle, HomePromptProps>(
         textareaRef.current?.focus();
       });
     }, [resizeTextarea, setPreference]);
-
-    const templateSuggestions = useMemo(
-      () => flattenArchitecturePromptTemplates(HOME_PROMPT_TEMPLATE_CATEGORIES),
-      [],
-    );
 
     const handlePaste = useCallback((event: React.ClipboardEvent) => {
       if (!onAddFiles) return;
@@ -346,7 +330,6 @@ export const HomePrompt = forwardRef<HomePromptHandle, HomePromptProps>(
             <div className="mt-3 flex items-center justify-between gap-3">
               <ArchitectureChatControls
                 preset="home"
-                templateSuggestions={templateSuggestions}
                 onApplyTemplate={handleApplyTemplate}
                 templateMenuTestId="home-prompt-template-menu"
               />

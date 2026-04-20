@@ -2,6 +2,7 @@ import type { ImageArtifact, VideoArtifact } from "@loomic/shared";
 
 import { resolveBrowserAssetUrl } from "./browser-asset-url";
 import { getServerBaseUrl } from "./env";
+import { readBlobAsDataUrl } from "./image-upload-preprocessing";
 
 /** Video file extensions recognized for inline playback on canvas. */
 const VIDEO_EXTENSIONS = [".mp4", ".webm", ".ogg", ".mov"];
@@ -160,13 +161,7 @@ export async function fetchImageBlobWithFallback(url: string): Promise<Blob> {
  */
 export async function fetchAsDataURL(url: string): Promise<string> {
   const blob = await fetchImageBlobWithFallback(url);
-  return new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = () =>
-      reject(new Error("Failed to convert image to data URL"));
-    reader.readAsDataURL(blob);
-  });
+  return await readBlobAsDataUrl(blob);
 }
 
 /**
@@ -193,15 +188,104 @@ export async function insertImageOnCanvas(
   artifact: ImageArtifact,
 ): Promise<void> {
   const dataURL = await fetchAsDataURL(artifact.url);
+  insertCanvasImage(api, {
+    dataURL,
+    mimeType: artifact.mimeType,
+    width: artifact.width,
+    height: artifact.height,
+    source: "generated",
+    storageUrl: artifact.url,
+    ...(artifact.placement ? { placement: artifact.placement } : {}),
+    ...(artifact.title ? { title: artifact.title } : {}),
+  });
+}
+
+export async function insertImageFileOnCanvas(
+  api: {
+    addFiles: (
+      files: {
+        id: any;
+        dataURL: any;
+        mimeType: string;
+        created: number;
+        storageUrl?: string;
+      }[],
+    ) => void;
+    getSceneElements: () => readonly any[];
+    getAppState: () => any;
+    updateScene: (scene: {
+      elements: any[];
+      captureUpdate?: string;
+    }) => void;
+  },
+  input: {
+    file: File;
+    width: number;
+    height: number;
+    placement?: {
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+    };
+    title?: string;
+  },
+): Promise<void> {
+  const dataURL = await readBlobAsDataUrl(input.file);
+  insertCanvasImage(api, {
+    dataURL,
+    mimeType: input.file.type || "image/png",
+    width: input.width,
+    height: input.height,
+    source: "uploaded",
+    ...(input.placement ? { placement: input.placement } : {}),
+    ...(input.title ? { title: input.title } : {}),
+  });
+}
+
+function insertCanvasImage(
+  api: {
+    addFiles: (
+      files: {
+        id: any;
+        dataURL: any;
+        mimeType: string;
+        created: number;
+        storageUrl?: string;
+      }[],
+    ) => void;
+    getSceneElements: () => readonly any[];
+    getAppState: () => any;
+    updateScene: (scene: {
+      elements: any[];
+      captureUpdate?: string;
+    }) => void;
+  },
+  input: {
+    dataURL: string;
+    mimeType: string;
+    width: number;
+    height: number;
+    placement?: {
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+    };
+    title?: string;
+    source: "generated" | "uploaded";
+    storageUrl?: string;
+  },
+): void {
   const fileId = generateId();
 
   api.addFiles([
     {
       id: fileId as any,
-      dataURL: dataURL as any,
-      mimeType: artifact.mimeType,
+      dataURL: input.dataURL as any,
+      mimeType: input.mimeType,
       created: Date.now(),
-      storageUrl: artifact.url,
+      ...(input.storageUrl ? { storageUrl: input.storageUrl } : {}),
     },
   ]);
 
@@ -210,15 +294,15 @@ export async function insertImageOnCanvas(
   let width: number;
   let height: number;
 
-  if (artifact.placement) {
+  if (input.placement) {
     // Agent-controlled placement
-    x = artifact.placement.x;
-    y = artifact.placement.y;
-    width = artifact.placement.width;
-    height = artifact.placement.height;
+    x = input.placement.x;
+    y = input.placement.y;
+    width = input.placement.width;
+    height = input.placement.height;
   } else {
     // Smart auto-placement: viewport center if empty, next to elements if not
-    const scaled = scaleToFit(artifact.width, artifact.height, 600);
+    const scaled = scaleToFit(input.width, input.height, 600);
     width = scaled.width;
     height = scaled.height;
 
@@ -255,9 +339,9 @@ export async function insertImageOnCanvas(
     y,
     width,
     height,
-    ...(artifact.title ? { title: artifact.title } : {}),
-    source: "generated",
-    storageUrl: artifact.url,
+    ...(input.title ? { title: input.title } : {}),
+    source: input.source,
+    ...(input.storageUrl ? { storageUrl: input.storageUrl } : {}),
   });
 
   api.updateScene({
