@@ -105,6 +105,7 @@ export function mapServerMessages(
 type UseChatSessionsOptions = {
   canvasId: string;
   accessToken: string;
+  enabled?: boolean;
   initialSessionId?: string | undefined;
   onSessionChange?: ((sessionId: string) => void) | undefined;
 };
@@ -112,13 +113,14 @@ type UseChatSessionsOptions = {
 export function useChatSessions({
   canvasId,
   accessToken,
+  enabled = true,
   initialSessionId,
   onSessionChange,
 }: UseChatSessionsOptions) {
   const [sessions, setSessions] = useState<ChatSessionSummary[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
-  const [sessionsLoading, setSessionsLoading] = useState(true);
+  const [sessionsLoading, setSessionsLoading] = useState(enabled);
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [streaming, setStreaming] = useState(false);
 
@@ -133,6 +135,10 @@ export function useChatSessions({
   messagesRef.current = messages;
   const onSessionChangeRef = useRef(onSessionChange);
   onSessionChangeRef.current = onSessionChange;
+  const initialSessionIdRef = useRef(initialSessionId);
+  initialSessionIdRef.current = initialSessionId;
+  const initializedRef = useRef(false);
+  const initPromiseRef = useRef<Promise<string | null> | null>(null);
 
   // LRU message cache (replaces unbounded Record)
   const msgCacheRef = useRef<LRUMessageCache>(createLRUMessageCache());
@@ -151,54 +157,90 @@ export function useChatSessions({
     [],
   );
 
-  // ── Load sessions on mount ──
-  useEffect(() => {
-    let cancelled = false;
+  const initializeSessions = useCallback(async (): Promise<string | null> => {
+    if (initPromiseRef.current) {
+      return await initPromiseRef.current;
+    }
 
-    async function init() {
+    const initPromise = (async () => {
       const token = accessTokenRef.current;
       setSessionsLoading(true);
       try {
         const res = await fetchSessions(token, canvasId);
-        if (cancelled) return;
-
         if (res.sessions.length > 0) {
           setSessions(res.sessions);
-          const target = initialSessionId
-            ? (res.sessions.find((s: ChatSessionSummary) => s.id === initialSessionId) ??
+          const target = initialSessionIdRef.current
+            ? (res.sessions.find(
+                (session: ChatSessionSummary) =>
+                  session.id === initialSessionIdRef.current,
+              ) ??
               res.sessions[0]!)
             : res.sessions[0]!;
+          activeSessionIdRef.current = target.id;
           setActiveSessionId(target.id);
           onSessionChangeRef.current?.(target.id);
           const msgRes = await fetchMessages(token, target.id);
-          if (cancelled) return;
           const mapped = mapServerMessages(msgRes.messages);
           msgCacheRef.current.set(target.id, mapped);
+          messagesRef.current = mapped;
           setMessages(mapped);
+          initializedRef.current = true;
+          return target.id;
         } else {
           const created = await createSession(token, canvasId);
-          if (cancelled) return;
+          activeSessionIdRef.current = created.session.id;
           setSessions([created.session]);
           setActiveSessionId(created.session.id);
           onSessionChangeRef.current?.(created.session.id);
+          messagesRef.current = [];
           setMessages([]);
+          initializedRef.current = true;
+          return created.session.id;
         }
-      } catch {
+      } catch (error) {
         // Session loading failed — remain in empty state
+        console.warn("[chat] Failed to initialize sessions:", error);
+        return null;
       } finally {
-        if (!cancelled) setSessionsLoading(false);
+        setSessionsLoading(false);
+        initPromiseRef.current = null;
       }
+    })();
+
+    initPromiseRef.current = initPromise;
+    return await initPromise;
+  }, [canvasId]);
+
+  useEffect(() => {
+    initializedRef.current = false;
+    initPromiseRef.current = null;
+    activeSessionIdRef.current = null;
+    messagesRef.current = [];
+    setSessions([]);
+    setActiveSessionId(null);
+    setMessages([]);
+    setMessagesLoading(false);
+    setStreaming(false);
+    setSessionsLoading(enabled);
+  }, [canvasId, enabled]);
+
+  // ── Load sessions on mount / activation ──
+  useEffect(() => {
+    if (!enabled || initializedRef.current || initPromiseRef.current) {
+      return;
     }
 
-    void init();
-    return () => {
-      cancelled = true;
-    };
-    // Intentionally depends only on canvasId — accessTokenRef, onSessionChangeRef,
-    // initialSessionId, and msgCacheRef are stable refs that never trigger re-runs.
-    // This effect is a one-time init per canvas, not a token-refresh handler.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canvasId]);
+    void initializeSessions();
+  }, [enabled, initializeSessions]);
+
+  const ensureReady = useCallback(async () => {
+    if (activeSessionIdRef.current) {
+      initializedRef.current = true;
+      return activeSessionIdRef.current;
+    }
+
+    return await initializeSessions();
+  }, [initializeSessions]);
 
   // ── Session switch ──
   const handleSelectSession = useCallback(
@@ -345,5 +387,6 @@ export function useChatSessions({
     autoTitleSession,
     reloadMessages,
     accessTokenRef,
+    ensureReady,
   };
 }

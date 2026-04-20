@@ -12,7 +12,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DeleteProjectDialog } from "@/components/delete-project-dialog";
 import { HomeExampleBrowser } from "@/components/home-example-browser";
 import { HomePrompt, type HomePromptHandle } from "@/components/home-prompt";
-import { LoadingScreen } from "@/components/loading-screen";
 import { NewProjectDialog } from "@/components/new-project-dialog";
 import { HomeProjectsSkeleton } from "@/components/skeletons/home-skeleton";
 import { useCreateProject } from "@/hooks/use-create-project";
@@ -20,6 +19,7 @@ import { useDeleteProject } from "@/hooks/use-delete-project";
 import { useImageAttachments } from "@/hooks/use-image-attachments";
 import { useAuth } from "@/lib/auth-context";
 import { resolveBrowserAssetUrl } from "@/lib/browser-asset-url";
+import { scheduleCanvasExperienceWarmup } from "@/lib/canvas-experience-warmup";
 import { loadHomeExampleCategories } from "@/lib/home-example-library";
 import {
   homeExampleSeedCategories,
@@ -41,6 +41,32 @@ const HOME_NAV_ITEMS = [
   "资源",
   "图库",
 ] as const;
+
+function selectRecentProjectsForHome(projects: ProjectSummary[]) {
+  const projectsWithThumbnails = projects.filter((project) =>
+    Boolean(project.thumbnailUrl),
+  );
+  const projectsWithoutThumbnails = projects.filter(
+    (project) => !project.thumbnailUrl,
+  );
+
+  const selectedProjects = [
+    ...projectsWithThumbnails,
+    ...projectsWithoutThumbnails,
+  ].slice(0, RECENT_PROJECTS_LIMIT);
+
+  console.info("[home] selected recent projects for homepage", {
+    limit: RECENT_PROJECTS_LIMIT,
+    selectedCount: selectedProjects.length,
+    selectedWithThumbnails: selectedProjects.filter((project) =>
+      Boolean(project.thumbnailUrl),
+    ).length,
+    totalProjects: projects.length,
+    totalWithThumbnails: projectsWithThumbnails.length,
+  });
+
+  return selectedProjects;
+}
 
 export default function HomePage() {
   const { session, signOut } = useAuth();
@@ -101,7 +127,7 @@ export default function HomePage() {
     setProjectsLoading(true);
     try {
       const data = await fetchProjects(token);
-      setProjects(data.projects.slice(0, RECENT_PROJECTS_LIMIT));
+      setProjects(selectRecentProjectsForHome(data.projects));
     } catch (error) {
       if (error instanceof ApiAuthError) {
         await signOutRef.current();
@@ -146,6 +172,10 @@ export default function HomePage() {
       cancelled = true;
     };
   }, [session]);
+
+  useEffect(() => {
+    return scheduleCanvasExperienceWarmup(router);
+  }, [router]);
 
   useEffect(() => {
     if (projects.length === 0) {
@@ -237,10 +267,6 @@ export default function HomePage() {
     },
     [createNewProject],
   );
-
-  if (creating) {
-    return <LoadingScreen />;
-  }
 
   return (
     <div

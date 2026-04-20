@@ -4,12 +4,12 @@ import type { WorkspaceSummary, ProjectSummary } from "@loomic/shared";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
-import { LoadingScreen } from "@/components/loading-screen";
 import { ArchitectureStudioEntry } from "@/components/architecture/architecture-studio-entry";
 import { ProjectList } from "@/components/project-list";
 import { ProjectsSkeleton } from "@/components/skeletons/projects-skeleton";
 import { useCreateProject } from "@/hooks/use-create-project";
 import { useAuth } from "@/lib/auth-context";
+import { scheduleCanvasExperienceWarmup } from "@/lib/canvas-experience-warmup";
 import {
   fetchViewer,
   fetchProjects,
@@ -70,13 +70,13 @@ export default function ProjectsPage() {
     loadData();
   }, [loadData]);
 
+  useEffect(() => {
+    return scheduleCanvasExperienceWarmup(router);
+  }, [router]);
+
   const handleDeleted = useCallback((projectId: string) => {
     setProjects((prev) => prev.filter((p) => p.id !== projectId));
   }, []);
-
-  if (creating) {
-    return <LoadingScreen />;
-  }
 
   if (loadError) {
     return (
@@ -101,9 +101,11 @@ export default function ProjectsPage() {
         className="mb-6"
         workspaceName={workspace?.name ?? null}
         ctaLabel="New architecture studio"
+        disabled={creating}
         onEnterStudio={() => createNewProject({ studioMode: "architecture" })}
       />
       <ProjectList
+        createDisabled={creating}
         projects={projects}
         highlightId={highlightId}
         onCreateClick={() => createNewProject()}

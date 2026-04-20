@@ -6,9 +6,20 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { renderWithToast } from "./render-with-toast";
 
-const mockPush = vi.fn();
-const mockReplace = vi.fn();
-const mockCreateProject = vi.fn();
+const {
+  mockCreateProject,
+  mockPush,
+  mockReplace,
+  mockScheduleCanvasExperienceWarmup,
+  creatingState,
+} = vi.hoisted(() => ({
+  mockCreateProject: vi.fn(),
+  mockPush: vi.fn(),
+  mockReplace: vi.fn(),
+  mockScheduleCanvasExperienceWarmup: vi.fn(),
+  creatingState: { current: false },
+}));
+
 const mockRouter = { push: mockPush, replace: mockReplace };
 vi.mock("next/navigation", () => ({
   useRouter: vi.fn(() => mockRouter),
@@ -30,8 +41,12 @@ vi.mock("../src/lib/auth-context", () => ({
 vi.mock("../src/hooks/use-create-project", () => ({
   useCreateProject: vi.fn(() => ({
     create: mockCreateProject,
-    creating: false,
+    creating: creatingState.current,
   })),
+}));
+
+vi.mock("../src/lib/canvas-experience-warmup", () => ({
+  scheduleCanvasExperienceWarmup: mockScheduleCanvasExperienceWarmup,
 }));
 
 const mockFetch = vi.fn();
@@ -91,7 +106,17 @@ describe("Projects page", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    creatingState.current = false;
     vi.stubEnv("NEXT_PUBLIC_SERVER_BASE_URL", "http://localhost:3001");
+  });
+
+  it("schedules a generic canvas warmup on mount so the new-project flow can reuse cached canvas resources", async () => {
+    mockSuccessfulLoad();
+    renderWithToast(<ProjectsPage />);
+
+    await screen.findByRole("button", { name: /new architecture studio/i });
+
+    expect(mockScheduleCanvasExperienceWarmup).toHaveBeenCalledTimes(1);
   });
 
   it("renders the architecture studio entry with workspace name and project cards", async () => {
@@ -202,6 +227,17 @@ describe("Projects page", () => {
     await userEvent.click(createTile as HTMLElement);
 
     expect(mockCreateProject).toHaveBeenCalledWith();
+  });
+
+  it("keeps the projects shell visible during create pending instead of swapping to a loading screen", async () => {
+    creatingState.current = true;
+    mockSuccessfulLoad();
+    renderWithToast(<ProjectsPage />);
+
+    expect(
+      await screen.findByRole("button", { name: /new architecture studio/i }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Loading")).not.toBeInTheDocument();
   });
 
   it("renders delete actions for existing project cards", async () => {

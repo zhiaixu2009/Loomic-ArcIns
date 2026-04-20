@@ -34,6 +34,7 @@ export const ARCHITECTURE_BOARD_LABELS = [
 type ArchitectureStudioEntryProps = {
   className?: string;
   ctaLabel?: string;
+  disabled?: boolean;
   onEnterStudio: () => void;
   workspaceName?: string | null;
 };
@@ -41,6 +42,7 @@ type ArchitectureStudioEntryProps = {
 export function ArchitectureStudioEntry({
   className,
   ctaLabel = "Open architecture studio",
+  disabled = false,
   onEnterStudio,
   workspaceName,
 }: ArchitectureStudioEntryProps) {
@@ -77,8 +79,9 @@ export function ArchitectureStudioEntry({
 
         <button
           type="button"
+          disabled={disabled}
           onClick={onEnterStudio}
-          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-foreground px-5 py-2.5 text-sm font-medium text-background transition-transform hover:-translate-y-0.5 hover:bg-foreground/90"
+          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-foreground px-5 py-2.5 text-sm font-medium text-background transition-transform hover:-translate-y-0.5 hover:bg-foreground/90 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
         >
           {ctaLabel}
           <ArrowRight className="h-4 w-4" />

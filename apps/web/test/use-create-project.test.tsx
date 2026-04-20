@@ -10,12 +10,14 @@ const {
   pushMock,
   replaceMock,
   signOutMock,
+  warmCanvasExperienceMock,
 } = vi.hoisted(() => ({
   createProjectMock: vi.fn(),
   errorToastMock: vi.fn(),
   pushMock: vi.fn(),
   replaceMock: vi.fn(),
   signOutMock: vi.fn(),
+  warmCanvasExperienceMock: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -46,8 +48,16 @@ vi.mock("../src/lib/server-api", async () => {
   };
 });
 
+vi.mock("../src/lib/canvas-experience-warmup", () => ({
+  warmCanvasExperience: warmCanvasExperienceMock,
+}));
+
 import { useCreateProject } from "../src/hooks/use-create-project";
 import { UNTITLED_PROJECT_NAME } from "../src/lib/canvas-localization";
+import {
+  CREATE_PROJECT_LAUNCH_ID_KEY,
+  CREATE_PROJECT_REQUEST_STARTED_AT_KEY,
+} from "../src/lib/project-creation-timing";
 
 describe("useCreateProject", () => {
   beforeEach(() => {
@@ -79,9 +89,13 @@ describe("useCreateProject", () => {
       await result.current.create();
     });
 
+    expect(window.open).toHaveBeenCalledWith("/loading-preview", "_blank");
+    expect(warmCanvasExperienceMock).toHaveBeenCalledTimes(1);
     expect(createProjectMock).toHaveBeenCalledWith("token-home", {
       name: UNTITLED_PROJECT_NAME,
     });
+    expect(Number(sessionStorage.getItem(CREATE_PROJECT_REQUEST_STARTED_AT_KEY))).toBeGreaterThan(0);
+    expect(sessionStorage.getItem(CREATE_PROJECT_LAUNCH_ID_KEY)).toBeTruthy();
     expect(openedTab.location.href).toContain("/canvas?id=canvas-1");
     expect(openedTab.location.href).toContain("studio=architecture");
   });

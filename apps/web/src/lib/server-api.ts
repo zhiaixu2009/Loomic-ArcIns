@@ -93,6 +93,16 @@ function authJsonHeaders(accessToken: string): Record<string, string> {
   };
 }
 
+type CanvasFetchResponse = {
+  canvas: CanvasDetail & {
+    project: {
+      brandKitId: string | null;
+      id: string;
+      name: string;
+    };
+  };
+};
+
 const TRANSIENT_ARCHITECTURE_EXPORT_ERROR_CODES = new Set([
   "chat_error",
   "project_query_failed",
@@ -188,13 +198,13 @@ export async function updateProject(
 export async function fetchCanvas(
   accessToken: string,
   canvasId: string,
-): Promise<{ canvas: CanvasDetail }> {
+): Promise<CanvasFetchResponse> {
   const response = await fetch(
     `${getServerBaseUrl()}/api/canvases/${canvasId}`,
     { headers: authHeaders(accessToken) },
   );
   if (!response.ok) return handleErrorResponse(response);
-  return (await response.json()) as { canvas: CanvasDetail };
+  return (await response.json()) as CanvasFetchResponse;
 }
 
 export async function saveCanvas(

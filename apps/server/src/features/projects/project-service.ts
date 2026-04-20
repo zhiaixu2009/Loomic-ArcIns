@@ -146,17 +146,18 @@ export function createProjectService(options: {
       return data;
     },
     async createProject(user, input) {
-      await ensureFoundation(options.viewerService, user, "project_create_failed");
-
+      const createStartedAt = Date.now();
       const client = options.createUserClient(user.accessToken);
-      const workspace = await resolvePersonalWorkspace(
+      const workspaceResolution = await resolveOrBootstrapPersonalWorkspace(
+        options.viewerService,
         client,
-        user.id,
-        "project_create_failed",
+        user,
       );
+      const workspace = workspaceResolution.workspace;
       const normalizedName = input.name.trim();
       const slug = slugify(normalizedName);
 
+      const rpcStartedAt = Date.now();
       const { data, error } = await client.rpc(
         "create_project_with_canvas",
         {
@@ -167,6 +168,13 @@ export function createProjectService(options: {
           p_canvas_name: "Main Canvas",
         },
       );
+      const rpcDurationMs = Date.now() - rpcStartedAt;
+
+      console.info("[projects] create_project_with_canvas completed", {
+        durationMs: rpcDurationMs,
+        userId: user.id,
+        workspaceId: workspace.id,
+      });
 
       if (error) {
         throw mapProjectCreateError(error);
@@ -196,6 +204,18 @@ export function createProjectService(options: {
           500,
         );
       }
+
+      console.info("[projects] createProject completed", {
+        bootstrapFallbackMs: workspaceResolution.bootstrapFallbackMs,
+        canvasId: result.canvas.id,
+        projectId: result.project.id,
+        rpcDurationMs,
+        totalDurationMs: Date.now() - createStartedAt,
+        usedBootstrapFallback: workspaceResolution.usedBootstrapFallback,
+        userId: user.id,
+        workspaceId: workspace.id,
+        workspaceLookupMs: workspaceResolution.workspaceLookupMs,
+      });
 
       return mapProjectSummary({
         canvas: result.canvas,
@@ -374,20 +394,18 @@ export function createProjectService(options: {
   };
 }
 
-async function ensureFoundation(
+async function ensureBootstrapFallback(
   viewerService: ViewerService,
   user: AuthenticatedUser,
-  errorCode: "project_create_failed" | "project_query_failed",
 ) {
   try {
-    await viewerService.ensureViewer(user);
+    const viewer = await viewerService.ensureViewer(user);
+    return viewer.workspace;
   } catch (error) {
     if (error instanceof BootstrapError) {
       throw new ProjectServiceError(
-        errorCode,
-        errorCode === "project_create_failed"
-          ? PROJECT_CREATE_FAILED_MESSAGE
-          : PROJECT_QUERY_FAILED_MESSAGE,
+        "project_create_failed",
+        PROJECT_CREATE_FAILED_MESSAGE,
         500,
       );
     }
@@ -395,7 +413,81 @@ async function ensureFoundation(
   }
 }
 
+async function resolveOrBootstrapPersonalWorkspace(
+  viewerService: ViewerService,
+  client: UserSupabaseClient,
+  user: AuthenticatedUser,
+) {
+  const lookupStartedAt = Date.now();
+  const workspace = await findPersonalWorkspace(
+    client,
+    user.id,
+    "project_create_failed",
+  );
+  const workspaceLookupMs = Date.now() - lookupStartedAt;
+
+  console.info("[projects] workspace lookup completed", {
+    durationMs: workspaceLookupMs,
+    foundWorkspace: Boolean(workspace),
+    userId: user.id,
+  });
+
+  if (workspace) {
+    return {
+      bootstrapFallbackMs: 0,
+      usedBootstrapFallback: false,
+      workspace,
+      workspaceLookupMs,
+    } as const;
+  }
+
+  const bootstrapStartedAt = Date.now();
+  const bootstrappedWorkspace = await ensureBootstrapFallback(
+    viewerService,
+    user,
+  );
+  const bootstrapFallbackMs = Date.now() - bootstrapStartedAt;
+
+  console.info("[projects] bootstrap fallback completed", {
+    durationMs: bootstrapFallbackMs,
+    userId: user.id,
+    workspaceId: bootstrappedWorkspace.id,
+  });
+
+  return {
+    bootstrapFallbackMs,
+    usedBootstrapFallback: true,
+    workspace: normalizeWorkspaceRecord({
+      id: bootstrappedWorkspace.id,
+      name: bootstrappedWorkspace.name,
+      owner_user_id: bootstrappedWorkspace.ownerUserId,
+      type: bootstrappedWorkspace.type,
+    }),
+    workspaceLookupMs,
+  } as const;
+}
+
 async function resolvePersonalWorkspace(
+  client: UserSupabaseClient,
+  userId: string,
+  errorCode: "project_create_failed" | "project_query_failed",
+) {
+  const workspace = await findPersonalWorkspace(client, userId, errorCode);
+
+  if (!workspace) {
+    throw new ProjectServiceError(
+      errorCode,
+      errorCode === "project_create_failed"
+        ? PROJECT_CREATE_FAILED_MESSAGE
+        : PROJECT_QUERY_FAILED_MESSAGE,
+      500,
+    );
+  }
+
+  return workspace;
+}
+
+async function findPersonalWorkspace(
   client: UserSupabaseClient,
   userId: string,
   errorCode: "project_create_failed" | "project_query_failed",
@@ -409,7 +501,7 @@ async function resolvePersonalWorkspace(
     .limit(1)
     .maybeSingle();
 
-  if (error || !data) {
+  if (error) {
     throw new ProjectServiceError(
       errorCode,
       errorCode === "project_create_failed"
@@ -419,6 +511,19 @@ async function resolvePersonalWorkspace(
     );
   }
 
+  if (!data) {
+    return null;
+  }
+
+  return normalizeWorkspaceRecord(data);
+}
+
+function normalizeWorkspaceRecord(data: {
+  id: string;
+  name: string;
+  owner_user_id: string;
+  type: "personal" | "team";
+}) {
   return {
     id: data.id,
     name: data.name,

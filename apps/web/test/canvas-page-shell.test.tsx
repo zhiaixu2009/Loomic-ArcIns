@@ -10,10 +10,14 @@ const {
   fetchCanvasMock,
   fetchProjectMock,
   replaceMock,
+  searchParamsValue,
 } = vi.hoisted(() => ({
   fetchCanvasMock: vi.fn(),
   fetchProjectMock: vi.fn(),
   replaceMock: vi.fn(),
+  searchParamsValue: {
+    current: "id=canvas-1&studio=architecture",
+  },
 }));
 
 vi.mock("next/navigation", () => ({
@@ -21,8 +25,7 @@ vi.mock("next/navigation", () => ({
     replace: replaceMock,
     push: vi.fn(),
   }),
-  useSearchParams: () =>
-    new URLSearchParams("id=canvas-1&studio=architecture"),
+  useSearchParams: () => new URLSearchParams(searchParamsValue.current),
 }));
 
 vi.mock("../src/lib/auth-context", () => ({
@@ -127,11 +130,11 @@ vi.mock("../src/lib/architecture-canvas", () => {
 });
 
 vi.mock("../src/lib/canvas-localization", () => ({
-  LOAD_CANVAS_FAILED_MESSAGE: "加载画布失败",
-  NO_CANVAS_ID_MESSAGE: "缺少画布 ID",
-  UNTITLED_PROJECT_NAME: "未命名项目",
-  getCanvasImageFallbackName: vi.fn((index: number) => `参考图 ${index}`),
-  normalizeProjectDisplayName: vi.fn((name: string) => name || "未命名项目"),
+  LOAD_CANVAS_FAILED_MESSAGE: "鍔犺浇鐢诲竷澶辫触",
+  NO_CANVAS_ID_MESSAGE: "缂哄皯鐢诲竷 ID",
+  UNTITLED_PROJECT_NAME: "鏈懡鍚嶉」鐩?",
+  getCanvasImageFallbackName: vi.fn((index: number) => `鍙傝€冨浘 ${index}`),
+  normalizeProjectDisplayName: vi.fn((name: string) => name || "鏈懡鍚嶉」鐩?"),
 }));
 
 vi.mock("../src/lib/canvas-context-actions", () => ({
@@ -189,7 +192,9 @@ vi.mock("../src/components/canvas-logo-menu", () => ({
 }));
 
 vi.mock("../src/components/editable-project-name", () => ({
-  EditableProjectName: () => <div data-testid="editable-project-name" />,
+  EditableProjectName: (props: { initialName?: string }) => (
+    <div data-testid="editable-project-name" data-initial-name={props.initialName ?? ""} />
+  ),
 }));
 
 vi.mock("../src/components/brand-kit-selector", () => ({
@@ -208,9 +213,9 @@ vi.mock("../src/components/canvas-layers-panel", () => ({
   CanvasLayersPanel: (props: { open: boolean; onClose: () => void }) =>
     props.open ? (
       <div data-testid="canvas-layers-panel">
-        <div>图层面板已打开</div>
+        <div>鍥惧眰闈㈡澘宸叉墦寮€</div>
         <button type="button" onClick={props.onClose}>
-          关闭图层面板
+          鍏抽棴鍥惧眰闈㈡澘
         </button>
       </div>
     ) : null,
@@ -229,14 +234,29 @@ vi.mock("../src/components/credits/credit-header-button", () => ({
 
 vi.mock("../src/components/chat-sidebar", () => ({
   buildArchitectureTemplateSuggestions: vi.fn(() => []),
-  ChatSidebar: (props: { immersive?: boolean; open?: boolean; panelTitle?: string }) => (
-    <div
-      data-testid="chat-sidebar"
-      data-immersive={String(Boolean(props.immersive))}
-      data-open={String(Boolean(props.open))}
-      data-panel-title={props.panelTitle ?? ""}
-    />
-  ),
+  ChatSidebar: (props: {
+    initialPrompt?: string;
+    immersive?: boolean;
+    open?: boolean;
+    panelTitle?: string;
+    currentBrandKitId?: string | null;
+  }) =>
+    props.immersive && !props.open ? (
+      <div
+        data-testid="chat-sidebar-collapsed-composer"
+        data-immersive={String(Boolean(props.immersive))}
+        data-open={String(Boolean(props.open))}
+        data-has-initial-prompt={String(Boolean(props.initialPrompt))}
+      />
+    ) : (
+      <div
+        data-testid="chat-sidebar"
+        data-immersive={String(Boolean(props.immersive))}
+        data-open={String(Boolean(props.open))}
+        data-panel-title={props.panelTitle ?? ""}
+        data-brand-kit-id={props.currentBrandKitId ?? ""}
+      />
+    ),
 }));
 
 import CanvasPage from "../src/app/canvas/page";
@@ -244,11 +264,17 @@ import CanvasPage from "../src/app/canvas/page";
 describe("CanvasPage shell", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    searchParamsValue.current = "id=canvas-1&studio=architecture";
     fetchCanvasMock.mockResolvedValue({
       canvas: {
         id: "canvas-1",
         name: "Architecture Canvas",
         projectId: "project-1",
+        project: {
+          id: "project-1",
+          name: "Harbor Studio",
+          brandKitId: "brand-kit-1",
+        },
         content: {
           elements: [],
           appState: {},
@@ -276,18 +302,20 @@ describe("CanvasPage shell", () => {
     });
 
     expect(await screen.findByTestId("canvas-editor")).toBeTruthy();
-    expect(screen.getByTestId("chat-sidebar").getAttribute("data-immersive")).toBe(
-      "true",
-    );
-    expect(screen.getByTestId("chat-sidebar").getAttribute("data-open")).toBe(
-      "false",
-    );
+    expect(fetchProjectMock).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("chat-sidebar")).toBeNull();
     expect(
-      screen.getByTestId("chat-sidebar").getAttribute("data-panel-title"),
-    ).toBe("创作记录");
+      screen.getByTestId("chat-sidebar-collapsed-composer"),
+    ).toBeTruthy();
+    expect(
+      screen.getByTestId("chat-sidebar-collapsed-composer"),
+    ).toBeTruthy();
     expect(
       screen.getByTestId("canvas-editor").getAttribute("data-left-panel-open"),
     ).toBe("false");
+    expect(
+      screen.getByTestId("editable-project-name").getAttribute("data-initial-name"),
+    ).toBe("Harbor Studio");
 
     expect(
       screen.queryByTestId("architecture-studio-compact-bar"),
@@ -318,13 +346,13 @@ describe("CanvasPage shell", () => {
     await userEvent.click(layersButton);
 
     expect(screen.getByTestId("canvas-layers-panel")).toBeTruthy();
-    expect(screen.getByText("图层面板已打开")).toBeTruthy();
+    expect(screen.getByText("鍥惧眰闈㈡澘宸叉墦寮€")).toBeTruthy();
     expect(
       screen.getByTestId("canvas-editor").getAttribute("data-left-panel-open"),
     ).toBe("true");
 
     await userEvent.click(
-      screen.getByRole("button", { name: "关闭图层面板" }),
+      screen.getByRole("button", { name: "鍏抽棴鍥惧眰闈㈡澘" }),
     );
 
     expect(screen.queryByTestId("canvas-layers-panel")).toBeNull();
@@ -342,22 +370,44 @@ describe("CanvasPage shell", () => {
 
     const recordButton = screen.getByRole("button", { name: "对话" });
     expect(recordButton.getAttribute("aria-pressed")).toBe("false");
-    expect(screen.getByTestId("chat-sidebar").getAttribute("data-open")).toBe(
-      "false",
-    );
+    expect(screen.queryByTestId("chat-sidebar")).toBeNull();
 
     await userEvent.click(recordButton);
 
+    const chatSidebar = await screen.findByTestId("chat-sidebar");
     expect(recordButton.getAttribute("aria-pressed")).toBe("true");
-    expect(screen.getByTestId("chat-sidebar").getAttribute("data-open")).toBe(
-      "true",
-    );
+    expect(chatSidebar.getAttribute("data-open")).toBe("true");
+    expect(chatSidebar.getAttribute("data-immersive")).toBe("true");
+    expect(chatSidebar.getAttribute("data-panel-title")).toBe("创作记录");
+    expect(chatSidebar.getAttribute("data-brand-kit-id")).toBe("brand-kit-1");
 
     await userEvent.click(recordButton);
 
     expect(recordButton.getAttribute("aria-pressed")).toBe("false");
-    expect(screen.getByTestId("chat-sidebar").getAttribute("data-open")).toBe(
-      "false",
+    expect(screen.queryByTestId("chat-sidebar")).toBeNull();
+    expect(
+      screen.getByTestId("chat-sidebar-collapsed-composer").getAttribute(
+        "data-open",
+      ),
+    ).toBe("false");
+  });
+
+  it("mounts the chat sidebar immediately when the canvas URL carries an initial prompt", async () => {
+    searchParamsValue.current =
+      "id=canvas-1&studio=architecture&prompt=%E7%AB%8B%E5%8D%B3%E7%94%9F%E6%88%90";
+
+    renderWithToast(<CanvasPage />);
+
+    await waitFor(() => {
+      expect(fetchCanvasMock).toHaveBeenCalledWith("token-canvas", "canvas-1");
+    });
+
+    const chatSidebar = await screen.findByTestId(
+      "chat-sidebar-collapsed-composer",
     );
+    expect(chatSidebar.getAttribute("data-open")).toBe("false");
+    expect(chatSidebar.getAttribute("data-immersive")).toBe("true");
+    expect(chatSidebar.getAttribute("data-has-initial-prompt")).toBe("true");
+    expect(fetchProjectMock).not.toHaveBeenCalled();
   });
 });

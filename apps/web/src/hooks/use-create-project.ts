@@ -8,6 +8,13 @@ import type { ReadyAttachment } from "@/hooks/use-image-attachments";
 import { useAuth } from "@/lib/auth-context";
 import { useToast } from "@/components/toast";
 import { ApiAuthError, createProject } from "@/lib/server-api";
+import { warmCanvasExperience } from "@/lib/canvas-experience-warmup";
+import {
+  CREATE_PROJECT_LAUNCH_ID_KEY,
+  CREATE_PROJECT_REQUEST_STARTED_AT_KEY,
+  LOADING_PREVIEW_OPENED_AT_KEY,
+  createProjectLaunchId,
+} from "@/lib/project-creation-timing";
 import { buildCanvasUrl, type StudioMode } from "@/lib/studio-routes";
 import { UNTITLED_PROJECT_NAME } from "@/lib/canvas-localization";
 
@@ -47,11 +54,27 @@ export function useCreateProject() {
       const token = session?.access_token;
       if (!token || creating) return;
       const projectName = opts?.name?.trim() || UNTITLED_PROJECT_NAME;
+      const createRequestStartedAt = Date.now();
+      const launchId = createProjectLaunchId();
+
+      void warmCanvasExperience(routerRef.current);
 
       console.info("[create-project] preparing project creation", {
         hasCustomName: projectName !== UNTITLED_PROJECT_NAME,
+        launchId,
         studioMode: opts?.studioMode ?? "architecture",
       });
+
+      try {
+        sessionStorage.setItem(
+          CREATE_PROJECT_REQUEST_STARTED_AT_KEY,
+          String(createRequestStartedAt),
+        );
+        sessionStorage.setItem(CREATE_PROJECT_LAUNCH_ID_KEY, launchId);
+        sessionStorage.removeItem(LOADING_PREVIEW_OPENED_AT_KEY);
+      } catch {
+        // sessionStorage write failure is non-fatal
+      }
 
       // Persist attachments in sessionStorage BEFORE window.open so the
       // new tab's cloned sessionStorage already contains them.
@@ -122,6 +145,8 @@ export function useCreateProject() {
 
         console.info("[create-project] routing project to studio", {
           canvasId,
+          createApiDurationMs: Date.now() - createRequestStartedAt,
+          launchId,
           studioMode,
         });
 

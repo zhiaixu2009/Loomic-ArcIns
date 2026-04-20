@@ -11,6 +11,7 @@ import { buildCanvasUrl } from "@/lib/studio-routes";
 import { formatDate } from "@/lib/utils";
 
 interface ProjectListProps {
+  createDisabled?: boolean;
   projects: ProjectSummary[];
   highlightId?: string | null;
   onCreateClick: () => void;
@@ -18,6 +19,7 @@ interface ProjectListProps {
 }
 
 export function ProjectList({
+  createDisabled = false,
   projects,
   highlightId,
   onCreateClick,
@@ -41,14 +43,26 @@ export function ProjectList({
         <div
           role="button"
           tabIndex={0}
-          onClick={onCreateClick}
+          aria-disabled={createDisabled}
+          onClick={() => {
+            if (!createDisabled) {
+              onCreateClick();
+            }
+          }}
           onKeyDown={(e) => {
+            if (createDisabled) {
+              return;
+            }
             if (e.key === "Enter" || e.key === " ") {
               e.preventDefault();
               onCreateClick();
             }
           }}
-          className="aspect-[286/208] cursor-pointer rounded-xl bg-card p-2 shadow-card transition-all duration-300 hover:shadow-md sm:rounded-2xl sm:p-3"
+          className={`aspect-[286/208] rounded-xl bg-card p-2 shadow-card transition-all duration-300 sm:rounded-2xl sm:p-3 ${
+            createDisabled
+              ? "cursor-not-allowed opacity-60"
+              : "cursor-pointer hover:shadow-md"
+          }`}
         >
           <div className="flex h-full w-full flex-col items-center justify-center gap-2 rounded-xl bg-muted sm:gap-3">
             <svg

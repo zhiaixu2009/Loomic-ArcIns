@@ -39,13 +39,9 @@ export function createCanvasService(options: {
   return {
     async getCanvas(user, canvasId) {
       const client = options.createUserClient(user.accessToken);
-      const { data, error } = await client
-        .from("canvases")
-        .select("id, name, project_id, content")
-        .eq("id", canvasId)
-        .single();
+      const data = await loadCanvasWithProjectMetadata(client, canvasId);
 
-      if (error || !data) {
+      if (!data) {
         throw new CanvasServiceError("canvas_not_found", "Canvas not found.", 404);
       }
 
@@ -58,6 +54,11 @@ export function createCanvasService(options: {
         id: data.id,
         name: data.name,
         projectId: data.project_id,
+        project: {
+          brandKitId: data.project.brandKitId,
+          id: data.project.id,
+          name: data.project.name,
+        },
         content: resolvedContent,
       };
     },
@@ -78,6 +79,89 @@ export function createCanvasService(options: {
         throw new CanvasServiceError("canvas_save_failed", "Unable to save canvas.", 500);
       }
     },
+  };
+}
+
+type CanvasProjectMetadata = {
+  brandKitId: string | null;
+  id: string;
+  name: string;
+};
+
+type CanvasRecordWithProjectMetadata = {
+  content: Json | null;
+  id: string;
+  name: string;
+  project: CanvasProjectMetadata;
+  project_id: string;
+};
+
+async function loadCanvasWithProjectMetadata(
+  client: UserSupabaseClient,
+  canvasId: string,
+): Promise<CanvasRecordWithProjectMetadata | null> {
+  try {
+    const { data, error } = await client
+      .from("canvases")
+      .select("id, name, project_id, content, project:projects!inner(id, name, brand_kit_id)")
+      .eq("id", canvasId)
+      .maybeSingle();
+
+    if (!error && data) {
+      const project = data.project as {
+        brand_kit_id?: string | null;
+        id?: string;
+        name?: string;
+      } | null;
+
+      if (project?.id && project.name) {
+        return {
+          content: data.content as Json | null,
+          id: data.id,
+          name: data.name,
+          project: {
+            brandKitId: project.brand_kit_id ?? null,
+            id: project.id,
+            name: project.name,
+          },
+          project_id: data.project_id,
+        };
+      }
+    }
+  } catch {
+    // Fall back to a two-step query if the relation isn't exposed.
+  }
+
+  const { data: canvas, error: canvasError } = await client
+    .from("canvases")
+    .select("id, name, project_id, content")
+    .eq("id", canvasId)
+    .maybeSingle();
+
+  if (canvasError || !canvas) {
+    return null;
+  }
+
+  const { data: project, error: projectError } = await client
+    .from("projects")
+    .select("id, name, brand_kit_id")
+    .eq("id", canvas.project_id)
+    .maybeSingle();
+
+  if (projectError || !project) {
+    return null;
+  }
+
+  return {
+    content: canvas.content as Json | null,
+    id: canvas.id,
+    name: canvas.name,
+    project: {
+      brandKitId: project.brand_kit_id ?? null,
+      id: project.id,
+      name: project.name,
+    },
+    project_id: canvas.project_id,
   };
 }
 

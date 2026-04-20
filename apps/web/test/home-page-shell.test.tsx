@@ -7,20 +7,26 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
   createProjectMock,
+  creatingState,
   fetchProjectsMock,
   loadHomeExampleCategoriesMock,
   requestDeleteMock,
   routerPrefetchMock,
   routerPushMock,
   routerReplaceMock,
+  scheduleCanvasExperienceWarmupMock,
 } = vi.hoisted(() => ({
   createProjectMock: vi.fn(),
+  creatingState: {
+    current: false,
+  },
   fetchProjectsMock: vi.fn(),
   loadHomeExampleCategoriesMock: vi.fn(),
   requestDeleteMock: vi.fn(),
   routerPrefetchMock: vi.fn(),
   routerPushMock: vi.fn(),
   routerReplaceMock: vi.fn(),
+  scheduleCanvasExperienceWarmupMock: vi.fn(),
 }));
 
 vi.mock("framer-motion", async () => {
@@ -65,7 +71,7 @@ vi.mock("../src/lib/auth-context", () => ({
 vi.mock("../src/hooks/use-create-project", () => ({
   useCreateProject: () => ({
     create: createProjectMock,
-    creating: false,
+    creating: creatingState.current,
   }),
 }));
 
@@ -99,6 +105,10 @@ vi.mock("../src/lib/home-example-library", () => ({
   loadHomeExampleCategories: loadHomeExampleCategoriesMock,
 }));
 
+vi.mock("../src/lib/canvas-experience-warmup", () => ({
+  scheduleCanvasExperienceWarmup: scheduleCanvasExperienceWarmupMock,
+}));
+
 vi.mock("../src/components/home-prompt", () => ({
   HomePrompt: React.forwardRef(function HomePromptStub(_props, _ref) {
     return <div data-testid="home-prompt">HomePrompt</div>;
@@ -122,6 +132,7 @@ import HomePage from "../src/app/(workspace)/home/page";
 describe("HomePage shell", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    creatingState.current = false;
     fetchProjectsMock.mockResolvedValue({
       projects: [
         {
@@ -182,6 +193,12 @@ describe("HomePage shell", () => {
     });
   });
 
+  it("schedules a generic canvas warmup on mount so new-project navigation can reuse cached route resources", () => {
+    render(<HomePage />);
+
+    expect(scheduleCanvasExperienceWarmupMock).toHaveBeenCalledTimes(1);
+  });
+
   it("renders recent project cards with the updated date visible and keeps the media wrapper positioned", async () => {
     fetchProjectsMock.mockResolvedValue({
       projects: [
@@ -210,6 +227,56 @@ describe("HomePage shell", () => {
         "recent-project-card-media-project-thumb-1",
       ),
     ).toHaveClass("relative");
+  });
+
+  it("prioritizes recent projects with thumbnails before filling the homepage limit with blank cards", async () => {
+    fetchProjectsMock.mockResolvedValue({
+      projects: [
+        {
+          id: "project-blank-1",
+          name: "Blank One",
+          primaryCanvas: { id: "canvas-blank-1" },
+          thumbnailUrl: null,
+          updatedAt: "2026-04-20T10:00:00.000Z",
+        },
+        {
+          id: "project-blank-2",
+          name: "Blank Two",
+          primaryCanvas: { id: "canvas-blank-2" },
+          thumbnailUrl: null,
+          updatedAt: "2026-04-20T09:00:00.000Z",
+        },
+        {
+          id: "project-thumb-1",
+          name: "Thumb One",
+          primaryCanvas: { id: "canvas-thumb-1" },
+          thumbnailUrl: "http://host.docker.internal:54321/storage/v1/object/public/project-assets/workspace-1/project-thumb-1/thumbnail.webp",
+          updatedAt: "2026-04-20T08:00:00.000Z",
+        },
+        {
+          id: "project-thumb-2",
+          name: "Thumb Two",
+          primaryCanvas: { id: "canvas-thumb-2" },
+          thumbnailUrl: "http://host.docker.internal:54321/storage/v1/object/public/project-assets/workspace-1/project-thumb-2/thumbnail.webp",
+          updatedAt: "2026-04-20T07:00:00.000Z",
+        },
+        {
+          id: "project-thumb-3",
+          name: "Thumb Three",
+          primaryCanvas: { id: "canvas-thumb-3" },
+          thumbnailUrl: "http://host.docker.internal:54321/storage/v1/object/public/project-assets/workspace-1/project-thumb-3/thumbnail.webp",
+          updatedAt: "2026-04-20T06:00:00.000Z",
+        },
+      ],
+    });
+
+    render(<HomePage />);
+
+    expect(await screen.findByText("Thumb One")).toBeInTheDocument();
+    expect(screen.getByText("Thumb Two")).toBeInTheDocument();
+    expect(screen.getByText("Thumb Three")).toBeInTheDocument();
+    expect(screen.getByText("Blank One")).toBeInTheDocument();
+    expect(screen.queryByText("Blank Two")).not.toBeInTheDocument();
   });
 
   it("keeps the new-project tile and existing recent-project tiles square, and exposes a delete action on existing projects", async () => {
@@ -294,6 +361,16 @@ describe("HomePage shell", () => {
       within(recentProjectsSection as HTMLElement).getAllByRole("button")[0],
     ).toHaveTextContent("新建项目");
     expect(screen.getByTestId("home-projects-skeleton")).toBeInTheDocument();
+  });
+
+  it("keeps the home shell visible during create pending instead of switching to a full-page loading screen", async () => {
+    creatingState.current = true;
+
+    render(<HomePage />);
+
+    expect(await screen.findByTestId("home-page-shell")).toBeInTheDocument();
+    expect(screen.queryByText("Loading")).not.toBeInTheDocument();
+    expect(screen.getByTestId("home-new-project-card")).toBeDisabled();
   });
 
   it("opens the add-project dialog shell from the new project card before any project is created", async () => {

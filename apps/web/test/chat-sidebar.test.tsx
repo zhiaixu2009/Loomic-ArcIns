@@ -14,16 +14,22 @@ import {
 const {
   createSessionMock,
   deleteSessionMock,
+  fetchBrandKitMock,
+  fetchImageModelsMock,
   fetchMessagesMock,
   fetchSessionsMock,
+  fetchWorkspaceSkillsMock,
   saveMessageMock,
   toastMock,
   updateSessionTitleMock,
 } = vi.hoisted(() => ({
   createSessionMock: vi.fn(),
   deleteSessionMock: vi.fn(),
+  fetchBrandKitMock: vi.fn(),
+  fetchImageModelsMock: vi.fn(),
   fetchMessagesMock: vi.fn(),
   fetchSessionsMock: vi.fn(),
+  fetchWorkspaceSkillsMock: vi.fn(),
   saveMessageMock: vi.fn(),
   toastMock: vi.fn(),
   updateSessionTitleMock: vi.fn(),
@@ -88,14 +94,17 @@ vi.mock("../src/hooks/use-official-prompt-template-library", () => ({
 vi.mock("../src/lib/server-api", () => ({
   createSession: createSessionMock,
   deleteSession: deleteSessionMock,
-  fetchBrandKit: vi.fn(() => Promise.resolve({ assets: [] })),
-  fetchImageModels: vi.fn(() => Promise.resolve({ models: [] })),
+  fetchImageModels: fetchImageModelsMock,
   fetchMessages: fetchMessagesMock,
   fetchModels: vi.fn(() => Promise.resolve({ models: [] })),
   fetchSessions: fetchSessionsMock,
-  fetchWorkspaceSkills: vi.fn(() => Promise.resolve({ skills: [] })),
+  fetchWorkspaceSkills: fetchWorkspaceSkillsMock,
   saveMessage: saveMessageMock,
   updateSessionTitle: updateSessionTitleMock,
+}));
+
+vi.mock("../src/lib/brand-kit-api", () => ({
+  fetchBrandKit: fetchBrandKitMock,
 }));
 
 vi.mock("../src/components/credits/tier-limit-toast", () => ({
@@ -218,6 +227,10 @@ describe("ChatSidebar", () => {
       },
     });
     deleteSessionMock.mockReset();
+    fetchBrandKitMock.mockReset();
+    fetchBrandKitMock.mockResolvedValue({ assets: [] });
+    fetchImageModelsMock.mockReset();
+    fetchImageModelsMock.mockResolvedValue({ models: [] });
     fetchMessagesMock.mockReset();
     fetchMessagesMock.mockResolvedValue({ messages: [] });
     fetchSessionsMock.mockReset();
@@ -230,6 +243,8 @@ describe("ChatSidebar", () => {
         },
       ],
     });
+    fetchWorkspaceSkillsMock.mockReset();
+    fetchWorkspaceSkillsMock.mockResolvedValue({ skills: [] });
     saveMessageMock.mockReset();
     saveMessageMock.mockResolvedValue(undefined);
     updateSessionTitleMock.mockReset();
@@ -357,6 +372,60 @@ describe("ChatSidebar", () => {
     expect(
       screen.queryByRole("button", { name: "创作记录" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("defers session and mention data loading until the collapsed immersive composer is first used", async () => {
+    render(
+      <ChatSidebar
+        accessToken="token_abc"
+        architectureContext={architectureContext as any}
+        canvasId="canvas-1"
+        currentBrandKitId="brand-kit-1"
+        deferDataLoading
+        immersive
+        open={false}
+        onToggle={() => {}}
+        panelTitle="创作记录"
+        ws={mockWs}
+      />,
+    );
+
+    expect(
+      await screen.findByTestId("chat-sidebar-collapsed-composer"),
+    ).toBeInTheDocument();
+    expect(fetchSessionsMock).not.toHaveBeenCalled();
+    expect(createSessionMock).not.toHaveBeenCalled();
+    expect(fetchImageModelsMock).not.toHaveBeenCalled();
+    expect(fetchWorkspaceSkillsMock).not.toHaveBeenCalled();
+    expect(fetchBrandKitMock).not.toHaveBeenCalled();
+
+    await userEvent.type(screen.getByLabelText("输入消息"), "hello loom{Enter}");
+
+    await waitFor(() =>
+      expect(fetchSessionsMock).toHaveBeenCalledWith("token_abc", "canvas-1"),
+    );
+    await waitFor(() =>
+      expect(fetchMessagesMock).toHaveBeenCalledWith("token_abc", "session-real"),
+    );
+    await waitFor(() =>
+      expect(mockWs.startRun).toHaveBeenCalledWith(
+        expect.objectContaining({
+          architectureContext,
+          sessionId: "session-real",
+          conversationId: "canvas-1",
+          prompt: "hello loom",
+          canvasId: "canvas-1",
+        }),
+        expect.any(Function),
+      ),
+    );
+    await waitFor(() => expect(fetchImageModelsMock).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(fetchWorkspaceSkillsMock).toHaveBeenCalledWith("token_abc"),
+    );
+    await waitFor(() =>
+      expect(fetchBrandKitMock).toHaveBeenCalledWith("token_abc", "brand-kit-1"),
+    );
   });
 
   it("preserves the immersive composer draft when toggling between collapsed and docked layouts", async () => {

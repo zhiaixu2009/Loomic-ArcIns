@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, Suspense, type ChangeEvent } from "react";
 
@@ -23,7 +24,6 @@ import { CanvasEditor } from "../../components/canvas-editor";
 import { CanvasLayersPanel } from "../../components/canvas-layers-panel";
 import { CanvasContextMenu, type CanvasContextMenuAction } from "../../components/canvas/canvas-context-menu";
 import { CanvasSelectionActionBar } from "../../components/canvas/canvas-selection-action-bar";
-import { ChatSidebar } from "../../components/chat-sidebar";
 import { CanvasEmptyHint } from "../../components/canvas-empty-hint";
 import { CanvasLogoMenu } from "../../components/canvas-logo-menu";
 import { EditableProjectName } from "../../components/editable-project-name";
@@ -39,12 +39,17 @@ import { resolveBrowserAssetUrl } from "../../lib/browser-asset-url";
 import {
   ApiAuthError,
   fetchCanvas,
-  fetchProject,
 } from "../../lib/server-api";
 import {
   ImageUploadPreparationError,
   prepareImageFileForInteractiveUpload,
 } from "../../lib/image-upload-preprocessing";
+import {
+  CREATE_PROJECT_LAUNCH_ID_KEY,
+  CREATE_PROJECT_REQUEST_STARTED_AT_KEY,
+  LOADING_PREVIEW_OPENED_AT_KEY,
+  readSessionTimingNumber,
+} from "../../lib/project-creation-timing";
 import { buildCanvasUrl, isArchitectureStudio } from "../../lib/studio-routes";
 import {
   areArchitectureContextsEqual,
@@ -180,6 +185,15 @@ function getSceneImageSource(
   );
 }
 
+const loadChatSidebar = () => import("../../components/chat-sidebar");
+const LazyChatSidebar = dynamic(
+  () => loadChatSidebar().then((module) => module.ChatSidebar),
+  {
+    loading: () => null,
+    ssr: false,
+  },
+);
+
 type ImportedCanvasFileRecord = {
   dataURL: string;
   mimeType?: string;
@@ -219,6 +233,11 @@ function CanvasPageContent() {
     id: string;
     name: string;
     projectId: string;
+    project: {
+      brandKitId: string | null;
+      id: string;
+      name: string;
+    };
     content: {
       elements: Record<string, unknown>[];
       appState: Record<string, unknown>;
@@ -494,6 +513,10 @@ function CanvasPageContent() {
         chatOpen,
       });
 
+      if (architectureMode) {
+        setChatOpen(true);
+      }
+
       if (command.type === "attach-selection") {
         setComposerCommand({
           id: createUiCommandId(),
@@ -511,7 +534,7 @@ function CanvasPageContent() {
           : {}),
       });
     },
-    [chatOpen, selectedCanvasElements.length],
+    [architectureMode, chatOpen, selectedCanvasElements.length],
   );
 
   const handleComposerCommandHandled = useCallback((commandId: string) => {
@@ -1806,6 +1829,7 @@ function CanvasPageContent() {
     if (!canvasId || !token) return;
 
     setPageLoading(true);
+    const canvasFetchStartedAt = Date.now();
     fetchCanvas(token, canvasId)
       .then((data) => {
         const c = data.canvas;
@@ -1813,20 +1837,44 @@ function CanvasPageContent() {
           id: c.id,
           name: c.name,
           projectId: c.projectId,
+          project: c.project,
           content: {
             elements: c.content.elements ?? [],
             appState: c.content.appState ?? {},
             files: (c.content as any).files ?? {},
           },
         });
+        setBrandKitId(c.project.brandKitId);
+        setProjectName(normalizeProjectDisplayName(c.project.name));
         setPageLoading(false);
-        // Fetch project to get brand_kit_id and name
-        fetchProject(token, c.projectId)
-          .then((projectData) => {
-            setBrandKitId(projectData.project.brand_kit_id);
-            setProjectName(normalizeProjectDisplayName(projectData.project.name));
-          })
-          .catch((err) => console.warn("Failed to fetch project for brand kit:", err));
+
+        const loadingPreviewOpenedAt = readSessionTimingNumber(
+          LOADING_PREVIEW_OPENED_AT_KEY,
+        );
+        const createProjectRequestStartedAt = readSessionTimingNumber(
+          CREATE_PROJECT_REQUEST_STARTED_AT_KEY,
+        );
+        let launchId: string | null = null;
+        try {
+          launchId = sessionStorage.getItem(CREATE_PROJECT_LAUNCH_ID_KEY);
+        } catch {
+          launchId = null;
+        }
+
+        console.info("[canvas-page] canvas fetch completed", {
+          canvasFetchDurationMs: Date.now() - canvasFetchStartedAt,
+          canvasId: c.id,
+          launchId,
+          loadingPreviewToCanvasMs:
+            loadingPreviewOpenedAt !== null
+              ? Date.now() - loadingPreviewOpenedAt
+              : null,
+          projectId: c.projectId,
+          totalCreateToCanvasReadyMs:
+            createProjectRequestStartedAt !== null
+              ? Date.now() - createProjectRequestStartedAt
+              : null,
+        });
       })
       .catch((err) => {
         if (err instanceof ApiAuthError) {
@@ -2036,9 +2084,16 @@ function CanvasPageContent() {
             onOpenChat={handleOpenChat}
           />
         )}
-        <ChatSidebar
+        <LazyChatSidebar
           accessToken={accessToken}
           canvasId={canvasData.id}
+          deferDataLoading={
+            architectureMode &&
+            !chatOpen &&
+            !initialPrompt &&
+            !initialSessionId &&
+            composerCommand === null
+          }
           collapsedLabel="对话"
           {...(architectureMode
             ? {
@@ -2064,7 +2119,7 @@ function CanvasPageContent() {
           composerCommand={composerCommand}
           onComposerCommandHandled={handleComposerCommandHandled}
           onLocateCanvasElement={handleLocateCanvasElement}
-        />
+          />
         <input
           ref={referenceUploadInputRef}
           hidden

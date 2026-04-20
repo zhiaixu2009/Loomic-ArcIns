@@ -64,6 +64,7 @@ type ChatSidebarProps = {
   architectureContext?: ArchitectureContext | null;
   canvasId: string;
   collapsedLabel?: string;
+  deferDataLoading?: boolean;
   headerSlot?: ReactNode;
   immersive?: boolean;
   panelTitle?: string;
@@ -378,6 +379,7 @@ export function ChatSidebar({
   architectureContext,
   canvasId,
   collapsedLabel = "\u5bf9\u8bdd",
+  deferDataLoading = false,
   headerSlot,
   immersive = false,
   panelTitle = "Loomic \u667a\u80fd\u52a9\u7406",
@@ -402,6 +404,7 @@ export function ChatSidebar({
   const breakpoint = useBreakpoint();
   const isOverlay = breakpoint !== "desktop";
   const architectureImmersiveMode = immersive && Boolean(architectureContext);
+  const [chatDataDeferred, setChatDataDeferred] = useState(deferDataLoading);
 
   // 鈹€鈹€ Session & message management (extracted hook with LRU cache) 鈹€鈹€
   const {
@@ -422,9 +425,11 @@ export function ChatSidebar({
     autoTitleSession,
     reloadMessages,
     accessTokenRef,
+    ensureReady,
   } = useChatSessions({
     canvasId,
     accessToken,
+    enabled: !chatDataDeferred,
     initialSessionId,
     onSessionChange,
   });
@@ -543,6 +548,36 @@ export function ChatSidebar({
   const selectedCanvasElementsRef = useRef(orderedSelectedCanvasElements);
   selectedCanvasElementsRef.current = orderedSelectedCanvasElements;
   const focusConfirmedCanvasRefAssetIdsRef = useRef<string[]>([]);
+
+  useEffect(() => {
+    if (!deferDataLoading) {
+      setChatDataDeferred(false);
+    }
+  }, [deferDataLoading]);
+
+  useEffect(() => {
+    if (!open || !chatDataDeferred) {
+      return;
+    }
+
+    console.info("[chat-sidebar] enabling deferred data loading because panel opened", {
+      canvasId,
+    });
+    setChatDataDeferred(false);
+  }, [canvasId, chatDataDeferred, open]);
+
+  const activateDeferredChatData = useCallback(() => {
+    if (!chatDataDeferred) {
+      return;
+    }
+
+    console.info("[chat-sidebar] activating deferred data loading", {
+      canvasId,
+      immersive: architectureImmersiveMode,
+      open,
+    });
+    setChatDataDeferred(false);
+  }, [architectureImmersiveMode, canvasId, chatDataDeferred, open]);
 
   const attachCanvasRefsToConversation = useCallback(
     (referenceAttachments: ReadyAttachment[]) => {
@@ -791,6 +826,10 @@ export function ChatSidebar({
 
   // 鈹€鈹€ Fetch image models for @mention picker 鈹€鈹€
   useEffect(() => {
+    if (chatDataDeferred) {
+      return;
+    }
+
     let cancelled = false;
 
     fetchImageModels()
@@ -813,10 +852,11 @@ export function ChatSidebar({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [chatDataDeferred]);
 
   // Fetch enabled workspace skills for @ mention
   useEffect(() => {
+    if (chatDataDeferred) return;
     if (!accessToken) return;
     let cancelled = false;
 
@@ -844,10 +884,14 @@ export function ChatSidebar({
     return () => {
       cancelled = true;
     };
-  }, [accessToken]);
+  }, [accessToken, chatDataDeferred]);
 
   // 鈹€鈹€ Fetch brand kit items for @mention picker 鈹€鈹€
   useEffect(() => {
+    if (chatDataDeferred) {
+      return;
+    }
+
     if (!currentBrandKitId) {
       setBrandKitMentionItems([]);
       return;
@@ -883,7 +927,7 @@ export function ChatSidebar({
     return () => {
       cancelled = true;
     };
-  }, [currentBrandKitId, accessTokenRef]);
+  }, [currentBrandKitId, accessTokenRef, chatDataDeferred]);
 
   // 鈹€鈹€ Send message 鈹€鈹€
   const startManagedRun = useCallback(
@@ -1315,8 +1359,15 @@ export function ChatSidebar({
       imageGenerationPreferenceOverride?: ImageGenerationPreference,
       mentionsOverride?: MessageMention[],
     ) => {
-      const currentSessionId = activeSessionIdRef.current;
-      if (streaming || !currentSessionId) return;
+      if (streaming) return;
+
+      if (chatDataDeferred) {
+        activateDeferredChatData();
+      }
+
+      const currentSessionId =
+        activeSessionIdRef.current ?? (await ensureReady());
+      if (!currentSessionId) return;
 
       const currentAttachments = attachmentsOverride ?? readyAttachments;
       const currentImageGenerationPreference =
@@ -1490,10 +1541,13 @@ export function ChatSidebar({
     [
       activeSessionIdRef,
       accessTokenRef,
+      activateDeferredChatData,
       architectureImmersiveMode,
       autoTitleSession,
       canvasId,
+      chatDataDeferred,
       clearUploads,
+      ensureReady,
       immersiveGeneratedFileCount,
       readyAttachments,
       startManagedRun,

@@ -201,4 +201,184 @@ describe("createProjectService", () => {
       "http://host.docker.internal:54321/storage/v1/object/public/project-assets/workspace_123/project_123/thumbnail.webp",
     );
   });
+
+  it("creates a project without bootstrapping the viewer when a personal workspace already exists", async () => {
+    const workspaceQuery = {
+      select: vi.fn(),
+      eq: vi.fn(),
+      order: vi.fn(),
+      limit: vi.fn(),
+      maybeSingle: vi.fn(),
+    };
+    workspaceQuery.select.mockReturnValue(workspaceQuery);
+    workspaceQuery.eq.mockReturnValue(workspaceQuery);
+    workspaceQuery.order.mockReturnValue(workspaceQuery);
+    workspaceQuery.limit.mockReturnValue(workspaceQuery);
+    workspaceQuery.maybeSingle.mockResolvedValue({
+      data: {
+        id: "workspace_123",
+        name: "Personal Workspace",
+        owner_user_id: "user_123",
+        type: "personal",
+      },
+      error: null,
+    });
+
+    const rpc = vi.fn().mockResolvedValue({
+      data: {
+        project: {
+          id: "project_123",
+          name: "Harbor Studio",
+          slug: "harbor-studio-abc123",
+          description: null,
+          created_at: "2026-04-20T10:00:00.000Z",
+          updated_at: "2026-04-20T10:00:00.000Z",
+          workspace_id: "workspace_123",
+        },
+        canvas: {
+          id: "canvas_123",
+          name: "Main Canvas",
+          is_primary: true,
+        },
+      },
+      error: null,
+    });
+
+    const userClient = {
+      from: vi.fn((table: string) => {
+        if (table === "workspaces") {
+          return workspaceQuery;
+        }
+
+        throw new Error(`Unexpected user table: ${table}`);
+      }),
+      rpc,
+      storage: {
+        from: vi.fn(),
+      },
+    };
+
+    const ensureViewer = vi.fn();
+    const service = createProjectService({
+      createUserClient: vi.fn(() => userClient as never),
+      viewerService: {
+        ensureViewer,
+      } as never,
+    });
+
+    const result = await service.createProject(
+      {
+        accessToken: "token_123",
+        email: "free@test.loomic.com",
+        id: "user_123",
+        userMetadata: {},
+      },
+      {
+        name: "Harbor Studio",
+      },
+    );
+
+    expect(ensureViewer).not.toHaveBeenCalled();
+    expect(workspaceQuery.maybeSingle).toHaveBeenCalledTimes(1);
+    expect(rpc).toHaveBeenCalledWith(
+      "create_project_with_canvas",
+      expect.objectContaining({
+        p_workspace_id: "workspace_123",
+        p_name: "Harbor Studio",
+      }),
+    );
+    expect(result.id).toBe("project_123");
+    expect(result.primaryCanvas.id).toBe("canvas_123");
+  });
+
+  it("bootstraps the viewer once as a fallback when the personal workspace is missing", async () => {
+    const workspaceQuery = {
+      select: vi.fn(),
+      eq: vi.fn(),
+      order: vi.fn(),
+      limit: vi.fn(),
+      maybeSingle: vi.fn(),
+    };
+    workspaceQuery.select.mockReturnValue(workspaceQuery);
+    workspaceQuery.eq.mockReturnValue(workspaceQuery);
+    workspaceQuery.order.mockReturnValue(workspaceQuery);
+    workspaceQuery.limit.mockReturnValue(workspaceQuery);
+    workspaceQuery.maybeSingle.mockResolvedValue({
+      data: null,
+      error: null,
+    });
+
+    const rpc = vi.fn().mockResolvedValue({
+      data: {
+        project: {
+          id: "project_123",
+          name: "Fallback Workspace Project",
+          slug: "fallback-workspace-project-abc123",
+          description: null,
+          created_at: "2026-04-20T10:00:00.000Z",
+          updated_at: "2026-04-20T10:00:00.000Z",
+          workspace_id: "workspace_bootstrapped",
+        },
+        canvas: {
+          id: "canvas_123",
+          name: "Main Canvas",
+          is_primary: true,
+        },
+      },
+      error: null,
+    });
+
+    const userClient = {
+      from: vi.fn((table: string) => {
+        if (table === "workspaces") {
+          return workspaceQuery;
+        }
+
+        throw new Error(`Unexpected user table: ${table}`);
+      }),
+      rpc,
+      storage: {
+        from: vi.fn(),
+      },
+    };
+
+    const ensureViewer = vi.fn().mockResolvedValue({
+      workspace: {
+        id: "workspace_bootstrapped",
+        name: "Bootstrapped Workspace",
+        ownerUserId: "user_123",
+        type: "personal",
+      },
+    });
+
+    const service = createProjectService({
+      createUserClient: vi.fn(() => userClient as never),
+      viewerService: {
+        ensureViewer,
+      } as never,
+    });
+
+    const result = await service.createProject(
+      {
+        accessToken: "token_123",
+        email: "free@test.loomic.com",
+        id: "user_123",
+        userMetadata: {},
+      },
+      {
+        name: "Fallback Workspace Project",
+      },
+    );
+
+    expect(workspaceQuery.maybeSingle).toHaveBeenCalledTimes(1);
+    expect(ensureViewer).toHaveBeenCalledTimes(1);
+    expect(rpc).toHaveBeenCalledWith(
+      "create_project_with_canvas",
+      expect.objectContaining({
+        p_workspace_id: "workspace_bootstrapped",
+        p_name: "Fallback Workspace Project",
+      }),
+    );
+    expect(result.workspace.id).toBe("workspace_bootstrapped");
+  });
 });

@@ -145,10 +145,17 @@ export const canvasContentSchema = z.object({
   files: z.record(z.record(z.unknown())).default({}),
 });
 
+export const canvasProjectMetadataSchema = z.object({
+  id: projectIdSchema,
+  name: z.string().min(1),
+  brandKitId: identifierSchema.nullable(),
+});
+
 export const canvasDetailSchema = z.object({
   id: canvasIdSchema,
   name: z.string().min(1),
   projectId: projectIdSchema,
+  project: canvasProjectMetadataSchema,
   content: canvasContentSchema,
 });
 
