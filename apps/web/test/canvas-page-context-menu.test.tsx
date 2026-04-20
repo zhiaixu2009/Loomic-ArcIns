@@ -1,9 +1,11 @@
 // @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import * as React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { renderWithToast } from "./render-with-toast";
 
 const {
   fetchCanvasMock,
@@ -413,7 +415,7 @@ describe("CanvasPage context menu mode", () => {
   });
 
   it("uses the live right-click payload instead of falling back to stale selected state", async () => {
-    render(<CanvasPage />);
+    renderWithToast(<CanvasPage />);
 
     await waitFor(() => {
       expect(fetchCanvasMock).toHaveBeenCalledWith("token-canvas", "canvas-1");
@@ -430,7 +432,7 @@ describe("CanvasPage context menu mode", () => {
   });
 
   it("exposes scene-organization actions in the single-image menu", async () => {
-    render(<CanvasPage />);
+    renderWithToast(<CanvasPage />);
 
     await waitFor(() => {
       expect(fetchCanvasMock).toHaveBeenCalledWith("token-canvas", "canvas-1");
@@ -462,7 +464,7 @@ describe("CanvasPage context menu mode", () => {
   });
 
   it("switches the lock action label when the selected image is already locked", async () => {
-    render(<CanvasPage />);
+    renderWithToast(<CanvasPage />);
 
     await waitFor(() => {
       expect(fetchCanvasMock).toHaveBeenCalledWith("token-canvas", "canvas-1");
@@ -475,7 +477,7 @@ describe("CanvasPage context menu mode", () => {
   });
 
   it("uses the real multi-image inventory when multiple images are selected", async () => {
-    render(<CanvasPage />);
+    renderWithToast(<CanvasPage />);
 
     await waitFor(() => {
       expect(fetchCanvasMock).toHaveBeenCalledWith("token-canvas", "canvas-1");
@@ -564,7 +566,7 @@ describe("CanvasPage context menu mode", () => {
     });
 
     try {
-      render(<CanvasPage />);
+      renderWithToast(<CanvasPage />);
 
       await waitFor(() => {
         expect(fetchCanvasMock).toHaveBeenCalledWith("token-canvas", "canvas-1");
@@ -617,7 +619,7 @@ describe("CanvasPage context menu mode", () => {
   });
 
   it("wires blank-menu import to the hidden canvas import input", async () => {
-    render(<CanvasPage />);
+    renderWithToast(<CanvasPage />);
 
     await waitFor(() => {
       expect(fetchCanvasMock).toHaveBeenCalledWith("token-canvas", "canvas-1");
@@ -648,7 +650,7 @@ describe("CanvasPage context menu mode", () => {
     });
 
     try {
-      render(<CanvasPage />);
+      renderWithToast(<CanvasPage />);
 
       await waitFor(() => {
         expect(fetchCanvasMock).toHaveBeenCalledWith("token-canvas", "canvas-1");
@@ -686,7 +688,7 @@ describe("CanvasPage context menu mode", () => {
     });
 
     try {
-      render(<CanvasPage />);
+      renderWithToast(<CanvasPage />);
 
       await waitFor(() => {
         expect(fetchCanvasMock).toHaveBeenCalledWith("token-canvas", "canvas-1");
@@ -722,7 +724,7 @@ describe("CanvasPage context menu mode", () => {
   });
 
   it("syncs the context-menu selection into the live canvas selection before mutating it", async () => {
-    render(<CanvasPage />);
+    renderWithToast(<CanvasPage />);
 
     await waitFor(() => {
       expect(fetchCanvasMock).toHaveBeenCalledWith("token-canvas", "canvas-1");

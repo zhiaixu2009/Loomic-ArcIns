@@ -1,10 +1,12 @@
 // @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, screen, waitFor } from "@testing-library/react";
 import * as matchers from "@testing-library/jest-dom/matchers";
 import userEvent from "@testing-library/user-event";
 import * as React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { renderWithToast } from "./render-with-toast";
 
 expect.extend(matchers);
 
@@ -350,7 +352,7 @@ describe("CanvasPage selection action bar", () => {
   it("shows the selected-image floating action bar and routes edit and tool actions through the existing page flow", async () => {
     const user = userEvent.setup();
 
-    render(<CanvasPage />);
+    renderWithToast(<CanvasPage />);
 
     await waitFor(() => {
       expect(fetchCanvasMock).toHaveBeenCalledWith("token-canvas", "canvas-1");
@@ -398,7 +400,7 @@ describe("CanvasPage selection action bar", () => {
   it("shows the multi-selection top action bar for grouped image work", async () => {
     const user = userEvent.setup();
 
-    render(<CanvasPage />);
+    renderWithToast(<CanvasPage />);
 
     await waitFor(() => {
       expect(fetchCanvasMock).toHaveBeenCalledWith("token-canvas", "canvas-1");
@@ -420,7 +422,7 @@ describe("CanvasPage selection action bar", () => {
   it("opens the architecture large-image viewer with the audited action cluster and immediate download drawer", async () => {
     const user = userEvent.setup();
 
-    render(<CanvasPage />);
+    renderWithToast(<CanvasPage />);
 
     await waitFor(() => {
       expect(fetchCanvasMock).toHaveBeenCalledWith("token-canvas", "canvas-1");
@@ -455,7 +457,7 @@ describe("CanvasPage selection action bar", () => {
   it("enables zoom-out after zooming in and closes the architecture large-image viewer from the close icon", async () => {
     const user = userEvent.setup();
 
-    render(<CanvasPage />);
+    renderWithToast(<CanvasPage />);
 
     await waitFor(() => {
       expect(fetchCanvasMock).toHaveBeenCalledWith("token-canvas", "canvas-1");
@@ -480,7 +482,7 @@ describe("CanvasPage selection action bar", () => {
   it("hides the image action bar after deselection and suppresses it for right-click selection", async () => {
     const user = userEvent.setup();
 
-    render(<CanvasPage />);
+    renderWithToast(<CanvasPage />);
 
     await waitFor(() => {
       expect(fetchCanvasMock).toHaveBeenCalledWith("token-canvas", "canvas-1");
@@ -508,7 +510,7 @@ describe("CanvasPage selection action bar", () => {
   it("does not reuse the image action bar when a rectangle shape is selected", async () => {
     const user = userEvent.setup();
 
-    render(<CanvasPage />);
+    renderWithToast(<CanvasPage />);
 
     await waitFor(() => {
       expect(fetchCanvasMock).toHaveBeenCalledWith("token-canvas", "canvas-1");
@@ -530,7 +532,7 @@ describe("CanvasPage selection action bar", () => {
   it("dismisses the selected-image floating action bar when the user presses Escape", async () => {
     const user = userEvent.setup();
 
-    render(<CanvasPage />);
+    renderWithToast(<CanvasPage />);
 
     await waitFor(() => {
       expect(fetchCanvasMock).toHaveBeenCalledWith("token-canvas", "canvas-1");
@@ -551,7 +553,7 @@ describe("CanvasPage selection action bar", () => {
   it("updates the floating action bar position when the selected image moves", async () => {
     const user = userEvent.setup();
 
-    render(<CanvasPage />);
+    renderWithToast(<CanvasPage />);
 
     await waitFor(() => {
       expect(fetchCanvasMock).toHaveBeenCalledWith("token-canvas", "canvas-1");
@@ -572,7 +574,7 @@ describe("CanvasPage selection action bar", () => {
   it("anchors the image floating action bar just above the native rotation handle clearance", async () => {
     const user = userEvent.setup();
 
-    render(<CanvasPage />);
+    renderWithToast(<CanvasPage />);
 
     await waitFor(() => {
       expect(fetchCanvasMock).toHaveBeenCalledWith("token-canvas", "canvas-1");
@@ -597,7 +599,7 @@ describe("CanvasPage selection action bar", () => {
     );
 
     try {
-      render(<CanvasPage />);
+      renderWithToast(<CanvasPage />);
 
       await waitFor(() => {
         expect(fetchCanvasMock).toHaveBeenCalledWith("token-canvas", "canvas-1");

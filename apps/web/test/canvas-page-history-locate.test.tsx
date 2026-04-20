@@ -1,9 +1,11 @@
 // @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import * as React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { renderWithToast } from "./render-with-toast";
 
 const {
   fetchCanvasMock,
@@ -262,7 +264,7 @@ describe("CanvasPage record locate", () => {
   it("selects and scrolls to the requested canvas element when a record image is located", async () => {
     const user = userEvent.setup();
 
-    render(<CanvasPage />);
+    renderWithToast(<CanvasPage />);
 
     await waitFor(() => {
       expect(fetchCanvasMock).toHaveBeenCalledWith("token-canvas", "canvas-1");

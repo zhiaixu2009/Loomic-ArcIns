@@ -211,6 +211,9 @@ export function ArchitectureChatControls({
     useState<PopoverPosition | null>(null);
   const [templateMenuPosition, setTemplateMenuPosition] =
     useState<PopoverPosition | null>(null);
+  const [templateMenuWidthPx, setTemplateMenuWidthPx] = useState<number | null>(
+    null,
+  );
   const [templateMenuMaxHeightPx, setTemplateMenuMaxHeightPx] = useState<number | null>(
     null,
   );
@@ -252,6 +255,13 @@ export function ArchitectureChatControls({
     );
 
     setTemplateMenuMaxHeightPx(templateMenuSize.height);
+    if (preset === "home") {
+      setTemplateMenuWidthPx(templateMenuSize.width);
+      setTemplateMenuPosition(null);
+      return;
+    }
+
+    setTemplateMenuWidthPx(null);
     setTemplateMenuPosition(
       computePopoverPosition(templateButtonRef.current.getBoundingClientRect(), {
         preferredPlacement: presetConfig.preferredPlacement,
@@ -261,6 +271,7 @@ export function ArchitectureChatControls({
       }),
     );
   }, [
+    preset,
     presetConfig.align,
     presetConfig.templateMaxHeight,
     presetConfig.templateMaxWidth,
@@ -291,6 +302,7 @@ export function ArchitectureChatControls({
   useEffect(() => {
     if (!templateMenuOpen) {
       setTemplateMenuPosition(null);
+      setTemplateMenuWidthPx(null);
       setTemplateMenuMaxHeightPx(null);
       return;
     }
@@ -461,7 +473,40 @@ export function ArchitectureChatControls({
           )
         : null}
 
-      {templateMenuOpen && templateMenuPosition
+      {preset === "home" && templateMenuOpen && templateMenuWidthPx && templateMenuMaxHeightPx
+        ? createPortal(
+            <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/24 px-4 py-6">
+              <div
+                ref={templateMenuRef}
+                role="dialog"
+                aria-modal="true"
+                aria-label="模板"
+                className="flex w-full max-w-full justify-center"
+                style={{ width: templateMenuWidthPx }}
+              >
+                <PromptTemplateBrowser
+                  status={status}
+                  library={library}
+                  error={error}
+                  favoriteTemplateIds={favoriteTemplateIds}
+                  favoritePendingIds={favoritePendingIds}
+                  onToggleFavorite={toggleFavorite}
+                  onRetry={refresh}
+                  layout={presetConfig.browserLayout}
+                  maxHeightPx={templateMenuMaxHeightPx}
+                  {...(templateMenuTestId ? { dataTestId: templateMenuTestId } : {})}
+                  onApplyTemplate={(template) => {
+                    onApplyTemplate(template);
+                    setTemplateMenuOpen(false);
+                  }}
+                />
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
+
+      {preset !== "home" && templateMenuOpen && templateMenuPosition
         ? createPortal(
             <div
               ref={templateMenuRef}

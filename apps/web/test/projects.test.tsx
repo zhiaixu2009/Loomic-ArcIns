@@ -1,11 +1,14 @@
 // @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { renderWithToast } from "./render-with-toast";
+
 const mockPush = vi.fn();
 const mockReplace = vi.fn();
+const mockCreateProject = vi.fn();
 const mockRouter = { push: mockPush, replace: mockReplace };
 vi.mock("next/navigation", () => ({
   useRouter: vi.fn(() => mockRouter),
@@ -22,6 +25,13 @@ const mockAuthValue = {
 };
 vi.mock("../src/lib/auth-context", () => ({
   useAuth: vi.fn(() => mockAuthValue),
+}));
+
+vi.mock("../src/hooks/use-create-project", () => ({
+  useCreateProject: vi.fn(() => ({
+    create: mockCreateProject,
+    creating: false,
+  })),
 }));
 
 const mockFetch = vi.fn();
@@ -84,32 +94,44 @@ describe("Projects page", () => {
     vi.stubEnv("NEXT_PUBLIC_SERVER_BASE_URL", "http://localhost:3001");
   });
 
-  it("renders sidebar with workspace name and project list", async () => {
+  it("renders the architecture studio entry with workspace name and project cards", async () => {
     mockSuccessfulLoad();
-    render(<ProjectsPage />);
+    renderWithToast(<ProjectsPage />);
 
-    expect(await screen.findByText("My Workspace")).toBeInTheDocument();
-    // Project names appear in both sidebar (recent) and project list
+    expect(
+      await screen.findByText((_, element) =>
+        element?.tagName === "P" &&
+        (element.textContent?.includes("Workspace: My Workspace") ?? false),
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /new architecture studio/i }),
+    ).toBeInTheDocument();
     const brandItems = await screen.findAllByText("Brand System");
     expect(brandItems.length).toBeGreaterThanOrEqual(1);
     const redesignItems = await screen.findAllByText("App Redesign");
     expect(redesignItems.length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByRole("button", { name: "Delete Brand System" })).toBeInTheDocument();
   });
 
-  it("shows empty state when no projects", async () => {
+  it("keeps the architecture entry visible and omits project cards when no projects load", async () => {
     mockSuccessfulLoad({ projects: [] });
-    render(<ProjectsPage />);
+    renderWithToast(<ProjectsPage />);
 
-    expect(await screen.findByText(/no projects yet/i)).toBeInTheDocument();
+    expect(
+      await screen.findByRole("button", { name: /new architecture studio/i }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Brand System")).not.toBeInTheDocument();
+    expect(screen.queryByText("App Redesign")).not.toBeInTheDocument();
   });
 
-  it("opens create dialog on + New Project click", async () => {
+  it("starts architecture studio creation from the hero CTA", async () => {
     mockSuccessfulLoad();
-    render(<ProjectsPage />);
+    renderWithToast(<ProjectsPage />);
 
-    const button = await screen.findByRole("button", { name: /new project/i });
+    const button = await screen.findByRole("button", { name: /new architecture studio/i });
     await userEvent.click(button);
-    expect(await screen.findByLabelText(/name/i)).toBeInTheDocument();
+    expect(mockCreateProject).toHaveBeenCalledWith({ studioMode: "architecture" });
   });
 
   it("calls signOut and redirects on 401 from fetchViewer", async () => {
@@ -123,7 +145,7 @@ describe("Projects page", () => {
       return Promise.resolve({ ok: false, status: 404, json: async () => ({}) });
     });
 
-    render(<ProjectsPage />);
+    renderWithToast(<ProjectsPage />);
     await waitFor(() => {
       expect(mockSignOut).toHaveBeenCalled();
       expect(mockReplace).toHaveBeenCalledWith("/login");
@@ -141,7 +163,7 @@ describe("Projects page", () => {
       return Promise.resolve({ ok: false, status: 404, json: async () => ({}) });
     });
 
-    render(<ProjectsPage />);
+    renderWithToast(<ProjectsPage />);
     expect(await screen.findByText(/failed to load/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /retry/i })).toBeInTheDocument();
     expect(mockReplace).not.toHaveBeenCalled();
@@ -161,75 +183,32 @@ describe("Projects page", () => {
       return Promise.resolve({ ok: false, status: 404, json: async () => ({}) });
     });
 
-    render(<ProjectsPage />);
+    renderWithToast(<ProjectsPage />);
     await waitFor(() => {
       expect(mockSignOut).toHaveBeenCalled();
       expect(mockReplace).toHaveBeenCalledWith("/login");
     });
   });
 
-  it("shows inline error on 409 project_slug_taken during create", async () => {
+  it("starts default project creation from the project grid create tile", async () => {
     mockSuccessfulLoad();
-    render(<ProjectsPage />);
+    renderWithToast(<ProjectsPage />);
 
-    const newBtn = await screen.findByRole("button", { name: /new project/i });
-    await userEvent.click(newBtn);
+    await screen.findByText("Brand System");
 
-    const nameInput = await screen.findByLabelText(/name/i);
-    await userEvent.type(nameInput, "Duplicate");
+    const createTile = document.querySelector('div[role="button"][tabindex="0"]');
+    expect(createTile).not.toBeNull();
 
-    // Override fetch for the create call
-    mockFetch.mockImplementation((url: string, init?: RequestInit) => {
-      if (url.includes("/api/projects") && init?.method === "POST") {
-        return Promise.resolve({
-          ok: false, status: 409,
-          json: async () => ({ error: { code: "project_slug_taken", message: "Slug taken." } }),
-        });
-      }
-      // Keep returning success for any background refetch
-      if (url.includes("/api/viewer")) {
-        return Promise.resolve({ ok: true, status: 200, json: async () => viewerResponse });
-      }
-      if (url.includes("/api/projects")) {
-        return Promise.resolve({ ok: true, status: 200, json: async () => projectsResponse });
-      }
-      return Promise.resolve({ ok: false, status: 404, json: async () => ({}) });
-    });
+    await userEvent.click(createTile as HTMLElement);
 
-    const submitBtn = screen.getByRole("button", { name: /create/i });
-    await userEvent.click(submitBtn);
-    expect(await screen.findByText(/already exists/i)).toBeInTheDocument();
+    expect(mockCreateProject).toHaveBeenCalledWith();
   });
 
-  it("shows inline error on 500 project_create_failed during create", async () => {
+  it("renders delete actions for existing project cards", async () => {
     mockSuccessfulLoad();
-    render(<ProjectsPage />);
+    renderWithToast(<ProjectsPage />);
 
-    const newBtn = await screen.findByRole("button", { name: /new project/i });
-    await userEvent.click(newBtn);
-
-    const nameInput = await screen.findByLabelText(/name/i);
-    await userEvent.type(nameInput, "Failing");
-
-    // Override fetch for the create call
-    mockFetch.mockImplementation((url: string, init?: RequestInit) => {
-      if (url.includes("/api/projects") && init?.method === "POST") {
-        return Promise.resolve({
-          ok: false, status: 500,
-          json: async () => ({ error: { code: "project_create_failed", message: "Create failed." } }),
-        });
-      }
-      if (url.includes("/api/viewer")) {
-        return Promise.resolve({ ok: true, status: 200, json: async () => viewerResponse });
-      }
-      if (url.includes("/api/projects")) {
-        return Promise.resolve({ ok: true, status: 200, json: async () => projectsResponse });
-      }
-      return Promise.resolve({ ok: false, status: 404, json: async () => ({}) });
-    });
-
-    const submitBtn = screen.getByRole("button", { name: /create/i });
-    await userEvent.click(submitBtn);
-    expect(await screen.findByText(/failed to create/i)).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Delete Brand System" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Delete App Redesign" })).toBeInTheDocument();
   });
 });

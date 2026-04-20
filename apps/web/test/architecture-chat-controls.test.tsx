@@ -252,6 +252,30 @@ describe("ArchitectureChatControls", () => {
     expect(toggleFavoriteMock).toHaveBeenCalledWith("old-house-facade");
   });
 
+  it("renders the home template browser inside a centered modal dialog instead of an anchored popover", async () => {
+    render(
+      <ArchitectureChatControls
+        preset="home"
+        onApplyTemplate={vi.fn()}
+        templateMenuTestId="architecture-controls-template-menu"
+      />,
+    );
+
+    await userEvent.click(screen.getByTitle("模板"));
+
+    const dialog = await screen.findByRole("dialog", { name: "模板" });
+    const menu = within(dialog).getByTestId("architecture-controls-template-menu");
+
+    expect(dialog.parentElement).toHaveClass(
+      "fixed",
+      "inset-0",
+      "flex",
+      "items-center",
+      "justify-center",
+    );
+    expect(menu).toBeInTheDocument();
+  });
+
   it("applies the selected official template from the detail panel", async () => {
     const onApplyTemplate = vi.fn();
 

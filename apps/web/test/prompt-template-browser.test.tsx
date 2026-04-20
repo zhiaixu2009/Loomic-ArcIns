@@ -205,10 +205,14 @@ describe("PromptTemplateBrowser", () => {
     expect(browser).toHaveStyle({
       height: "clamp(520px, calc(100vh - 56px), 700px)",
     });
+    expect(browser.firstElementChild?.nextElementSibling).toHaveClass(
+      "md:grid-cols-[168px_minmax(0,1fr)]",
+      "xl:grid-cols-[168px_minmax(0,1fr)_300px]",
+    );
     expect(grid).toHaveClass("grid-cols-2", "lg:grid-cols-3");
     expect(detailPanel).toHaveClass("flex", "h-full", "min-h-0");
-    expect(topCategoryList).toHaveClass("gap-1");
-    expect(activeCategoryButton).toHaveClass("h-8");
+    expect(topCategoryList).toHaveClass("gap-1.5");
+    expect(activeCategoryButton).toHaveClass("min-h-[44px]");
     expect(title).toHaveClass("line-clamp-2", "min-h-[2.25rem]");
   });
 

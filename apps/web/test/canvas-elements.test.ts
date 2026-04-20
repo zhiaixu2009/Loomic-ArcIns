@@ -1,7 +1,10 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { fetchImageBlobWithFallback } from "../src/lib/canvas-elements";
+import {
+  fetchImageBlobWithFallback,
+  insertImageFileOnCanvas,
+} from "../src/lib/canvas-elements";
 
 describe("fetchImageBlobWithFallback", () => {
   afterEach(() => {
@@ -25,5 +28,49 @@ describe("fetchImageBlobWithFallback", () => {
     expect(fetchMock).toHaveBeenCalledWith(
       `http://${window.location.hostname}:54321/storage/v1/object/public/assets/reference.png`,
     );
+  });
+});
+
+describe("insertImageFileOnCanvas", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("adds a local image file without refetching it from storage", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch");
+    const addFiles = vi.fn();
+    const updateScene = vi.fn();
+
+    await insertImageFileOnCanvas(
+      {
+        addFiles,
+        getSceneElements: () => [],
+        getAppState: () => ({
+          scrollX: 0,
+          scrollY: 0,
+          width: 1200,
+          height: 800,
+          zoom: { value: 1 },
+        }),
+        updateScene,
+      },
+      {
+        file: new File([new Uint8Array([1, 2, 3, 4])], "reference.png", {
+          type: "image/png",
+        }),
+        title: "Reference",
+        width: 640,
+        height: 480,
+      },
+    );
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(addFiles).toHaveBeenCalledWith([
+      expect.objectContaining({
+        mimeType: "image/png",
+        dataURL: expect.stringMatching(/^data:image\/png;base64,/),
+      }),
+    ]);
+    expect(updateScene).toHaveBeenCalledTimes(1);
   });
 });

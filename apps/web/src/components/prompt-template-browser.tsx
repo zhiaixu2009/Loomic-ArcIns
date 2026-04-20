@@ -258,8 +258,8 @@ export function PromptTemplateBrowser({
       <div
         className={`grid min-h-0 flex-1 gap-3 ${
           compact
-            ? "grid-cols-1 md:grid-cols-[112px_minmax(0,1fr)] xl:grid-cols-[112px_minmax(0,1fr)_272px]"
-            : "grid-cols-1 md:grid-cols-[120px_minmax(0,1fr)] xl:grid-cols-[120px_minmax(0,1fr)_300px]"
+            ? "grid-cols-1 md:grid-cols-[156px_minmax(0,1fr)] xl:grid-cols-[156px_minmax(0,1fr)_288px]"
+            : "grid-cols-1 md:grid-cols-[168px_minmax(0,1fr)] xl:grid-cols-[168px_minmax(0,1fr)_300px]"
         }`}
       >
         <div className="flex min-w-0 min-h-0 flex-col">
@@ -268,7 +268,7 @@ export function PromptTemplateBrowser({
           </div>
           <div
             data-testid="template-browser-top-category-list"
-            className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto pr-1 [&::-webkit-scrollbar]:hidden"
+            className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto pr-1 [&::-webkit-scrollbar]:hidden"
             style={HIDDEN_SCROLLBAR_STYLE}
           >
             {topCategories.map((category) => {
@@ -284,14 +284,16 @@ export function PromptTemplateBrowser({
                     setActiveTopCategoryKey(category.key);
                     setActiveLeafCategoryKey(category.children[0]?.key ?? category.key);
                   }}
-                  className={`flex h-8 items-center justify-between gap-1.5 rounded-[8px] border px-2 text-left transition-colors ${
+                  className={`flex min-h-[44px] flex-col items-start justify-center gap-0.5 rounded-[8px] border px-2.5 py-2 text-left transition-colors ${
                     active
                       ? "border-slate-300 bg-slate-100 text-slate-900"
                       : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900"
                   }`}
                 >
-                  <span className="line-clamp-1 min-w-0 flex-1 text-[12px] font-medium">{category.name}</span>
-                  <span className="shrink-0 text-[9px] text-slate-400 md:text-[10px]">
+                  <span className="w-full whitespace-normal break-words text-[12px] font-medium leading-4">
+                    {category.name}
+                  </span>
+                  <span className="text-[10px] text-slate-400">
                     {category.templateCount} 个模板
                   </span>
                 </button>

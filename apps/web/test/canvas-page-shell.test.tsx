@@ -1,8 +1,10 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import * as React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { renderWithToast } from "./render-with-toast";
 
 const {
   fetchCanvasMock,
@@ -267,7 +269,7 @@ describe("CanvasPage shell", () => {
   });
 
   it("keeps the immersive shell simplified while leaving the layers panel collapsed by default", async () => {
-    render(<CanvasPage />);
+    renderWithToast(<CanvasPage />);
 
     await waitFor(() => {
       expect(fetchCanvasMock).toHaveBeenCalledWith("token-canvas", "canvas-1");
@@ -304,7 +306,7 @@ describe("CanvasPage shell", () => {
   });
 
   it("opens and closes the left layers panel from the bottom-left trigger", async () => {
-    render(<CanvasPage />);
+    renderWithToast(<CanvasPage />);
 
     await waitFor(() => {
       expect(fetchCanvasMock).toHaveBeenCalledWith("token-canvas", "canvas-1");
@@ -332,7 +334,7 @@ describe("CanvasPage shell", () => {
   });
 
   it("toggles the immersive record panel from the top-right trigger", async () => {
-    render(<CanvasPage />);
+    renderWithToast(<CanvasPage />);
 
     await waitFor(() => {
       expect(fetchCanvasMock).toHaveBeenCalledWith("token-canvas", "canvas-1");
