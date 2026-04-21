@@ -2,10 +2,13 @@
 import "@testing-library/jest-dom/vitest";
 import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { ComponentProps } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { HomePrompt } from "../src/components/home-prompt";
 import type { ImageModelPreference } from "../src/hooks/use-image-model-preference";
+import { useImageAttachments } from "../src/hooks/use-image-attachments";
+import { buildPromptTemplateAttachmentInputs } from "../src/lib/prompt-template-attachments";
 
 const {
   imageModelPreferenceState,
@@ -135,7 +138,7 @@ vi.mock("../src/hooks/use-official-prompt-template-library", () => ({
     status: "ready",
     library: officialLibraryFixture,
     favoriteTemplateIds: new Set(["old-house-facade"]),
-    favoritePendingIds: new Set(),
+    favoritePendingIds: new Set<string>(),
     isAuthenticated: true,
     authLoading: false,
     error: null,
@@ -149,6 +152,29 @@ afterEach(() => {
   localStorage.clear();
   vi.clearAllMocks();
 });
+
+type HomePromptSubmit = ComponentProps<typeof HomePrompt>["onSubmit"];
+
+function HomePromptTemplateHarness(props: { onSubmit: HomePromptSubmit }) {
+  const {
+    attachments,
+    readyAttachments,
+    removeAttachment,
+    replaceTemplateAttachments,
+  } = useImageAttachments("token-home");
+
+  return (
+    <HomePrompt
+      onSubmit={props.onSubmit}
+      attachments={attachments}
+      readyAttachments={readyAttachments}
+      onRemoveAttachment={removeAttachment}
+      onApplyTemplate={(template) => {
+        replaceTemplateAttachments(buildPromptTemplateAttachmentInputs(template));
+      }}
+    />
+  );
+}
 
 describe("HomePrompt", () => {
   beforeEach(() => {
@@ -167,12 +193,8 @@ describe("HomePrompt", () => {
       screen.getByRole("button", { name: "自动 | 1K" }),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "模板" })).toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "自动" }),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "2K" }),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "自动" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "2K" })).not.toBeInTheDocument();
 
     const inputRow = screen.getByTestId("home-prompt-input-row");
     expect(
@@ -242,13 +264,49 @@ describe("HomePrompt", () => {
 
     expect(
       screen.getByPlaceholderText("添加图片输入文案开始创作之旅..."),
-    ).toHaveValue(
-      "请基于当前旧房照片生成建筑立面改造方案。",
-    );
+    ).toHaveValue("请基于当前旧房照片生成建筑立面改造方案。");
     expect(setImageModelPreferenceMock).toHaveBeenCalledWith({
       mode: "manual",
       models: ["google/nano-banana-pro"],
     });
+  });
+
+  it("submits the selected home template images in the original template order", async () => {
+    const onSubmit = vi.fn();
+
+    render(<HomePromptTemplateHarness onSubmit={onSubmit} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "模板" }));
+    const menu = screen.getByTestId("home-prompt-template-menu");
+    await userEvent.type(within(menu).getByPlaceholderText("搜索模板"), "旧房");
+    await userEvent.click(within(menu).getByRole("button", { name: "旧房立面改造" }));
+    await userEvent.click(within(menu).getByRole("button", { name: "使用模板" }));
+
+    const textarea = screen.getByDisplayValue(
+      "请基于当前旧房照片生成建筑立面改造方案。",
+    );
+    await userEvent.type(textarea, "{Enter}");
+
+    expect(onSubmit).toHaveBeenCalledWith(
+      "请基于当前旧房照片生成建筑立面改造方案。",
+      [
+        expect.objectContaining({
+          assetId: "template:old-house-facade:0",
+          url: "https://example.com/old-house-cover.png",
+        }),
+        expect.objectContaining({
+          assetId: "template:old-house-facade:1",
+          url: "https://example.com/old-house-output.png",
+        }),
+        expect.objectContaining({
+          assetId: "template:old-house-facade:2",
+          url: "https://example.com/old-house-reference.png",
+        }),
+      ],
+      undefined,
+      undefined,
+      undefined,
+    );
   });
 
   it("keeps uploaded reference thumbnails inside the home input row, prefers persisted urls, and hides rail scrollbars", () => {

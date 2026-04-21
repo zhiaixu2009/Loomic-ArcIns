@@ -291,6 +291,7 @@ function CanvasPageContent() {
   const canvasImportInputRef = useRef<HTMLInputElement | null>(null);
   const copiedSceneElementsRef = useRef<Record<string, any>[]>([]);
   const copiedSceneFilesRef = useRef<Record<string, any>>({});
+  const flushCanvasSaveRef = useRef<(() => Promise<void>) | null>(null);
 
   const signOutRef = useRef(signOut);
   signOutRef.current = signOut;
@@ -391,6 +392,22 @@ function CanvasPageContent() {
   const handleApiReady = useCallback((api: any) => {
     excalidrawApiRef.current = api;
     setExcalidrawApi(api);
+  }, []);
+
+  const handleCanvasFlushReady = useCallback((flush: () => Promise<void>) => {
+    flushCanvasSaveRef.current = flush;
+  }, []);
+
+  const handleFlushCanvasBeforeNavigate = useCallback(async () => {
+    if (!flushCanvasSaveRef.current) {
+      return;
+    }
+
+    try {
+      await flushCanvasSaveRef.current();
+    } catch (error) {
+      console.warn("[canvas-page] failed to flush canvas before navigation", error);
+    }
   }, []);
 
   const syncArchitectureContext = useCallback(
@@ -2050,6 +2067,21 @@ function CanvasPageContent() {
   }, [architectureMode, excalidrawApi, syncArchitectureContext]);
 
   useEffect(() => {
+    if (!canvasData?.id) {
+      return;
+    }
+
+    const handlePopState = () => {
+      void handleFlushCanvasBeforeNavigate();
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+    };
+  }, [canvasData?.id, handleFlushCanvasBeforeNavigate]);
+
+  useEffect(() => {
     if (authLoading) return;
     if (!userId) {
       routerRef.current.replace("/login");
@@ -2151,6 +2183,7 @@ function CanvasPageContent() {
             projectId={canvasData.projectId}
             canvasId={canvasData.id}
             excalidrawApi={excalidrawApi}
+            onBeforeNavigate={handleFlushCanvasBeforeNavigate}
           />
           <EditableProjectName
             accessToken={accessToken}
@@ -2237,6 +2270,7 @@ function CanvasPageContent() {
           immersiveArchitecture={architectureMode}
           initialContent={canvasData.content}
           onApiReady={handleApiReady}
+          onFlushReady={handleCanvasFlushReady}
           onInsertReferenceBoard={() =>
             handleInsertArchitectureBoard("reference_board")
           }

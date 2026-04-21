@@ -34,6 +34,7 @@ import type { WebSocketHandle } from "../hooks/use-websocket";
 import { fetchBrandKit } from "../lib/brand-kit-api";
 import { buildArchitectureTemplateSuggestions } from "../lib/architecture-prompt-templates";
 import { claimDailyCredits } from "../lib/credits-api";
+import { buildPromptTemplateAttachmentInputs } from "../lib/prompt-template-attachments";
 import { fetchImageModels, fetchWorkspaceSkills, saveMessage } from "../lib/server-api";
 import type { ArchitectureContext } from "../lib/architecture-canvas";
 import type { CanvasComposerCommand } from "../lib/canvas-context-actions";
@@ -499,6 +500,7 @@ export function ChatSidebar({
     moveAttachment,
     retryUpload,
     removeAttachment,
+    replaceTemplateAttachments,
     clearUploads,
     isUploading,
     readyAttachments,
@@ -2117,6 +2119,11 @@ export function ChatSidebar({
                 : {})}
               templateSuggestions={templateSuggestions}
               externalDraft={externalDraft}
+              onApplyTemplate={(template) =>
+                replaceTemplateAttachments(
+                  buildPromptTemplateAttachmentInputs(template),
+                )
+              }
             />
             {!ws.connected ? (
               <div className="px-2 pb-1 pt-2">
@@ -2210,6 +2217,11 @@ export function ChatSidebar({
           : {})}
         templateSuggestions={templateSuggestions}
         externalDraft={externalDraft}
+        onApplyTemplate={(template) =>
+          replaceTemplateAttachments(
+            buildPromptTemplateAttachmentInputs(template),
+          )
+        }
       />
     </div>
   );

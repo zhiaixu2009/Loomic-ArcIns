@@ -58,6 +58,7 @@ type ChatInputProps = {
   draftValue?: string;
   onDraftChange?: (value: string) => void;
   onInputFocus?: () => void;
+  onApplyTemplate?: (template: ChatInputTemplateSuggestion) => void;
 };
 
 export type ChatInputHandle = {
@@ -127,6 +128,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
       draftValue,
       onDraftChange,
       onInputFocus,
+      onApplyTemplate,
     },
     ref,
   ) {
@@ -625,12 +627,14 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
           ),
         );
         updateValue(template.prompt);
+        onApplyTemplate?.(template);
         setTemplateMenuOpen(false);
         onAtQuery?.(null);
         focusTextareaWithoutConfirmingSelection();
       },
       [
         focusTextareaWithoutConfirmingSelection,
+        onApplyTemplate,
         onAtQuery,
         setPreference,
         updateValue,

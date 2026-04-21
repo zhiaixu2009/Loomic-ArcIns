@@ -13,10 +13,15 @@ export function HomeProjectsSkeleton({
   return (
     <div data-testid="home-projects-skeleton" className="contents">
       {includeNewProjectPlaceholder ? (
-        <div className="aspect-[286/208] rounded-xl bg-card p-2 shadow-card sm:rounded-2xl sm:p-3">
-          <div className="flex h-full w-full flex-col items-center justify-center gap-2 rounded-xl bg-muted sm:gap-3">
-            <Skeleton className="h-5 w-5 rounded-full sm:h-6 sm:w-6" />
-            <Skeleton className="h-3 w-12 sm:w-14" />
+        <div
+          data-testid="home-project-skeleton-new"
+          className="flex aspect-square flex-col justify-between rounded-[10px] border border-dashed border-slate-200 bg-slate-50 px-5 py-5"
+        >
+          <Skeleton className="h-12 w-12 rounded-[10px]" />
+          <div className="space-y-2">
+            <Skeleton className="h-5 w-28 rounded-md" />
+            <Skeleton className="h-4 w-32 rounded-md" />
+            <Skeleton className="h-4 w-24 rounded-md" />
           </div>
         </div>
       ) : null}
@@ -25,12 +30,18 @@ export function HomeProjectsSkeleton({
       {Array.from({ length: projectCount }, (_, i) => (
         <div
           key={i}
-          className="aspect-[286/208] rounded-lg bg-card p-2 shadow-card sm:p-3"
+          data-testid={`home-project-skeleton-card-${i}`}
+          className="flex aspect-square flex-col overflow-hidden rounded-[10px] border border-slate-200 bg-white"
         >
-          <Skeleton className="aspect-[395/227] w-full rounded-lg" />
-          <div className="mt-2 space-y-1 sm:mt-3 sm:space-y-1.5">
-            <Skeleton className="h-3 w-3/4 sm:h-3.5" />
-            <Skeleton className="h-2 w-1/2 sm:h-2.5" />
+          <div className="flex min-h-0 flex-[0_0_58%] px-4 pb-2 pt-4">
+            <Skeleton className="h-full w-full rounded-[8px]" />
+          </div>
+          <div className="flex min-h-0 flex-1 items-end gap-3 px-4 pb-4 pt-2">
+            <div className="min-w-0 flex-1 space-y-2">
+              <Skeleton className="h-5 w-3/4 rounded-md" />
+              <Skeleton className="h-4 w-1/2 rounded-md" />
+            </div>
+            <Skeleton className="h-10 w-10 rounded-full" />
           </div>
         </div>
       ))}

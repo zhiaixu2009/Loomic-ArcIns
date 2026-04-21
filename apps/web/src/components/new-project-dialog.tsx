@@ -94,6 +94,7 @@ export function NewProjectDialog({
             <Label htmlFor="new-project-name">项目名称</Label>
             <Input
               id="new-project-name"
+              aria-label="项目名称"
               placeholder="例如：滨海综合体方案"
               value={projectName}
               onChange={(event) => setProjectName(event.target.value)}

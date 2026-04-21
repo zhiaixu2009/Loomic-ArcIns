@@ -19,9 +19,17 @@ export type ImageAttachmentState = {
   mimeType: string;
   source: "upload" | "canvas-ref";
   name?: string;
+  template?: boolean;
 };
 
 export type CanvasImageRef = {
+  assetId: string;
+  url: string;
+  mimeType: string;
+  name?: string;
+};
+
+export type RemoteImageAttachmentInput = {
   assetId: string;
   url: string;
   mimeType: string;
@@ -39,6 +47,31 @@ function createCanvasRefAttachment(ref: CanvasImageRef): ImageAttachmentState {
     source: "canvas-ref",
     ...(ref.name ? { name: ref.name } : {}),
   };
+}
+
+function createRemoteAttachment(
+  input: RemoteImageAttachmentInput,
+  options?: { template?: boolean },
+): ImageAttachmentState {
+  return {
+    id: crypto.randomUUID(),
+    preview: input.url,
+    uploading: false,
+    assetId: input.assetId,
+    url: input.url,
+    mimeType: input.mimeType,
+    source: "upload",
+    ...(input.name ? { name: input.name } : {}),
+    ...(options?.template ? { template: true } : {}),
+  };
+}
+
+function revokePreviewUrl(preview: string | undefined, source: "upload" | "canvas-ref") {
+  if (!preview || source !== "upload" || !preview.startsWith("blob:")) {
+    return;
+  }
+
+  URL.revokeObjectURL(preview);
 }
 
 /** A fully-uploaded attachment ready to be sent, including its origin source. */
@@ -73,9 +106,7 @@ export function useImageAttachments(accessToken: string, projectId?: string) {
   useEffect(() => {
     return () => {
       for (const att of attachmentsRef.current) {
-        if (att.preview && att.source === "upload") {
-          URL.revokeObjectURL(att.preview);
-        }
+        revokePreviewUrl(att.preview, att.source);
       }
     };
   }, []);
@@ -298,8 +329,8 @@ export function useImageAttachments(accessToken: string, projectId?: string) {
   const removeAttachment = useCallback((id: string) => {
     setAttachments((prev) => {
       const att = prev.find((a) => a.id === id);
-      if (att?.preview && att.source === "upload") {
-        URL.revokeObjectURL(att.preview);
+      if (att) {
+        revokePreviewUrl(att.preview, att.source);
       }
       return prev.filter((a) => a.id !== id);
     });
@@ -308,9 +339,7 @@ export function useImageAttachments(accessToken: string, projectId?: string) {
   const clearAll = useCallback(() => {
     setAttachments((prev) => {
       for (const att of prev) {
-        if (att.preview && att.source === "upload") {
-          URL.revokeObjectURL(att.preview);
-        }
+        revokePreviewUrl(att.preview, att.source);
       }
       return [];
     });
@@ -352,13 +381,40 @@ export function useImageAttachments(accessToken: string, projectId?: string) {
   const clearUploads = useCallback(() => {
     setAttachments((prev) => {
       for (const att of prev) {
-        if (att.preview && att.source === "upload") {
-          URL.revokeObjectURL(att.preview);
+        if (att.source === "upload") {
+          revokePreviewUrl(att.preview, att.source);
         }
       }
       return prev.filter((att) => att.source !== "upload");
     });
   }, []);
+
+  const replaceTemplateAttachments = useCallback(
+    (nextTemplateAttachments: RemoteImageAttachmentInput[]) => {
+      setAttachments((prev) => {
+        const retainedAttachments = prev.filter((attachment) => {
+          if (!attachment.template) {
+            return true;
+          }
+
+          revokePreviewUrl(attachment.preview, attachment.source);
+          return false;
+        });
+
+        if (nextTemplateAttachments.length === 0) {
+          return retainedAttachments;
+        }
+
+        return [
+          ...retainedAttachments,
+          ...nextTemplateAttachments.map((attachment) =>
+            createRemoteAttachment(attachment, { template: true }),
+          ),
+        ];
+      });
+    },
+    [],
+  );
 
   const isUploading = attachments.some((a) => a.uploading);
 
@@ -380,6 +436,7 @@ export function useImageAttachments(accessToken: string, projectId?: string) {
     moveAttachment,
     retryUpload,
     removeAttachment,
+    replaceTemplateAttachments,
     clearAll,
     clearUploads,
     isUploading,

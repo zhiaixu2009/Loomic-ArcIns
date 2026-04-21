@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import type { ArchitecturePromptTemplateSuggestion } from "../lib/architecture-prompt-templates";
 import { resolveBrowserAssetUrl } from "../lib/browser-asset-url";
+import { listPromptTemplateImageUrls } from "../lib/prompt-template-images";
 import {
   buildOfficialPromptTemplateSuggestion,
   type OfficialPromptTemplate,
@@ -35,28 +36,6 @@ const HIDDEN_SCROLLBAR_STYLE = {
 
 function normalizeText(value: string) {
   return value.trim().toLowerCase();
-}
-
-function buildTemplateImages(template: OfficialPromptTemplate) {
-  const seen = new Set<string>();
-  const result: string[] = [];
-
-  for (const value of [
-    ...template.previewImageUrls,
-    template.coverImageUrl,
-    template.outputImageUrl,
-    ...template.referenceImageUrls,
-  ]) {
-    const normalized = value?.trim();
-    if (!normalized || seen.has(normalized)) {
-      continue;
-    }
-
-    seen.add(normalized);
-    result.push(normalized);
-  }
-
-  return result;
 }
 
 function getCategoryPath(template: OfficialPromptTemplate) {
@@ -208,7 +187,9 @@ export function PromptTemplateBrowser({
     visibleTemplates.find((template) => template.id === activeTemplateId) ??
     visibleTemplates[0] ??
     null;
-  const activeTemplateImages = activeTemplate ? buildTemplateImages(activeTemplate) : [];
+  const activeTemplateImages = activeTemplate
+    ? listPromptTemplateImageUrls(activeTemplate)
+    : [];
   const activePreviewUrl = activeTemplateImages[activePreviewIndex] ?? activeTemplateImages[0] ?? "";
 
   useEffect(() => {
@@ -354,7 +335,8 @@ export function PromptTemplateBrowser({
             {visibleTemplates.map((template) => {
               const active = template.id === activeTemplate?.id;
               const isFavorite = favoriteTemplateIds.has(template.id);
-              const cardImage = buildTemplateImages(template)[0] ?? template.coverImageUrl;
+              const cardImage =
+                listPromptTemplateImageUrls(template)[0] ?? template.coverImageUrl;
 
               return (
                 <div

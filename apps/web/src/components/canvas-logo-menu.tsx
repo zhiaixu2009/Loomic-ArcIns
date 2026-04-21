@@ -15,6 +15,8 @@ import { useRouter } from "next/navigation";
 import { useCallback, useRef, useState } from "react";
 
 import { LoomicLogo } from "@/components/icons/loomic-logo";
+import { useProjectLibrary } from "@/components/project-library-provider";
+import { useToast } from "@/components/toast";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -24,6 +26,7 @@ import {
   DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useCreateProject } from "@/hooks/use-create-project";
 import {
   createExcalidrawImageElement,
   getViewportCenter,
@@ -31,8 +34,6 @@ import {
 } from "@/lib/canvas-elements";
 import { duplicateSelectedCanvasElements } from "@/lib/canvas-context-actions";
 import { deleteProject } from "@/lib/server-api";
-import { useToast } from "@/components/toast";
-import { useCreateProject } from "@/hooks/use-create-project";
 
 interface CanvasLogoMenuProps {
   accessToken: string;
@@ -40,15 +41,19 @@ interface CanvasLogoMenuProps {
   canvasId: string;
   // biome-ignore lint/suspicious/noExplicitAny: Excalidraw API has no public type definition
   excalidrawApi: any | null;
+  onBeforeNavigate?: () => Promise<void> | void;
 }
+
+const NAVIGATION_FLUSH_TIMEOUT_MS = 1_500;
 
 function dispatchKeyToExcalidraw(
   key: string,
   opts: { metaKey?: boolean; shiftKey?: boolean } = {},
 ) {
-  const el = document.querySelector(".excalidraw-container");
-  if (!el) return;
-  el.dispatchEvent(
+  const element = document.querySelector(".excalidraw-container");
+  if (!element) return;
+
+  element.dispatchEvent(
     new KeyboardEvent("keydown", {
       key,
       code: `Key${key.toUpperCase()}`,
@@ -72,10 +77,12 @@ export function CanvasLogoMenu({
   projectId,
   canvasId,
   excalidrawApi,
+  onBeforeNavigate,
 }: CanvasLogoMenuProps) {
   const router = useRouter();
   const { error: toastError } = useToast();
   const { create: createNewProject } = useCreateProject();
+  const { openProjectLibrary } = useProjectLibrary();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
@@ -84,32 +91,75 @@ export function CanvasLogoMenu({
     duplicateSelectedCanvasElements(excalidrawApi);
   }, [excalidrawApi]);
 
+  const handleNavigateHome = useCallback(async () => {
+    if (onBeforeNavigate) {
+      let timeoutId: ReturnType<typeof setTimeout> | null = null;
+      const flushPromise = Promise.resolve()
+        .then(() => onBeforeNavigate())
+        .catch((error) => {
+          console.warn(
+            "[canvas-logo-menu] failed to flush canvas before navigation",
+            {
+              canvasId,
+              error,
+            },
+          );
+        });
+
+      try {
+        const flushResult = await Promise.race([
+          flushPromise.then(() => "completed" as const),
+          new Promise<"timed-out">((resolve) => {
+            timeoutId = setTimeout(() => resolve("timed-out"), NAVIGATION_FLUSH_TIMEOUT_MS);
+          }),
+        ]);
+
+        if (flushResult === "timed-out") {
+          console.warn(
+            "[canvas-logo-menu] canvas flush exceeded navigation deadline; continuing home navigation",
+            {
+              canvasId,
+              timeoutMs: NAVIGATION_FLUSH_TIMEOUT_MS,
+            },
+          );
+        }
+      } finally {
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+        }
+      }
+    }
+
+    router.push("/home");
+  }, [canvasId, onBeforeNavigate, router]);
+
   const handleDeleteProject = useCallback(async () => {
     if (!confirmingDelete) {
       setConfirmingDelete(true);
       return;
     }
+
     try {
       await deleteProject(accessToken, projectId);
-      router.push("/projects");
-    } catch (err) {
-      console.warn("Failed to delete project:", err);
+      router.push("/home");
+    } catch (error) {
+      console.warn("[canvas-logo-menu] failed to delete project", error);
       toastError("项目删除失败");
     } finally {
       setConfirmingDelete(false);
     }
-  }, [accessToken, projectId, router, confirmingDelete, toastError]);
+  }, [accessToken, confirmingDelete, projectId, router, toastError]);
 
   const handleFileImport = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
       if (!file || !excalidrawApi) return;
 
       const reader = new FileReader();
       reader.onload = () => {
         const dataURL = reader.result as string;
-        const img = new Image();
-        img.onload = () => {
+        const image = new Image();
+        image.onload = () => {
           const fileId = generateFileId();
 
           excalidrawApi.addFiles([
@@ -121,12 +171,12 @@ export function CanvasLogoMenu({
             },
           ]);
 
-          const scaled = scaleToFit(img.width, img.height, 600);
+          const scaled = scaleToFit(image.width, image.height, 600);
           const center = getViewportCenter(excalidrawApi.getAppState());
           const x = center.x - scaled.width / 2;
           const y = center.y - scaled.height / 2;
 
-          const element = createExcalidrawImageElement({
+          const insertedElement = createExcalidrawImageElement({
             fileId,
             x,
             y,
@@ -136,16 +186,14 @@ export function CanvasLogoMenu({
           });
 
           excalidrawApi.updateScene({
-            elements: [...excalidrawApi.getSceneElements(), element],
+            elements: [...excalidrawApi.getSceneElements(), insertedElement],
             captureUpdate: "IMMEDIATELY",
           });
         };
-        img.src = dataURL;
+        image.src = dataURL;
       };
       reader.readAsDataURL(file);
-
-      // Reset input so the same file can be selected again
-      e.target.value = "";
+      event.target.value = "";
     },
     [excalidrawApi],
   );
@@ -154,24 +202,25 @@ export function CanvasLogoMenu({
     <>
       <DropdownMenu
         onOpenChange={(open) => {
-          if (!open) setConfirmingDelete(false);
+          if (!open) {
+            setConfirmingDelete(false);
+          }
         }}
       >
         <DropdownMenuTrigger
-          className="flex items-center justify-center size-8 rounded-xl bg-card/80 backdrop-blur-sm shadow-sm border border-border hover:bg-card transition-colors cursor-pointer outline-none"
+          className="flex size-8 cursor-pointer items-center justify-center rounded-xl border border-border bg-card/80 shadow-sm transition-colors hover:bg-card outline-none backdrop-blur-sm"
           aria-label="菜单"
         >
           <LoomicLogo className="size-5 text-foreground" />
         </DropdownMenuTrigger>
 
         <DropdownMenuContent align="start" sideOffset={6} className="w-56">
-          {/* Group 1 — Navigation */}
           <DropdownMenuGroup>
-            <DropdownMenuItem onClick={() => router.push("/home")}>
+            <DropdownMenuItem onClick={() => void handleNavigateHome()}>
               <Home className="size-4" />
               主页
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => router.push("/projects")}>
+            <DropdownMenuItem onClick={openProjectLibrary}>
               <FolderOpen className="size-4" />
               项目库
             </DropdownMenuItem>
@@ -179,9 +228,10 @@ export function CanvasLogoMenu({
 
           <DropdownMenuSeparator />
 
-          {/* Group 2 — Project actions */}
           <DropdownMenuGroup>
-            <DropdownMenuItem onClick={() => createNewProject()}>
+            <DropdownMenuItem
+              onClick={() => createNewProject({ studioMode: "architecture" })}
+            >
               <Plus className="size-4" />
               新建项目
             </DropdownMenuItem>
@@ -196,9 +246,12 @@ export function CanvasLogoMenu({
 
           <DropdownMenuSeparator />
 
-          {/* Group 3 — Canvas import */}
           <DropdownMenuGroup>
-            <DropdownMenuItem onClick={() => fileInputRef.current?.click()}>
+            <DropdownMenuItem
+              onClick={() => {
+                fileInputRef.current?.click();
+              }}
+            >
               <ImagePlus className="size-4" />
               导入图片
             </DropdownMenuItem>
@@ -206,7 +259,6 @@ export function CanvasLogoMenu({
 
           <DropdownMenuSeparator />
 
-          {/* Group 4 — Edit operations */}
           <DropdownMenuGroup>
             <DropdownMenuItem
               onClick={() => dispatchKeyToExcalidraw("z", { metaKey: true })}
@@ -236,7 +288,6 @@ export function CanvasLogoMenu({
 
           <DropdownMenuSeparator />
 
-          {/* Group 5 — View controls */}
           <DropdownMenuGroup>
             <DropdownMenuItem onClick={() => excalidrawApi?.scrollToContent()}>
               <Maximize2 className="size-4" />

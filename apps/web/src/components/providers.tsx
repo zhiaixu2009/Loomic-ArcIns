@@ -4,6 +4,7 @@ import { ThemeProvider } from "next-themes";
 import type { ReactNode } from "react";
 
 import { AuthProvider } from "../lib/auth-context";
+import { ProjectLibraryProvider } from "./project-library-provider";
 import { DevOriginGuard } from "./dev-origin-guard";
 import { ToastProvider } from "./toast";
 import { TierLimitToastProvider } from "./credits/tier-limit-toast";
@@ -14,7 +15,9 @@ export function Providers({ children }: { children: ReactNode }) {
       <DevOriginGuard />
       <AuthProvider>
         <ToastProvider>
-          <TierLimitToastProvider>{children}</TierLimitToastProvider>
+          <TierLimitToastProvider>
+            <ProjectLibraryProvider>{children}</ProjectLibraryProvider>
+          </TierLimitToastProvider>
         </ToastProvider>
       </AuthProvider>
     </ThemeProvider>

@@ -9,7 +9,7 @@ const {
   createProjectMock,
   creatingState,
   fetchProjectsMock,
-  loadHomeExampleCategoriesMock,
+  openProjectLibraryMock,
   requestDeleteMock,
   routerPrefetchMock,
   routerPushMock,
@@ -21,7 +21,7 @@ const {
     current: false,
   },
   fetchProjectsMock: vi.fn(),
-  loadHomeExampleCategoriesMock: vi.fn(),
+  openProjectLibraryMock: vi.fn(),
   requestDeleteMock: vi.fn(),
   routerPrefetchMock: vi.fn(),
   routerPushMock: vi.fn(),
@@ -90,19 +90,22 @@ vi.mock("../src/hooks/use-image-attachments", () => ({
     attachments: [],
     addFiles: vi.fn(),
     removeAttachment: vi.fn(),
+    replaceTemplateAttachments: vi.fn(),
     clearAll: vi.fn(),
     isUploading: false,
     readyAttachments: [],
   }),
 }));
 
+vi.mock("../src/components/project-library-provider", () => ({
+  useProjectLibrary: () => ({
+    openProjectLibrary: openProjectLibraryMock,
+  }),
+}));
+
 vi.mock("../src/lib/server-api", () => ({
   ApiAuthError: class ApiAuthError extends Error {},
   fetchProjects: fetchProjectsMock,
-}));
-
-vi.mock("../src/lib/home-example-library", () => ({
-  loadHomeExampleCategories: loadHomeExampleCategoriesMock,
 }));
 
 vi.mock("../src/lib/canvas-experience-warmup", () => ({
@@ -113,10 +116,6 @@ vi.mock("../src/components/home-prompt", () => ({
   HomePrompt: React.forwardRef(function HomePromptStub(_props, _ref) {
     return <div data-testid="home-prompt">HomePrompt</div>;
   }),
-}));
-
-vi.mock("../src/components/home-example-browser", () => ({
-  HomeExampleBrowser: () => <div data-testid="home-example-browser" />,
 }));
 
 vi.mock("../src/components/skeletons/home-skeleton", () => ({
@@ -144,7 +143,6 @@ describe("HomePage shell", () => {
         },
       ],
     });
-    loadHomeExampleCategoriesMock.mockResolvedValue([]);
   });
 
   afterEach(() => {
@@ -179,6 +177,7 @@ describe("HomePage shell", () => {
     expect(parsedUrl.pathname).toBe(
       "/storage/v1/object/public/project-assets/workspace-1/project-thumb-1/thumbnail.webp",
     );
+    expect(parsedUrl.searchParams.get("v")).toBe("2026-04-14T10:00:00.000Z");
   });
 
   it("prefetches each recent project canvas route after loading recent projects", async () => {
@@ -190,6 +189,19 @@ describe("HomePage shell", () => {
       expect(routerPrefetchMock).toHaveBeenCalledWith(
         "/canvas?id=canvas-1&studio=architecture",
       );
+    });
+  });
+
+  it("refreshes homepage projects after the window regains focus so updated thumbnails can be reloaded", async () => {
+    render(<HomePage />);
+
+    await screen.findByText("Harbor Complex");
+    expect(fetchProjectsMock).toHaveBeenCalledTimes(1);
+
+    window.dispatchEvent(new Event("focus"));
+
+    await waitFor(() => {
+      expect(fetchProjectsMock).toHaveBeenCalledTimes(2);
     });
   });
 
@@ -229,6 +241,18 @@ describe("HomePage shell", () => {
     ).toHaveClass("relative");
   });
 
+  it("keeps recent project titles on a single line and uses a non-clipping footer layout inside square cards", async () => {
+    render(<HomePage />);
+
+    const title = await screen.findByTestId("recent-project-card-title-project-1");
+    const footer = screen.getByTestId("recent-project-card-footer-project-1");
+
+    expect(title).toHaveClass("truncate");
+    expect(title).toHaveClass("whitespace-nowrap");
+    expect(footer).toHaveClass("min-h-0");
+    expect(footer).not.toHaveClass("min-h-[92px]");
+  });
+
   it("prioritizes recent projects with thumbnails before filling the homepage limit with blank cards", async () => {
     fetchProjectsMock.mockResolvedValue({
       projects: [
@@ -250,21 +274,24 @@ describe("HomePage shell", () => {
           id: "project-thumb-1",
           name: "Thumb One",
           primaryCanvas: { id: "canvas-thumb-1" },
-          thumbnailUrl: "http://host.docker.internal:54321/storage/v1/object/public/project-assets/workspace-1/project-thumb-1/thumbnail.webp",
+          thumbnailUrl:
+            "http://host.docker.internal:54321/storage/v1/object/public/project-assets/workspace-1/project-thumb-1/thumbnail.webp",
           updatedAt: "2026-04-20T08:00:00.000Z",
         },
         {
           id: "project-thumb-2",
           name: "Thumb Two",
           primaryCanvas: { id: "canvas-thumb-2" },
-          thumbnailUrl: "http://host.docker.internal:54321/storage/v1/object/public/project-assets/workspace-1/project-thumb-2/thumbnail.webp",
+          thumbnailUrl:
+            "http://host.docker.internal:54321/storage/v1/object/public/project-assets/workspace-1/project-thumb-2/thumbnail.webp",
           updatedAt: "2026-04-20T07:00:00.000Z",
         },
         {
           id: "project-thumb-3",
           name: "Thumb Three",
           primaryCanvas: { id: "canvas-thumb-3" },
-          thumbnailUrl: "http://host.docker.internal:54321/storage/v1/object/public/project-assets/workspace-1/project-thumb-3/thumbnail.webp",
+          thumbnailUrl:
+            "http://host.docker.internal:54321/storage/v1/object/public/project-assets/workspace-1/project-thumb-3/thumbnail.webp",
           updatedAt: "2026-04-20T06:00:00.000Z",
         },
       ],
@@ -272,17 +299,30 @@ describe("HomePage shell", () => {
 
     render(<HomePage />);
 
-    expect(await screen.findByText("Thumb One")).toBeInTheDocument();
-    expect(screen.getByText("Thumb Two")).toBeInTheDocument();
-    expect(screen.getByText("Thumb Three")).toBeInTheDocument();
-    expect(screen.getByText("Blank One")).toBeInTheDocument();
-    expect(screen.queryByText("Blank Two")).not.toBeInTheDocument();
+    await screen.findByText("Thumb One");
+
+    const projectCards = Array.from(
+      screen
+        .getByTestId("home-project-grid")
+        .querySelectorAll<HTMLElement>("article[data-testid^='recent-project-card-']"),
+    );
+    const cardTitles = projectCards
+      .map((card) => card.querySelector("p")?.textContent?.trim() ?? "")
+      .filter(Boolean);
+
+    expect(cardTitles.slice(0, 5)).toEqual([
+      "Thumb One",
+      "Thumb Two",
+      "Thumb Three",
+      "Blank One",
+      "Blank Two",
+    ]);
   });
 
   it("keeps the new-project tile and existing recent-project tiles square, and exposes a delete action on existing projects", async () => {
     render(<HomePage />);
 
-    const newProjectTile = screen.getByRole("button", { name: /鏂板缓椤圭洰/ });
+    const newProjectTile = screen.getByRole("button", { name: "新建项目" });
     const projectTitle = await screen.findByText("Harbor Complex");
     const projectCard = projectTitle.closest("article");
 
@@ -291,7 +331,7 @@ describe("HomePage shell", () => {
     expect(projectCard).toHaveClass("aspect-square");
     expect(
       within(projectCard as HTMLElement).getByRole("button", {
-        name: "鍒犻櫎椤圭洰 Harbor Complex",
+        name: "删除项目 Harbor Complex",
       }),
     ).toBeInTheDocument();
   });
@@ -304,7 +344,7 @@ describe("HomePage shell", () => {
 
     await userEvent.click(
       within(projectCard as HTMLElement).getByRole("button", {
-        name: "鍒犻櫎椤圭洰 Harbor Complex",
+        name: "删除项目 Harbor Complex",
       }),
     );
 
@@ -312,7 +352,7 @@ describe("HomePage shell", () => {
     expect(routerPushMock).not.toHaveBeenCalled();
   });
 
-  it("renders the white architecture home shell with site navigation, product-title h1, recent projects, and a single reference-case entry", async () => {
+  it("renders the white architecture home shell with site navigation, product-title h1, recent projects, and no legacy reference-case area", async () => {
     render(<HomePage />);
 
     const shell = await screen.findByTestId("home-page-shell");
@@ -325,27 +365,11 @@ describe("HomePage shell", () => {
       }),
     ).toBeInTheDocument();
     expect(screen.getByText("让设计灵感来的更快一些！")).toBeInTheDocument();
-    expect(screen.getAllByRole("heading", { level: 2 })[0]).toBeInTheDocument();
-    expect(screen.getByRole("link")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 2, name: "最近项目" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /视频教程/ })).toBeInTheDocument();
     expect(screen.getByTestId("home-prompt")).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "打开参考案例" }),
-    ).toBeInTheDocument();
     expect(screen.queryByTestId("home-example-browser")).not.toBeInTheDocument();
-  });
-
-  it("opens the reference-case browser from the single entry card instead of rendering the grid inline", async () => {
-    render(<HomePage />);
-
-    expect(screen.queryByTestId("home-example-browser")).not.toBeInTheDocument();
-
-    await userEvent.click(
-      screen.getByRole("button", { name: "打开参考案例" }),
-    );
-
-    const dialog = await screen.findByRole("dialog", { name: "参考案例" });
-    expect(dialog).toBeInTheDocument();
-    expect(within(dialog).getByTestId("home-example-browser")).toBeInTheDocument();
+    expect(screen.queryByTestId("home-project-limit-warning")).not.toBeInTheDocument();
   });
 
   it("keeps the new project card as the first recent-project entry while projects are still loading", () => {
@@ -353,12 +377,8 @@ describe("HomePage shell", () => {
 
     render(<HomePage />);
 
-    const [recentProjectsHeading] = screen.getAllByRole("heading", { level: 2 });
-    const recentProjectsSection = recentProjectsHeading!.closest("section");
-
-    expect(recentProjectsSection).not.toBeNull();
     expect(
-      within(recentProjectsSection as HTMLElement).getAllByRole("button")[0],
+      within(screen.getByTestId("home-project-grid")).getAllByRole("button")[0],
     ).toHaveTextContent("新建项目");
     expect(screen.getByTestId("home-projects-skeleton")).toBeInTheDocument();
   });
@@ -411,5 +431,33 @@ describe("HomePage shell", () => {
       name: "Harbor Studio",
       studioMode: "architecture",
     });
+  });
+
+  it("caps the homepage project area at 100 cards and warns the user to delete old projects before creating more", async () => {
+    fetchProjectsMock.mockResolvedValue({
+      projects: Array.from({ length: 101 }, (_, index) => ({
+        id: `project-${index + 1}`,
+        name: `Project ${index + 1}`,
+        primaryCanvas: { id: `canvas-${index + 1}` },
+        thumbnailUrl:
+          index % 2 === 0
+            ? `http://host.docker.internal:54321/storage/v1/object/public/project-assets/workspace-1/project-${index + 1}/thumbnail.webp`
+            : null,
+        updatedAt: "2026-04-20T10:00:00.000Z",
+      })),
+    });
+
+    render(<HomePage />);
+
+    const warning = await screen.findByTestId("home-project-limit-warning");
+    expect(warning).toHaveTextContent("100");
+    expect(screen.getByTestId("home-new-project-card")).toBeDisabled();
+
+    const grid = screen.getByTestId("home-project-grid");
+    const projectCards = Array.from(
+      grid.querySelectorAll<HTMLElement>("article[data-testid^='recent-project-card-']"),
+    );
+
+    expect(projectCards).toHaveLength(100);
   });
 });

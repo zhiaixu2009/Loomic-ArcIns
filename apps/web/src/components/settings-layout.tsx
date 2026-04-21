@@ -28,10 +28,10 @@ export function SettingsLayout({ children }: SettingsLayoutProps) {
       <aside className="w-52 shrink-0 border-r bg-secondary p-4">
         <button
           type="button"
-          onClick={() => router.push("/projects")}
+          onClick={() => router.push("/home")}
           className="text-sm text-muted-foreground hover:text-foreground mb-6 flex items-center gap-1"
         >
-          <span aria-hidden>&larr;</span> Back to Projects
+          <span aria-hidden>&larr;</span> Back to Home
         </button>
 
         <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">

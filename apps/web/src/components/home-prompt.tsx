@@ -45,6 +45,7 @@ type HomePromptProps = {
   readyAttachments?: ReadyAttachment[];
   selectedSeed?: HomeExampleSelection | null;
   onClearSelectedSeed?: () => void;
+  onApplyTemplate?: (template: ArchitecturePromptTemplateSuggestion) => void;
 };
 
 const toolbarButtons = [
@@ -78,6 +79,7 @@ export const HomePrompt = forwardRef<HomePromptHandle, HomePromptProps>(
       readyAttachments,
       selectedSeed,
       onClearSelectedSeed,
+      onApplyTemplate,
     },
     ref,
   ) {
@@ -164,11 +166,12 @@ export const HomePrompt = forwardRef<HomePromptHandle, HomePromptProps>(
     const handleApplyTemplate = useCallback((template: ArchitecturePromptTemplateSuggestion) => {
       setPreference(buildTemplateRecommendedImagePreference(template.recommendedImageModelId));
       setValue(template.prompt);
+      onApplyTemplate?.(template);
       requestAnimationFrame(() => {
         resizeTextarea();
         textareaRef.current?.focus();
       });
-    }, [resizeTextarea, setPreference]);
+    }, [onApplyTemplate, resizeTextarea, setPreference]);
 
     const handlePaste = useCallback((event: React.ClipboardEvent) => {
       if (!onAddFiles) return;

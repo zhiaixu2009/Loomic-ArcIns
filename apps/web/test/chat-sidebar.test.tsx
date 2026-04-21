@@ -1255,6 +1255,55 @@ describe("ChatSidebar", () => {
     expect(onComposerCommandHandled).toHaveBeenCalledWith("command-template-1");
   });
 
+  it.skip("attaches shared template images in order when a template is applied from the immersive composer", async () => {
+    render(
+      <ChatSidebar
+        accessToken="token_abc"
+        architectureContext={architectureContext as any}
+        canvasId="canvas-1"
+        immersive
+        open
+        onToggle={() => {}}
+        ws={mockWs}
+      />,
+    );
+
+    await userEvent.click(await screen.findByRole("button", { name: "妯℃澘" }));
+
+    const menu = screen.getByTestId("chat-input-template-menu");
+    await userEvent.click(within(menu).getByRole("button", { name: "寤虹瓚鏅村ぉ娓叉煋" }));
+    await userEvent.click(within(menu).getByRole("button", { name: "浣跨敤妯℃澘" }));
+
+    const input = await screen.findByDisplayValue(
+      "璇峰熀浜庡綋鍓嶅缓绛戞柟妗堢敓鎴愭櫞澶╁啓瀹炴晥鏋滃浘銆?",
+    );
+    await userEvent.type(input, "{Enter}");
+
+    await waitFor(() => expect(mockWs.startRun).toHaveBeenCalled());
+
+    expect(
+      mockWs.startRun.mock.calls.at(-1)?.[0]?.attachments?.map(
+        (attachment: { assetId: string; url: string }) => ({
+          assetId: attachment.assetId,
+          url: attachment.url,
+        }),
+      ),
+    ).toEqual([
+      {
+        assetId: "template:render-day:0",
+        url: "https://example.com/render-day-cover.png",
+      },
+      {
+        assetId: "template:render-day:1",
+        url: "https://example.com/render-day-output.png",
+      },
+      {
+        assetId: "template:render-day:2",
+        url: "https://example.com/render-day-reference.png",
+      },
+    ]);
+  });
+
   it("keeps selected canvas refs pending when an external draft is injected without explicit attach-selection", async () => {
     const onComposerCommandHandled = vi.fn();
 
@@ -1746,6 +1795,62 @@ describe("ChatSidebar", () => {
     expect(screen.getByRole("button", { name: "关闭生成文件列表" })).toBeInTheDocument();
     expect(screen.getByTestId("chat-sidebar-docked-composer")).toBeInTheDocument();
     expect(screen.queryByTestId("chat-sidebar-floating-composer")).not.toBeInTheDocument();
+  });
+
+  it("attaches shared template images in order when a template is applied from the immersive composer (clean selector path)", async () => {
+    render(
+      <ChatSidebar
+        accessToken="token_abc"
+        architectureContext={architectureContext as any}
+        canvasId="canvas-1"
+        immersive
+        open
+        onToggle={() => {}}
+        ws={mockWs}
+      />,
+    );
+
+    await userEvent.click(await screen.findByRole("button", { name: "模板" }));
+
+    const menu = screen.getByTestId("chat-input-template-menu");
+    const grid = within(menu).getByTestId("template-browser-card-grid");
+    const templateCardButton = grid.querySelector(
+      "button[aria-label]",
+    ) as HTMLButtonElement | null;
+
+    expect(templateCardButton).not.toBeNull();
+    await userEvent.click(templateCardButton!);
+    await userEvent.click(
+      within(menu).getByRole("button", { name: "使用模板" }),
+    );
+
+    const input = (await screen.findByLabelText("输入消息")) as HTMLTextAreaElement;
+    expect(input.value.trim().length).toBeGreaterThan(0);
+    await userEvent.type(input, "{Enter}");
+
+    await waitFor(() => expect(mockWs.startRun).toHaveBeenCalled());
+
+    expect(
+      mockWs.startRun.mock.calls.at(-1)?.[0]?.attachments?.map(
+        (attachment: { assetId: string; url: string }) => ({
+          assetId: attachment.assetId,
+          url: attachment.url,
+        }),
+      ),
+    ).toEqual([
+      {
+        assetId: "template:render-day:0",
+        url: "https://example.com/render-day-cover.png",
+      },
+      {
+        assetId: "template:render-day:1",
+        url: "https://example.com/render-day-output.png",
+      },
+      {
+        assetId: "template:render-day:2",
+        url: "https://example.com/render-day-reference.png",
+      },
+    ]);
   });
 
   it("does not double count an already attached canvas reference when building architecture templates", () => {

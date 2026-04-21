@@ -4,21 +4,17 @@ import { motion } from "framer-motion";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 
-import { LoomicLogo } from "@/components/icons/loomic-logo";
 import { CreditBalance } from "@/components/credits/credit-balance";
+import { LoomicLogo } from "@/components/icons/loomic-logo";
+import { useProjectLibrary } from "@/components/project-library-provider";
 import { useAuth } from "@/lib/auth-context";
 import { cn } from "@/lib/utils";
 
-// ---------------------------------------------------------------------------
-// Nav item definitions
-// ---------------------------------------------------------------------------
-
 interface NavItem {
-  href: string;
-  label: string;
-  /** SVG path `d` attribute */
+  action?: "open-project-library";
+  href?: string;
   icon: string;
-  /** viewBox dimensions (square), e.g. 20 -> "0 0 20 20" */
+  label: string;
   viewBox: number;
 }
 
@@ -30,8 +26,8 @@ const TOP_NAV_ITEMS: NavItem[] = [
     icon: "M8.69 2.136a2 2 0 0 1 2.62 0l5.655 4.905A3 3 0 0 1 18 9.307v7.194a1.5 1.5 0 0 1-1.5 1.5h-3c-.777 0-1.415-.59-1.493-1.347L12 16.501v-5.188a.6.6 0 0 0-.48-.588l-.12-.011H8.6a.6.6 0 0 0-.6.6V16.5A1.5 1.5 0 0 1 6.5 18h-3A1.5 1.5 0 0 1 2 16.5V9.307c0-.815.332-1.593.915-2.157l.119-.11zm1.769.983a.7.7 0 0 0-.918 0L3.886 8.023A1.7 1.7 0 0 0 3.3 9.307v7.194c0 .11.09.2.2.2h3a.2.2 0 0 0 .2-.2v-5.188a1.9 1.9 0 0 1 1.9-1.9H11.4c1.05.001 1.9.851 1.9 1.9v5.188c0 .11.09.2.2.2h3a.2.2 0 0 0 .2-.2V9.307a1.7 1.7 0 0 0-.587-1.284z",
   },
   {
-    href: "/projects",
-    label: "\u9879\u76ee",
+    action: "open-project-library",
+    label: "\u9879\u76ee\u5e93",
     viewBox: 20,
     icon: "M8.968 2.004c.69.038 1.337.361 1.782.895l1 1.201c.138.166.335.27.548.294l.092.006h3.087A2.523 2.523 0 0 1 18 6.923v8.554l-.013.258a2.524 2.524 0 0 1-2.252 2.252l-.258.013H4.522a2.524 2.524 0 0 1-2.51-2.265L2 15.477V4.522A2.523 2.523 0 0 1 4.522 2H8.83zM3.3 15.477c0 .675.547 1.223 1.222 1.223h10.955c.675 0 1.223-.548 1.223-1.223V9.4H3.3zM4.522 3.3c-.674 0-1.222.547-1.222 1.222V8.1h13.4V6.923c0-.675-.547-1.223-1.223-1.223H12.39a2.14 2.14 0 0 1-1.64-.768l-1-1.2A1.2 1.2 0 0 0 8.83 3.3z",
   },
@@ -56,35 +52,24 @@ const SETTINGS_ITEM: NavItem = {
   icon: "M10 1.667a5 5 0 0 1 2.525 9.313c3.355 1.035 5.844 4.047 6.03 7.37.013.22-.167.4-.388.4h-.5a.423.423 0 0 1-.414-.4C17.02 14.982 13.88 11.9 10 11.9s-7.02 3.082-7.252 6.45a.423.423 0 0 1-.414.4h-.501c-.22 0-.4-.18-.389-.4.187-3.323 2.675-6.333 6.029-7.369A5 5 0 0 1 10 1.667m0 1.3a3.7 3.7 0 1 0 .001 7.401A3.7 3.7 0 0 0 10 2.967",
 };
 
-// ---------------------------------------------------------------------------
-// Reusable nav-button with active indicator
-// Touch target: min 44px on mobile, 36px on desktop (md+)
-// ---------------------------------------------------------------------------
-
-function NavButton({
-  item,
+function NavGlyph({
   active,
+  item,
 }: {
-  item: NavItem;
   active: boolean;
+  item: NavItem;
 }) {
   const vb = `0 0 ${item.viewBox} ${item.viewBox}`;
 
   return (
-    <Link
-      href={item.href}
-      title={item.label}
-      aria-label={item.label}
-      className="relative flex h-11 w-11 items-center justify-center rounded-full md:h-9 md:w-9"
-    >
-      {/* Animated active background */}
-      {active && (
+    <>
+      {active ? (
         <motion.span
           layoutId="sidebar-active"
-          className="absolute inset-0 rounded-full bg-accent/10 border-l-2 border-accent"
+          className="absolute inset-0 rounded-full border-l-2 border-accent bg-accent/10"
           transition={{ type: "spring", stiffness: 350, damping: 30 }}
         />
-      )}
+      ) : null}
       <motion.svg
         viewBox={vb}
         fill="currentColor"
@@ -99,40 +84,72 @@ function NavButton({
       >
         <path d={item.icon} />
       </motion.svg>
-    </Link>
+    </>
   );
 }
 
-// ---------------------------------------------------------------------------
-// Mobile bottom bar (visible below md breakpoint)
-// Each item has min 48px touch target for comfortable tapping.
-// ---------------------------------------------------------------------------
+function NavButton({
+  active,
+  item,
+  onSelect,
+}: {
+  active: boolean;
+  item: NavItem;
+  onSelect?: () => void;
+}) {
+  const className =
+    "relative flex h-11 w-11 items-center justify-center rounded-full md:h-9 md:w-9";
+
+  if (item.href) {
+    return (
+      <Link
+        href={item.href}
+        title={item.label}
+        aria-label={item.label}
+        className={className}
+      >
+        <NavGlyph active={active} item={item} />
+      </Link>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      title={item.label}
+      aria-label={item.label}
+      className={className}
+      onClick={onSelect}
+    >
+      <NavGlyph active={active} item={item} />
+    </button>
+  );
+}
 
 function MobileBottomBar() {
   const pathname = usePathname();
+  const { isProjectLibraryOpen, openProjectLibrary } = useProjectLibrary();
 
   const isActive = (href: string) =>
     pathname === href || pathname.startsWith(`${href}/`);
 
   return (
     <nav
-      className="fixed inset-x-0 bottom-0 z-40 flex items-center justify-around border-t border-border bg-card/95 backdrop-blur-sm pb-[env(safe-area-inset-bottom)] md:hidden"
+      className="fixed inset-x-0 bottom-0 z-40 flex items-center justify-around border-t border-border bg-card/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-sm md:hidden"
       role="navigation"
       aria-label="Main navigation"
     >
       {TOP_NAV_ITEMS.map((item) => {
-        const active = isActive(item.href);
+        const active = item.href
+          ? isActive(item.href)
+          : item.action === "open-project-library" && isProjectLibraryOpen;
         const vb = `0 0 ${item.viewBox} ${item.viewBox}`;
-        return (
-          <Link
-            key={item.href}
-            href={item.href}
-            aria-label={item.label}
-            className={cn(
-              "flex min-h-[48px] min-w-[48px] flex-col items-center justify-center gap-0.5 px-2 py-1.5 transition-colors",
-              active ? "text-foreground" : "text-muted-foreground",
-            )}
-          >
+        const className = cn(
+          "flex min-h-[48px] min-w-[48px] flex-col items-center justify-center gap-0.5 px-2 py-1.5 transition-colors",
+          active ? "text-foreground" : "text-muted-foreground",
+        );
+        const content = (
+          <>
             <svg
               viewBox={vb}
               fill="currentColor"
@@ -144,17 +161,45 @@ function MobileBottomBar() {
             <span className="text-[10px] font-medium leading-none">
               {item.label}
             </span>
-          </Link>
+          </>
+        );
+
+        if (item.href) {
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              aria-label={item.label}
+              className={className}
+            >
+              {content}
+            </Link>
+          );
+        }
+
+        return (
+          <button
+            key={item.label}
+            type="button"
+            aria-label={item.label}
+            className={className}
+            onClick={() => {
+              if (item.action === "open-project-library") {
+                openProjectLibrary();
+              }
+            }}
+          >
+            {content}
+          </button>
         );
       })}
 
-      {/* Settings in bottom bar */}
       <Link
-        href={SETTINGS_ITEM.href}
+        href={SETTINGS_ITEM.href ?? "/settings"}
         aria-label={SETTINGS_ITEM.label}
         className={cn(
           "flex min-h-[48px] min-w-[48px] flex-col items-center justify-center gap-0.5 px-2 py-1.5 transition-colors",
-          isActive(SETTINGS_ITEM.href)
+          isActive(SETTINGS_ITEM.href ?? "/settings")
             ? "text-foreground"
             : "text-muted-foreground",
         )}
@@ -175,14 +220,11 @@ function MobileBottomBar() {
   );
 }
 
-// ---------------------------------------------------------------------------
-// AppSidebar (desktop: icon rail, mobile: bottom nav bar)
-// ---------------------------------------------------------------------------
-
 export function AppSidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const { signOut } = useAuth();
+  const { isProjectLibraryOpen, openProjectLibrary } = useProjectLibrary();
 
   const isActive = (href: string) =>
     pathname === href || pathname.startsWith(`${href}/`);
@@ -194,9 +236,7 @@ export function AppSidebar() {
 
   return (
     <>
-      {/* Desktop sidebar rail -- hidden below md */}
-      <aside className="hidden md:flex h-screen w-[60px] flex-col items-center border-r border-border bg-card py-3 gap-1">
-        {/* Logo */}
+      <aside className="hidden h-screen w-[60px] flex-col items-center gap-1 border-r border-border bg-card py-3 md:flex">
         <Link
           href="/home"
           title="Loomic"
@@ -215,28 +255,32 @@ export function AppSidebar() {
           </span>
         </Link>
 
-        {/* Top nav items */}
         {TOP_NAV_ITEMS.map((item) => (
           <NavButton
-            key={item.href}
+            key={item.href ?? item.label}
             item={item}
-            active={isActive(item.href)}
+            active={
+              item.href
+                ? isActive(item.href)
+                : item.action === "open-project-library" && isProjectLibraryOpen
+            }
+            onSelect={() => {
+              if (item.action === "open-project-library") {
+                openProjectLibrary();
+              }
+            }}
           />
         ))}
 
-        {/* Spacer pushes bottom section down */}
         <div className="flex-1" />
 
-        {/* Credits balance */}
         <CreditBalance />
 
-        {/* Settings / Profile */}
         <NavButton
           item={SETTINGS_ITEM}
-          active={isActive(SETTINGS_ITEM.href)}
+          active={isActive(SETTINGS_ITEM.href ?? "/settings")}
         />
 
-        {/* Sign out */}
         <button
           type="button"
           onClick={handleSignOut}
@@ -258,7 +302,6 @@ export function AppSidebar() {
         </button>
       </aside>
 
-      {/* Mobile bottom navigation bar */}
       <MobileBottomBar />
     </>
   );

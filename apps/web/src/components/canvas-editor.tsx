@@ -10,6 +10,7 @@ import type { CanvasCollaborator, CanvasCursor } from "@loomic/shared";
 import type { WebSocketHandle } from "../hooks/use-websocket";
 import { resolveBrowserAssetUrl } from "../lib/browser-asset-url";
 import { getServerBaseUrl } from "../lib/env";
+import { createProjectThumbnailBlob } from "../lib/project-thumbnail";
 import { saveCanvas, uploadThumbnail } from "../lib/server-api";
 import { VideoCanvasElement } from "./canvas/video-canvas-element";
 import { isVideoUrl } from "../lib/canvas-elements";
@@ -78,6 +79,7 @@ type CanvasEditorProps = {
     files: Record<string, Record<string, unknown>>;
   };
   onApiReady?: (api: any) => void;
+  onFlushReady?: (flush: () => Promise<void>) => void;
   ws?: WebSocketHandle;
   leftPanelOpen?: boolean;
   onSelectionChange?: (elements: CanvasSelectedElement[]) => void;
@@ -98,7 +100,7 @@ type CanvasEditorProps = {
 };
 
 const SAVE_DEBOUNCE_MS = 1500;
-const THUMBNAIL_DEBOUNCE_MS = 10_000;
+const THUMBNAIL_DEBOUNCE_MS = 4_000;
 const THUMBNAIL_MAX_SIZE = 400;
 
 function serializeCanvasFile(file: any): Record<string, unknown> {
@@ -162,6 +164,7 @@ export function CanvasEditor({
   immersiveArchitecture = false,
   initialContent,
   onApiReady,
+  onFlushReady,
   ws,
   leftPanelOpen,
   onSelectionChange,
@@ -209,6 +212,10 @@ export function CanvasEditor({
     appState: Record<string, unknown>;
     files: Record<string, Record<string, unknown>>;
   } | null>(null);
+  const initialThumbnailQueuedRef = useRef(false);
+  const pendingThumbnailVersionRef = useRef(0);
+  const syncedThumbnailVersionRef = useRef(0);
+  const thumbnailUploadPromiseRef = useRef<Promise<void> | null>(null);
 
   // Ref to hold initialContent.files for storageUrl lookup in handleChange
   // without adding the full initialContent to the dependency array.
@@ -357,11 +364,112 @@ export function CanvasEditor({
 
       excalidrawApiRef.current = patchedApi;
       setExcalidrawApi(patchedApi);
+
+      if (initialElementCountRef.current === 0 && pendingUrls.length === 0) {
+        hydratedRef.current = true;
+      }
+
       syncViewport(patchedApi.getAppState?.());
       onApiReady?.(patchedApi);
     },
-    [onApiReady, queueCanvasSave, syncViewport],
+    [onApiReady, pendingUrls.length, queueCanvasSave, syncViewport],
   );
+
+  const uploadSceneThumbnail = useCallback(
+    async (requestedVersion = pendingThumbnailVersionRef.current) => {
+      if (requestedVersion <= syncedThumbnailVersionRef.current) {
+        return;
+      }
+
+      if (thumbnailUploadPromiseRef.current) {
+        await thumbnailUploadPromiseRef.current;
+
+        if (requestedVersion <= syncedThumbnailVersionRef.current) {
+          return;
+        }
+      }
+
+      const uploadTask = (async () => {
+        const api = excalidrawApiRef.current ?? excalidrawApi;
+        if (!api) {
+          return;
+        }
+
+        try {
+          const { exportToBlob } = await import("@excalidraw/excalidraw");
+          const blob = await createProjectThumbnailBlob({
+            appState: api.getAppState() ?? {},
+            elements: api.getSceneElements() ?? [],
+            exportToBlob,
+            files: api.getFiles() ?? {},
+          });
+
+          if (!blob) {
+            syncedThumbnailVersionRef.current = Math.max(
+              syncedThumbnailVersionRef.current,
+              requestedVersion,
+            );
+            return;
+          }
+
+          console.log("[canvas-editor] uploading thumbnail", {
+            blobBytes: blob.size,
+            projectId,
+            requestedVersion,
+          });
+          await uploadThumbnail(accessTokenRef.current, projectId, blob);
+
+          if (pendingThumbnailVersionRef.current <= requestedVersion) {
+            syncedThumbnailVersionRef.current = requestedVersion;
+          }
+
+          console.log("[canvas-editor] thumbnail uploaded OK", {
+            projectId,
+            requestedVersion,
+            syncedVersion: syncedThumbnailVersionRef.current,
+          });
+        } catch (err) {
+          console.warn("[canvas-editor] thumbnail generation/upload failed:", err);
+        }
+      })();
+
+      thumbnailUploadPromiseRef.current = uploadTask;
+
+      try {
+        await uploadTask;
+      } finally {
+        if (thumbnailUploadPromiseRef.current === uploadTask) {
+          thumbnailUploadPromiseRef.current = null;
+        }
+      }
+    },
+    [excalidrawApi, projectId],
+  );
+
+  useEffect(() => {
+    if (!excalidrawApi || initialThumbnailQueuedRef.current) {
+      return;
+    }
+
+    if (initialElementCountRef.current !== 0 || pendingUrls.length > 0) {
+      return;
+    }
+
+    initialThumbnailQueuedRef.current = true;
+    const initialThumbnailVersion = Math.max(
+      pendingThumbnailVersionRef.current,
+      1,
+    );
+    pendingThumbnailVersionRef.current = initialThumbnailVersion;
+
+    const idleHandle = ric(() => {
+      void uploadSceneThumbnail(initialThumbnailVersion);
+    });
+
+    return () => {
+      cic(idleHandle);
+    };
+  }, [excalidrawApi, pendingUrls.length, uploadSceneThumbnail]);
 
   // Normalize agent-created elements on initial load.
   // Uses DOM text measurement to fix server-side approximation errors.
@@ -477,34 +585,15 @@ export function CanvasEditor({
       });
 
       // --- 2. Debounced thumbnail (runs much less frequently than save) ---
+      const nextThumbnailVersion = pendingThumbnailVersionRef.current + 1;
+      pendingThumbnailVersionRef.current = nextThumbnailVersion;
       if (thumbnailTimerRef.current) clearTimeout(thumbnailTimerRef.current);
-      thumbnailTimerRef.current = setTimeout(async () => {
-        if (!excalidrawApi) return;
-        try {
-          const { exportToBlob } = await import("@excalidraw/excalidraw");
-          const sceneElements = excalidrawApi.getSceneElements();
-          const sceneFiles = excalidrawApi.getFiles();
-          if (!sceneElements.length) return;
-
-          const blob = await exportToBlob({
-            elements: sceneElements,
-            appState: { exportBackground: true },
-            files: sceneFiles,
-            mimeType: "image/webp",
-            quality: 0.8,
-            maxWidthOrHeight: THUMBNAIL_MAX_SIZE,
-          });
-
-          console.log("[canvas-editor] uploading thumbnail, blob size:", blob.size);
-          await uploadThumbnail(accessTokenRef.current, projectId, blob);
-          console.log("[canvas-editor] thumbnail uploaded OK");
-        } catch (err) {
-          console.warn("[canvas-editor] thumbnail generation/upload failed:", err);
-        }
+      thumbnailTimerRef.current = setTimeout(() => {
+        void uploadSceneThumbnail(nextThumbnailVersion);
       }, THUMBNAIL_DEBOUNCE_MS);
 
     },
-    [projectId, excalidrawApi, queueCanvasSave, syncViewport],
+    [queueCanvasSave, syncViewport, uploadSceneThumbnail],
   );
 
   // Register screenshot RPC handler so the server can request canvas captures
@@ -591,12 +680,13 @@ export function CanvasEditor({
   // Build a full save payload from current Excalidraw state.
   // Used by both beforeunload and unmount to flush pending changes.
   const buildSavePayload = useCallback(() => {
-    if (!excalidrawApi) return null;
+    const api = excalidrawApiRef.current ?? excalidrawApi;
+    if (!api) return null;
     // Never flush before hydration — Excalidraw may not have loaded elements yet
     if (!hydratedRef.current) return null;
     try {
-      const sceneElements = excalidrawApi.getSceneElements();
-      const appState = excalidrawApi.getAppState();
+      const sceneElements = api.getSceneElements();
+      const appState = api.getAppState();
 
       // Safety: refuse to save empty when we loaded with elements — prevents
       // race conditions from wiping canvas content during page teardown.
@@ -606,7 +696,7 @@ export function CanvasEditor({
         return null;
       }
       return serializeCanvasContent({
-        api: excalidrawApi,
+        api,
         appState,
         elements: sceneElements,
       });
@@ -619,6 +709,51 @@ export function CanvasEditor({
   // Keep buildSavePayload accessible without stale closures
   const buildSavePayloadRef = useRef(buildSavePayload);
   buildSavePayloadRef.current = buildSavePayload;
+
+  const flushPendingSave = useCallback(async () => {
+    if (!pendingSaveRef.current) {
+      return;
+    }
+
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+    }
+
+    const payload = buildSavePayloadRef.current();
+    if (!payload) {
+      pendingSaveRef.current = null;
+      return;
+    }
+
+    pendingSaveRef.current = payload;
+    await saveCanvas(accessTokenRef.current, canvasIdRef.current, payload);
+    pendingSaveRef.current = null;
+
+    console.info("[canvas-editor] flushed pending save", {
+      canvasId: canvasIdRef.current,
+      elementCount: payload.elements.length,
+    });
+  }, []);
+
+  const flushPendingPersistence = useCallback(async () => {
+    await flushPendingSave();
+
+    if (
+      pendingThumbnailVersionRef.current > syncedThumbnailVersionRef.current
+    ) {
+      if (thumbnailTimerRef.current) {
+        clearTimeout(thumbnailTimerRef.current);
+        thumbnailTimerRef.current = null;
+      }
+
+      await uploadSceneThumbnail(pendingThumbnailVersionRef.current);
+    }
+  }, [flushPendingSave, uploadSceneThumbnail]);
+
+  useEffect(() => {
+    onFlushReady?.(flushPendingPersistence);
+  }, [flushPendingPersistence, onFlushReady]);
 
   // Flush pending save on page close (beforeunload) and component unmount
   useEffect(() => {
@@ -669,8 +804,14 @@ export function CanvasEditor({
         }
         pendingSaveRef.current = null;
       }
+
+      if (pendingThumbnailVersionRef.current > syncedThumbnailVersionRef.current) {
+        void uploadSceneThumbnail(pendingThumbnailVersionRef.current).catch(
+          console.error,
+        );
+      }
     };
-  }, []);
+  }, [uploadSceneThumbnail]);
 
   // Render custom embeddable content for video elements on canvas.
   // Excalidraw calls this for every embeddable element; we intercept video URLs

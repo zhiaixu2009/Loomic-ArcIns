@@ -46,12 +46,18 @@ vi.mock("../src/components/page-transition", () => ({
   ),
 }));
 
+vi.mock("../src/components/project-library-provider", () => ({
+  ProjectLibraryProvider: ({ children }: { children: React.ReactNode }) => (
+    <>{children}</>
+  ),
+}));
+
 import WorkspaceLayout from "../src/app/(workspace)/layout";
 
 describe("WorkspaceLayout shell", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    usePathnameMock.mockReturnValue("/projects");
+    usePathnameMock.mockReturnValue("/brand-kit");
   });
 
   afterEach(() => {
@@ -61,7 +67,7 @@ describe("WorkspaceLayout shell", () => {
   it("keeps the workspace sidebar for standard workspace routes", () => {
     render(
       <WorkspaceLayout>
-        <div>Projects content</div>
+        <div>Brand kit content</div>
       </WorkspaceLayout>,
     );
 

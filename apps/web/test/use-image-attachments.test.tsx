@@ -73,4 +73,78 @@ describe("useImageAttachments", () => {
       "https://example.com/asset_1.webp",
     );
   });
+
+  it("replaces previous template attachments while preserving the incoming template image order", async () => {
+    const { result } = renderHook(() =>
+      useImageAttachments("token_123", "project_123"),
+    );
+
+    await act(async () => {
+      result.current.replaceTemplateAttachments([
+        {
+          assetId: "template:old-house:0",
+          url: "https://example.com/old-house-cover.png",
+          mimeType: "image/png",
+          name: "旧房立面改造 参考图 1",
+        },
+        {
+          assetId: "template:old-house:1",
+          url: "https://example.com/old-house-output.png",
+          mimeType: "image/png",
+          name: "旧房立面改造 参考图 2",
+        },
+      ]);
+    });
+
+    expect(
+      result.current.readyAttachments.map((attachment) => attachment.assetId),
+    ).toEqual(["template:old-house:0", "template:old-house:1"]);
+
+    await act(async () => {
+      result.current.replaceTemplateAttachments([
+        {
+          assetId: "template:render-day:0",
+          url: "https://example.com/render-day-cover.png",
+          mimeType: "image/png",
+          name: "建筑晴天渲染 参考图 1",
+        },
+        {
+          assetId: "template:render-day:1",
+          url: "https://example.com/render-day-output.png",
+          mimeType: "image/png",
+          name: "建筑晴天渲染 参考图 2",
+        },
+        {
+          assetId: "template:render-day:2",
+          url: "https://example.com/render-day-reference.png",
+          mimeType: "image/png",
+          name: "建筑晴天渲染 参考图 3",
+        },
+      ]);
+    });
+
+    expect(
+      result.current.attachments.map((attachment) => ({
+        assetId: attachment.assetId,
+        preview: attachment.preview,
+        uploading: attachment.uploading,
+      })),
+    ).toEqual([
+      {
+        assetId: "template:render-day:0",
+        preview: "https://example.com/render-day-cover.png",
+        uploading: false,
+      },
+      {
+        assetId: "template:render-day:1",
+        preview: "https://example.com/render-day-output.png",
+        uploading: false,
+      },
+      {
+        assetId: "template:render-day:2",
+        preview: "https://example.com/render-day-reference.png",
+        uploading: false,
+      },
+    ]);
+  });
 });
