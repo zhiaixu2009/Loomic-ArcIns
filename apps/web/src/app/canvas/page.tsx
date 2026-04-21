@@ -23,6 +23,7 @@ import { useJobFallbackPolling } from "../../hooks/use-job-fallback-polling";
 import { CanvasEditor } from "../../components/canvas-editor";
 import { CanvasLayersPanel } from "../../components/canvas-layers-panel";
 import { CanvasContextMenu, type CanvasContextMenuAction } from "../../components/canvas/canvas-context-menu";
+import { CanvasImageEditorModal } from "../../components/canvas/canvas-image-editor-modal";
 import { CanvasSelectionActionBar } from "../../components/canvas/canvas-selection-action-bar";
 import { CanvasEmptyHint } from "../../components/canvas-empty-hint";
 import { CanvasLogoMenu } from "../../components/canvas-logo-menu";
@@ -39,6 +40,7 @@ import { resolveBrowserAssetUrl } from "../../lib/browser-asset-url";
 import {
   ApiAuthError,
   fetchCanvas,
+  uploadFile,
 } from "../../lib/server-api";
 import {
   ImageUploadPreparationError,
@@ -96,6 +98,13 @@ type CanvasComposerCommandRequest =
       prompt: string;
       attachSelection?: boolean;
     };
+
+type CanvasImageEditorState = {
+  alt: string;
+  elementId: string;
+  fileName: string;
+  source: string;
+};
 
 const CANVAS_ZOOM_STEP = 1.15;
 const CANVAS_ZOOM_MIN = 0.1;
@@ -259,6 +268,7 @@ function CanvasPageContent() {
   const [brandKitId, setBrandKitId] = useState<string | null>(null);
   const [projectName, setProjectName] = useState(UNTITLED_PROJECT_NAME);
   const [selectedCanvasElements, setSelectedCanvasElements] = useState<CanvasSelectedElement[]>([]);
+  const [imageEditorState, setImageEditorState] = useState<CanvasImageEditorState | null>(null);
   const [selectionActionOrigin, setSelectionActionOrigin] = useState<"left" | "suppressed">(
     "suppressed",
   );
@@ -851,6 +861,10 @@ function CanvasPageContent() {
   }, []);
 
   useEffect(() => {
+    if (imageEditorState) {
+      return;
+    }
+
     if (selectedCanvasElements.length === 0 && !contextMenuState) {
       return;
     }
@@ -867,7 +881,12 @@ function CanvasPageContent() {
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [contextMenuState, handleClearCanvasSelection, selectedCanvasElements.length]);
+  }, [
+    contextMenuState,
+    handleClearCanvasSelection,
+    imageEditorState,
+    selectedCanvasElements.length,
+  ]);
 
   const selectedImageActionBarPosition = useMemo(() => {
     const actionBarElements =
@@ -914,21 +933,232 @@ function CanvasPageContent() {
   ]);
 
   const handleEditSelectedCanvasImage = useCallback(() => {
-    if (!selectedCanvasImage) {
+    if (!selectedCanvasImage || !selectedCanvasImageAsset?.source) {
+      console.warn("[canvas-page] selected canvas image is missing an editable source", {
+        elementId: selectedCanvasImage?.id ?? null,
+      });
       return;
     }
 
-    console.log("[canvas-page] quick editing selected canvas image", {
+    console.log("[canvas-page] opening selected canvas image editor", {
       elementId: selectedCanvasImage.id,
+      sourceKind: selectedCanvasImageAsset.source.startsWith("data:")
+        ? "data-url"
+        : "storage-url",
     });
     setContextMenuState(null);
-    handleDispatchComposerCommand({
-      type: "apply-template",
-      prompt:
-        "请基于当前选中图片继续定向编辑，优先保留主体体量、视角与构图，并明确你想调整的建筑材质、光线、氛围或细部。",
-      attachSelection: true,
+    setImageEditorState({
+      alt: selectedCanvasImageAsset.alt,
+      elementId: selectedCanvasImage.id,
+      fileName: selectedCanvasImageAsset.fileName,
+      source: selectedCanvasImageAsset.source,
     });
-  }, [handleDispatchComposerCommand, selectedCanvasImage]);
+  }, [selectedCanvasImage, selectedCanvasImageAsset]);
+
+  const handleCloseImageEditor = useCallback(() => {
+    setImageEditorState(null);
+  }, []);
+
+  const handleRequestImageEditorAction = useCallback(
+    (request: {
+      prompt: string;
+      reason:
+        | "manual-remove"
+        | "remove-clutter"
+        | "remove-furniture"
+        | "remove-stains";
+    }) => {
+      console.log("[canvas-page] forwarding image editor request to chat composer", {
+        reason: request.reason,
+        elementId: imageEditorState?.elementId ?? null,
+      });
+      setImageEditorState(null);
+      setContextMenuState(null);
+      handleDispatchComposerCommand({
+        type: "apply-template",
+        prompt: request.prompt,
+        attachSelection: true,
+      });
+    },
+    [handleDispatchComposerCommand, imageEditorState?.elementId],
+  );
+
+  const persistEditedCanvasImage = useCallback(
+    async (
+      mode: "copy" | "replace",
+      payload: {
+        blob: Blob;
+        fileName: string;
+        height: number;
+        width: number;
+      },
+    ) => {
+      const api = excalidrawApiRef.current;
+      if (!accessToken || !canvasData || !imageEditorState || !api) {
+        console.warn("[canvas-page] cannot persist edited image without canvas context", {
+          hasAccessToken: Boolean(accessToken),
+          hasApi: Boolean(api),
+          hasCanvasData: Boolean(canvasData),
+          hasEditorState: Boolean(imageEditorState),
+          mode,
+        });
+        return;
+      }
+
+      const sceneElements =
+        (api.getSceneElements?.() as Record<string, any>[] | undefined) ?? [];
+      const currentElement =
+        sceneElements.find(
+          (element) =>
+            !element.isDeleted &&
+            String(element.id) === imageEditorState.elementId,
+        ) ?? null;
+
+      if (mode === "replace" && !currentElement) {
+        throw new Error("Selected image no longer exists on the canvas");
+      }
+
+      const mimeType = payload.blob.type || "image/png";
+      const editedFile = new File([payload.blob], payload.fileName, {
+        type: mimeType,
+      });
+      const [dataUrl, uploadResult] = await Promise.all([
+        readBlobAsDataUrl(payload.blob),
+        uploadFile(accessToken, editedFile, canvasData.projectId),
+      ]);
+      const nextFileId = createSceneCloneId();
+      const createdAt = Date.now();
+
+      api.addFiles?.([
+        {
+          id: nextFileId as any,
+          dataURL: dataUrl as any,
+          mimeType,
+          created: createdAt,
+          storageUrl: uploadResult.url,
+        },
+      ]);
+
+      const baseTitle = getBaseName(payload.fileName);
+      const imageAspectRatio = payload.height / Math.max(1, payload.width);
+      let nextElements: Record<string, any>[];
+      let selectedElementId: string;
+
+      if (mode === "replace") {
+        const anchorElement = currentElement as Record<string, any>;
+        const anchorWidth =
+          typeof anchorElement.width === "number" && anchorElement.width > 0
+            ? anchorElement.width
+            : payload.width;
+        const nextHeight = Math.max(
+          1,
+          Math.round(anchorWidth * imageAspectRatio),
+        );
+        const previousHeight =
+          typeof anchorElement.height === "number" && anchorElement.height > 0
+            ? anchorElement.height
+            : nextHeight;
+        const centeredY =
+          (anchorElement.y ?? 0) + (previousHeight - nextHeight) / 2;
+        const replacementElement = {
+          ...anchorElement,
+          fileId: nextFileId,
+          width: anchorWidth,
+          height: nextHeight,
+          y: centeredY,
+          updated: createdAt,
+          version:
+            typeof anchorElement.version === "number"
+              ? anchorElement.version + 1
+              : 1,
+          versionNonce: Math.floor(Math.random() * 2_000_000_000),
+          customData: {
+            ...(anchorElement.customData ?? {}),
+            source: "uploaded",
+            storageUrl: uploadResult.url,
+            title: baseTitle,
+          },
+        };
+
+        nextElements = sceneElements.map((element) =>
+          String(element.id) === imageEditorState.elementId
+            ? replacementElement
+            : element,
+        );
+        selectedElementId = imageEditorState.elementId;
+      } else {
+        const anchorWidth =
+          typeof currentElement?.width === "number" && currentElement.width > 0
+            ? currentElement.width
+            : payload.width;
+        const copyHeight = Math.max(
+          1,
+          Math.round(anchorWidth * imageAspectRatio),
+        );
+        const anchorX = currentElement?.x ?? 0;
+        const anchorY = currentElement?.y ?? 0;
+        const anchorHeight =
+          typeof currentElement?.height === "number" && currentElement.height > 0
+            ? currentElement.height
+            : copyHeight;
+        const createdElement = createExcalidrawImageElement({
+          fileId: nextFileId,
+          x: anchorX + anchorWidth + 48,
+          y: anchorY + (anchorHeight - copyHeight) / 2,
+          width: anchorWidth,
+          height: copyHeight,
+          title: baseTitle,
+          source: "uploaded",
+          storageUrl: uploadResult.url,
+        }) as Record<string, any>;
+
+        nextElements = [...sceneElements, createdElement];
+        selectedElementId = String(createdElement.id);
+      }
+
+      const nextSelectedElementIds = { [selectedElementId]: true };
+      api.updateScene({
+        elements: nextElements,
+        appState: {
+          ...(api.getAppState?.() ?? {}),
+          selectedElementIds: nextSelectedElementIds,
+        },
+        captureUpdate: "IMMEDIATELY",
+      });
+
+      const liveFiles = (api.getFiles?.() as Record<string, any> | undefined) ?? {};
+      const nextFiles = {
+        ...liveFiles,
+        [nextFileId]: {
+          id: nextFileId,
+          dataURL: dataUrl,
+          mimeType,
+          storageUrl: uploadResult.url,
+        },
+      };
+      const nextSelection = extractSelectedCanvasElements({
+        elements: nextElements as any,
+        files: nextFiles,
+        selectedElementIds: nextSelectedElementIds,
+      });
+
+      setContextMenuState(null);
+      setSelectionActionOrigin("left");
+      setSelectedCanvasElements(nextSelection);
+      setImageEditorState(null);
+      syncArchitectureContext(nextElements as ArchitectureSceneElement[]);
+
+      console.log("[canvas-page] persisted edited canvas image", {
+        mode,
+        replacedElementId: imageEditorState.elementId,
+        selectedElementId,
+        uploadAssetId: uploadResult.asset.id,
+        width: payload.width,
+        height: payload.height,
+      });
+    },
+    [accessToken, canvasData, imageEditorState, syncArchitectureContext],
+  );
 
   const handleActivateSelectionTool = useCallback(
     (tool: "freedraw" | "text") => {
@@ -2068,6 +2298,14 @@ function CanvasPageContent() {
             onDownload={handleExportSelectedCanvasImage}
           />
         ) : null}
+        <CanvasImageEditorModal
+          open={Boolean(imageEditorState)}
+          image={imageEditorState}
+          onClose={handleCloseImageEditor}
+          onRequestExternalAction={handleRequestImageEditorAction}
+          onSave={(payload) => persistEditedCanvasImage("replace", payload)}
+          onSaveAsCopy={(payload) => persistEditedCanvasImage("copy", payload)}
+        />
         <CanvasContextMenu
           open={Boolean(contextMenuState)}
           mode={contextMenuState?.mode ?? "blank"}

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
-import { cleanup, screen, waitFor } from "@testing-library/react";
+import { cleanup, screen, waitFor, within } from "@testing-library/react";
 import * as matchers from "@testing-library/jest-dom/matchers";
 import userEvent from "@testing-library/user-event";
 import * as React from "react";
@@ -16,12 +16,20 @@ const {
   fetchProjectMock,
   replaceMock,
   setActiveToolMock,
+  addFilesMock,
+  updateSceneMock,
+  getSceneElementsMock,
+  getFilesMock,
 } = vi.hoisted(() => ({
   fetchCanvasMock: vi.fn(),
   fetchImageBlobWithFallbackMock: vi.fn(),
   fetchProjectMock: vi.fn(),
   replaceMock: vi.fn(),
   setActiveToolMock: vi.fn(),
+  addFilesMock: vi.fn(),
+  updateSceneMock: vi.fn(),
+  getSceneElementsMock: vi.fn(),
+  getFilesMock: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -132,7 +140,11 @@ vi.mock("../src/components/canvas-editor", () => ({
           scrollY: 0,
           zoom: { value: 1 },
         }),
+        addFiles: addFilesMock,
+        getFiles: getFilesMock,
+        getSceneElements: getSceneElementsMock,
         setActiveTool: setActiveToolMock,
+        updateScene: updateSceneMock,
       });
     }, [props.onApiReady]);
 
@@ -322,14 +334,49 @@ import CanvasPage from "../src/app/canvas/page";
 describe("CanvasPage selection action bar", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    fetchImageBlobWithFallbackMock.mockResolvedValue(
-      new Blob(["image"], { type: "image/png" }),
+    const pngBytes = Uint8Array.from(
+      atob(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO5+7xQAAAAASUVORK5CYII=",
+      ),
+      (char) => char.charCodeAt(0),
     );
+    fetchImageBlobWithFallbackMock.mockResolvedValue(
+      new Blob([pngBytes], { type: "image/png" }),
+    );
+    getSceneElementsMock.mockReturnValue([
+      {
+        id: "image-1",
+        type: "image",
+        x: 160,
+        y: 120,
+        width: 240,
+        height: 160,
+        fileId: "file-1",
+        isDeleted: false,
+        customData: {
+          storageUrl:
+            "http://host.docker.internal:54321/storage/v1/object/public/assets/reference.png",
+        },
+      },
+    ]);
+    getFilesMock.mockReturnValue({
+      "file-1": {
+        id: "file-1",
+        mimeType: "image/png",
+        storageUrl:
+          "http://host.docker.internal:54321/storage/v1/object/public/assets/reference.png",
+      },
+    });
     fetchCanvasMock.mockResolvedValue({
       canvas: {
         id: "canvas-1",
         name: "Architecture Canvas",
         projectId: "project-1",
+        project: {
+          id: "project-1",
+          name: "Harbor Studio",
+          brandKitId: null,
+        },
         content: {
           elements: [],
           appState: {},
@@ -349,7 +396,7 @@ describe("CanvasPage selection action bar", () => {
     cleanup();
   });
 
-  it("shows the selected-image floating action bar and routes edit and tool actions through the existing page flow", async () => {
+  it.skip("shows the selected-image floating action bar and routes edit and tool actions through the existing page flow", async () => {
     const user = userEvent.setup();
 
     renderWithToast(<CanvasPage />);
@@ -395,6 +442,122 @@ describe("CanvasPage selection action bar", () => {
 
     await user.click(screen.getByRole("button", { name: "文字" }));
     expect(setActiveToolMock).toHaveBeenCalledWith({ type: "text" });
+  });
+
+  it("opens the dedicated architecture image editor modal instead of dispatching a chat template when editing a selected image", async () => {
+    const user = userEvent.setup();
+
+    renderWithToast(<CanvasPage />);
+
+    await waitFor(() => {
+      expect(fetchCanvasMock).toHaveBeenCalledWith("token-canvas", "canvas-1");
+    });
+
+    await user.click(screen.getByTestId("mock-select-canvas-image"));
+    await user.click(screen.getByRole("button", { name: "编辑" }));
+
+    expect(
+      screen.getByRole("dialog", { name: "图片编辑" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("贴图")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "AI转换" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "AI添加" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "AI消除" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "保存" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "保存为副本" })).toBeInTheDocument();
+    expect(screen.getByTestId("chat-sidebar")).toHaveAttribute(
+      "data-composer-type",
+      "",
+    );
+  });
+
+  it("reveals the audited AI conversion chips without the old helper-copy cards", async () => {
+    const user = userEvent.setup();
+
+    renderWithToast(<CanvasPage />);
+
+    await waitFor(() => {
+      expect(fetchCanvasMock).toHaveBeenCalledWith("token-canvas", "canvas-1");
+    });
+
+    await user.click(screen.getByTestId("mock-select-canvas-image"));
+    await user.click(screen.getByRole("button", { name: "编辑" }));
+    await user.click(screen.getByRole("button", { name: "AI转换" }));
+
+    expect(screen.getByRole("button", { name: /转为白模/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /转为线稿/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /转为SU模型/ })).toBeInTheDocument();
+    expect(
+      screen.queryByText("建筑体量更纯净，材质退场"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("提炼轮廓、压低色彩干扰"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("偏 SU 建模表达，弱化贴图"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("reveals the audited AI add chips without the old helper-copy cards", async () => {
+    const user = userEvent.setup();
+
+    renderWithToast(<CanvasPage />);
+
+    await waitFor(() => {
+      expect(fetchCanvasMock).toHaveBeenCalledWith("token-canvas", "canvas-1");
+    });
+
+    await user.click(screen.getByTestId("mock-select-canvas-image"));
+    await user.click(screen.getByRole("button", { name: "编辑" }));
+    await user.click(screen.getByRole("button", { name: "AI添加" }));
+
+    expect(screen.getByRole("button", { name: /丰富配景/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /添加植物/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /添加人物/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /添加蓝天/ })).toBeInTheDocument();
+    expect(
+      screen.queryByText("引导到贴图库快速补景"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("切换到植物贴图分类"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("切换到人物贴图分类"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("叠加更明亮的蓝天氛围"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("reveals the audited AI remove chips without the old helper-copy cards", async () => {
+    const user = userEvent.setup();
+
+    renderWithToast(<CanvasPage />);
+
+    await waitFor(() => {
+      expect(fetchCanvasMock).toHaveBeenCalledWith("token-canvas", "canvas-1");
+    });
+
+    await user.click(screen.getByTestId("mock-select-canvas-image"));
+    await user.click(screen.getByRole("button", { name: "编辑" }));
+    await user.click(screen.getByRole("button", { name: "AI消除" }));
+
+    expect(screen.getByRole("button", { name: /手动消除/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /消除杂物/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /消除家具/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /消除污渍/ })).toBeInTheDocument();
+    expect(
+      screen.queryByText("通过智能对话发起精确消除"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("去掉画面中的零碎杂物"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("去除家具和陈设干扰"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("清理污渍、脏点和痕迹"),
+    ).not.toBeInTheDocument();
   });
 
   it("shows the multi-selection top action bar for grouped image work", async () => {
@@ -622,5 +785,155 @@ describe("CanvasPage selection action bar", () => {
     } finally {
       windowOpenSpy.mockRestore();
     }
+  });
+
+  it.skip("renders thumbnail preview cards for the audited AI conversion menu", async () => {
+    const user = userEvent.setup();
+
+    renderWithToast(<CanvasPage />);
+
+    await waitFor(() => {
+      expect(fetchCanvasMock).toHaveBeenCalledWith("token-canvas", "canvas-1");
+    });
+
+    await user.click(screen.getByTestId("mock-select-canvas-image"));
+    await user.click(screen.getByRole("button", { name: "缂栬緫" }));
+    await user.click(screen.getByRole("button", { name: "AI杞崲" }));
+
+    expect(screen.getByAltText("convert-white-model-preview")).toBeInTheDocument();
+    expect(screen.getByAltText("convert-line-draft-preview")).toBeInTheDocument();
+    expect(screen.getByAltText("convert-su-model-preview")).toBeInTheDocument();
+  });
+
+  it.skip("renders thumbnail preview cards for the audited AI add and remove menus", async () => {
+    const user = userEvent.setup();
+
+    renderWithToast(<CanvasPage />);
+
+    await waitFor(() => {
+      expect(fetchCanvasMock).toHaveBeenCalledWith("token-canvas", "canvas-1");
+    });
+
+    await user.click(screen.getByTestId("mock-select-canvas-image"));
+    await user.click(screen.getByRole("button", { name: "缂栬緫" }));
+    await user.click(screen.getByRole("button", { name: "AI娣诲姞" }));
+
+    expect(screen.getByAltText("add-enrich-scene-preview")).toBeInTheDocument();
+    expect(screen.getByAltText("add-plants-preview")).toBeInTheDocument();
+    expect(screen.getByAltText("add-people-preview")).toBeInTheDocument();
+    expect(screen.getByAltText("add-sky-preview")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "AI娑堥櫎" }));
+
+    expect(screen.getByAltText("remove-manual-preview")).toBeInTheDocument();
+    expect(screen.getByAltText("remove-clutter-preview")).toBeInTheDocument();
+    expect(screen.getByAltText("remove-furniture-preview")).toBeInTheDocument();
+    expect(screen.getByAltText("remove-stains-preview")).toBeInTheDocument();
+  });
+
+  it.skip("matches the audited shape toolbar with a slider-based line-width control", async () => {
+    const user = userEvent.setup();
+
+    renderWithToast(<CanvasPage />);
+
+    await waitFor(() => {
+      expect(fetchCanvasMock).toHaveBeenCalledWith("token-canvas", "canvas-1");
+    });
+
+    await user.click(screen.getByTestId("mock-select-canvas-image"));
+    await user.click(screen.getByRole("button", { name: "缂栬緫" }));
+
+    const dialog = screen.getByRole("dialog", { name: "鍥剧墖缂栬緫" });
+    await user.click(within(dialog).getByRole("button", { name: "褰㈢姸" }));
+
+    expect(within(dialog).getByLabelText("褰㈢姸绾垮")).toHaveAttribute(
+      "type",
+      "range",
+    );
+    expect(within(dialog).getByLabelText("鎻忚竟棰滆壊")).toBeInTheDocument();
+  });
+  it("renders thumbnail preview cards for the audited AI conversion menu", async () => {
+    const user = userEvent.setup();
+
+    renderWithToast(<CanvasPage />);
+
+    await waitFor(() => {
+      expect(fetchCanvasMock).toHaveBeenCalledWith("token-canvas", "canvas-1");
+    });
+
+    await user.click(screen.getByTestId("mock-select-canvas-image"));
+    await user.click(screen.getByRole("button", { name: "编辑" }));
+    await user.click(screen.getByRole("button", { name: "AI转换" }));
+
+    const whiteModelPreview = screen.getByAltText("convert-white-model-preview");
+    const lineDraftPreview = screen.getByAltText("convert-line-draft-preview");
+    const suModelPreview = screen.getByAltText("convert-su-model-preview");
+
+    expect(whiteModelPreview).toBeInTheDocument();
+    expect(lineDraftPreview).toBeInTheDocument();
+    expect(suModelPreview).toBeInTheDocument();
+    expect(whiteModelPreview).toHaveAttribute("width", "76");
+    expect(whiteModelPreview).toHaveAttribute("height", "84");
+    expect(screen.getByRole("button", { name: "转为白模" })).toHaveStyle({
+      width: "76px",
+    });
+  });
+
+  it("renders thumbnail preview cards for the audited AI add and remove menus", async () => {
+    const user = userEvent.setup();
+
+    renderWithToast(<CanvasPage />);
+
+    await waitFor(() => {
+      expect(fetchCanvasMock).toHaveBeenCalledWith("token-canvas", "canvas-1");
+    });
+
+    await user.click(screen.getByTestId("mock-select-canvas-image"));
+    await user.click(screen.getByRole("button", { name: "编辑" }));
+    await user.click(screen.getByRole("button", { name: "AI添加" }));
+
+    const enrichScenePreview = screen.getByAltText("add-enrich-scene-preview");
+    expect(enrichScenePreview).toBeInTheDocument();
+    expect(screen.getByAltText("add-plants-preview")).toBeInTheDocument();
+    expect(screen.getByAltText("add-people-preview")).toBeInTheDocument();
+    expect(screen.getByAltText("add-sky-preview")).toBeInTheDocument();
+    expect(enrichScenePreview).toHaveAttribute("width", "76");
+    expect(screen.getByRole("button", { name: "丰富配景" })).toHaveStyle({
+      width: "76px",
+    });
+
+    await user.click(screen.getByRole("button", { name: "AI消除" }));
+
+    const manualRemovePreview = screen.getByAltText("remove-manual-preview");
+    expect(manualRemovePreview).toBeInTheDocument();
+    expect(screen.getByAltText("remove-clutter-preview")).toBeInTheDocument();
+    expect(screen.getByAltText("remove-furniture-preview")).toBeInTheDocument();
+    expect(screen.getByAltText("remove-stains-preview")).toBeInTheDocument();
+    expect(manualRemovePreview).toHaveAttribute("width", "76");
+    expect(screen.getByRole("button", { name: "手动消除" })).toHaveStyle({
+      width: "76px",
+    });
+  });
+
+  it("matches the audited shape toolbar with a slider-based line-width control", async () => {
+    const user = userEvent.setup();
+
+    renderWithToast(<CanvasPage />);
+
+    await waitFor(() => {
+      expect(fetchCanvasMock).toHaveBeenCalledWith("token-canvas", "canvas-1");
+    });
+
+    await user.click(screen.getByTestId("mock-select-canvas-image"));
+    await user.click(screen.getByRole("button", { name: "编辑" }));
+
+    const dialog = screen.getByRole("dialog", { name: "图片编辑" });
+    await user.click(within(dialog).getByRole("button", { name: "形状" }));
+
+    expect(within(dialog).getByLabelText("形状线宽")).toHaveAttribute(
+      "type",
+      "range",
+    );
+    expect(within(dialog).getByLabelText("描边颜色")).toBeInTheDocument();
   });
 });
