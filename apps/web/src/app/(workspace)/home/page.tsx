@@ -20,6 +20,10 @@ import { useImageAttachments } from "@/hooks/use-image-attachments";
 import { useAuth } from "@/lib/auth-context";
 import { scheduleCanvasExperienceWarmup } from "@/lib/canvas-experience-warmup";
 import { buildProjectThumbnailSrc } from "@/lib/project-thumbnail";
+import {
+  addProjectThumbnailRefreshListener,
+  consumePendingProjectThumbnailRefresh,
+} from "@/lib/project-thumbnail-refresh";
 import { buildPromptTemplateAttachmentInputs } from "@/lib/prompt-template-attachments";
 import { ApiAuthError, fetchProjects } from "@/lib/server-api";
 import { buildCanvasUrl } from "@/lib/studio-routes";
@@ -142,6 +146,16 @@ export default function HomePage() {
     void loadProjects();
   }, [loadProjects]);
 
+  useEffect(() => {
+    const pendingRefresh = consumePendingProjectThumbnailRefresh();
+    if (!pendingRefresh) {
+      return;
+    }
+
+    console.info("[home] consuming queued thumbnail refresh signal", pendingRefresh);
+    void loadProjects();
+  }, [loadProjects]);
+
   useEffect(() => scheduleCanvasExperienceWarmup(router), [router]);
 
   useEffect(() => {
@@ -158,6 +172,12 @@ export default function HomePage() {
       console.info("[home] refreshing projects after bfcache restore");
       void loadProjects();
     };
+    const removeThumbnailRefreshListener = addProjectThumbnailRefreshListener(
+      (detail) => {
+        console.info("[home] refreshing projects after thumbnail refresh signal", detail);
+        void loadProjects();
+      },
+    );
 
     window.addEventListener("focus", handleWindowFocus);
     window.addEventListener("pageshow", handlePageShow);
@@ -165,6 +185,7 @@ export default function HomePage() {
     return () => {
       window.removeEventListener("focus", handleWindowFocus);
       window.removeEventListener("pageshow", handlePageShow);
+      removeThumbnailRefreshListener();
     };
   }, [loadProjects]);
 
@@ -348,7 +369,7 @@ export default function HomePage() {
 
           <div
             data-testid="home-project-grid"
-            className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-4"
+            className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6"
           >
             <button
               type="button"

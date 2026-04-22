@@ -28,8 +28,7 @@ vi.mock("next/navigation", () => ({
     replace: replaceMock,
     push: vi.fn(),
   }),
-  useSearchParams: () =>
-    new URLSearchParams("id=canvas-1&studio=architecture"),
+  useSearchParams: () => new URLSearchParams(window.location.search),
 }));
 
 vi.mock("../src/lib/auth-context", () => ({
@@ -386,6 +385,7 @@ import CanvasPage from "../src/app/canvas/page";
 describe("CanvasPage context menu mode", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    window.history.replaceState({}, "", "/canvas?id=canvas-1&studio=architecture");
     fetchImageBlobWithFallbackMock.mockResolvedValue(
       new Blob(["image"], { type: "image/png" }),
     );
@@ -395,6 +395,11 @@ describe("CanvasPage context menu mode", () => {
         id: "canvas-1",
         name: "Architecture Canvas",
         projectId: "project-1",
+        project: {
+          id: "project-1",
+          name: "Harbor Studio",
+          brandKitId: null,
+        },
         content: {
           elements: [],
           appState: {},
@@ -641,7 +646,7 @@ describe("CanvasPage context menu mode", () => {
     expect(clickSpy).toHaveBeenCalledTimes(1);
   });
 
-  it("routes send-to-chat into the composer command without forcing the right panel open", async () => {
+  it("routes send-to-chat into the composer command and opens the record panel for follow-up work", async () => {
     const originalInnerWidth = window.innerWidth;
     Object.defineProperty(window, "innerWidth", {
       configurable: true,
@@ -669,7 +674,7 @@ describe("CanvasPage context menu mode", () => {
         "data-composer-type",
         "attach-selection",
       );
-      expect(screen.getByTestId("chat-sidebar")).toHaveAttribute("data-open", "false");
+      expect(screen.getByTestId("chat-sidebar")).toHaveAttribute("data-open", "true");
     } finally {
       Object.defineProperty(window, "innerWidth", {
         configurable: true,
@@ -679,7 +684,7 @@ describe("CanvasPage context menu mode", () => {
     }
   });
 
-  it("preserves the attach-selection composer command after the user opens the record panel", async () => {
+  it("preserves the attach-selection composer command when the user toggles the record panel after send-to-chat", async () => {
     const originalInnerWidth = window.innerWidth;
     Object.defineProperty(window, "innerWidth", {
       configurable: true,
@@ -705,7 +710,7 @@ describe("CanvasPage context menu mode", () => {
         "data-composer-type",
         "attach-selection",
       );
-      expect(screen.getByTestId("chat-sidebar")).toHaveAttribute("data-open", "false");
+      expect(screen.getByTestId("chat-sidebar")).toHaveAttribute("data-open", "true");
 
       await userEvent.click(screen.getByRole("button", { name: "对话" }));
 
@@ -713,7 +718,7 @@ describe("CanvasPage context menu mode", () => {
         "data-composer-type",
         "attach-selection",
       );
-      expect(screen.getByTestId("chat-sidebar")).toHaveAttribute("data-open", "true");
+      expect(screen.getByTestId("chat-sidebar")).toHaveAttribute("data-open", "false");
     } finally {
       Object.defineProperty(window, "innerWidth", {
         configurable: true,

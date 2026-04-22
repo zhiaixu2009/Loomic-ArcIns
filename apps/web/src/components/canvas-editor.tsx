@@ -11,6 +11,7 @@ import type { WebSocketHandle } from "../hooks/use-websocket";
 import { resolveBrowserAssetUrl } from "../lib/browser-asset-url";
 import { getServerBaseUrl } from "../lib/env";
 import { createProjectThumbnailBlob } from "../lib/project-thumbnail";
+import { emitProjectThumbnailRefresh } from "../lib/project-thumbnail-refresh";
 import { saveCanvas, uploadThumbnail } from "../lib/server-api";
 import { VideoCanvasElement } from "./canvas/video-canvas-element";
 import { isVideoUrl } from "../lib/canvas-elements";
@@ -418,6 +419,10 @@ export function CanvasEditor({
             requestedVersion,
           });
           await uploadThumbnail(accessTokenRef.current, projectId, blob);
+          emitProjectThumbnailRefresh({
+            projectId,
+            updatedAt: new Date().toISOString(),
+          });
 
           if (pendingThumbnailVersionRef.current <= requestedVersion) {
             syncedThumbnailVersionRef.current = requestedVersion;

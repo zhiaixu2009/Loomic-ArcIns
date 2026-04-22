@@ -9,6 +9,7 @@ import { useAuth } from "@/lib/auth-context";
 import { useToast } from "@/components/toast";
 import { ApiAuthError, createProject } from "@/lib/server-api";
 import { warmCanvasExperience } from "@/lib/canvas-experience-warmup";
+import { openProjectLoadingWindow } from "@/lib/project-loading-window";
 import {
   CREATE_PROJECT_LAUNCH_ID_KEY,
   CREATE_PROJECT_REQUEST_STARTED_AT_KEY,
@@ -56,6 +57,7 @@ export function useCreateProject() {
       const projectName = opts?.name?.trim() || UNTITLED_PROJECT_NAME;
       const createRequestStartedAt = Date.now();
       const launchId = createProjectLaunchId();
+      const loadingPreviewOpenedAt = Date.now();
 
       void warmCanvasExperience(routerRef.current);
 
@@ -71,7 +73,10 @@ export function useCreateProject() {
           String(createRequestStartedAt),
         );
         sessionStorage.setItem(CREATE_PROJECT_LAUNCH_ID_KEY, launchId);
-        sessionStorage.removeItem(LOADING_PREVIEW_OPENED_AT_KEY);
+        sessionStorage.setItem(
+          LOADING_PREVIEW_OPENED_AT_KEY,
+          String(loadingPreviewOpenedAt),
+        );
       } catch {
         // sessionStorage write failure is non-fatal
       }
@@ -128,10 +133,10 @@ export function useCreateProject() {
         sessionStorage.removeItem(INITIAL_AGENT_MODEL_KEY);
       }
 
-      // Open the new tab synchronously within the user gesture so the
-      // browser popup-blocker doesn't intervene. We'll set the real URL
-      // once the API call returns.
-      const newTab = window.open("/loading-preview", "_blank");
+      // Open a same-origin shell synchronously within the user gesture so the
+      // browser popup-blocker doesn't intervene and users never stare at a
+      // raw about:blank tab while project creation is in flight.
+      const newTab = openProjectLoadingWindow();
 
       setCreating(true);
       try {
@@ -151,14 +156,18 @@ export function useCreateProject() {
         });
 
         if (newTab) {
-          newTab.location.href = url;
+          if (typeof newTab.location.replace === "function") {
+            newTab.location.replace(url);
+          } else {
+            newTab.location.href = url;
+          }
         } else {
           // Popup was blocked despite sync open — fallback to in-page navigation
           routerRef.current.push(url);
         }
         setCreating(false);
       } catch (err) {
-        // Close the blank tab on failure
+        // Close the transient loading tab on failure.
         newTab?.close();
         if (err instanceof ApiAuthError) {
           await signOutRef.current();

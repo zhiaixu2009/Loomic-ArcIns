@@ -24,8 +24,7 @@ vi.mock("next/navigation", () => ({
     replace: replaceMock,
     push: vi.fn(),
   }),
-  useSearchParams: () =>
-    new URLSearchParams("id=canvas-1&studio=architecture"),
+  useSearchParams: () => new URLSearchParams(window.location.search),
 }));
 
 vi.mock("../src/lib/auth-context", () => ({
@@ -237,11 +236,17 @@ import CanvasPage from "../src/app/canvas/page";
 describe("CanvasPage record locate", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    window.history.replaceState({}, "", "/canvas?id=canvas-1&studio=architecture");
     fetchCanvasMock.mockResolvedValue({
       canvas: {
         id: "canvas-1",
         name: "Architecture Canvas",
         projectId: "project-1",
+        project: {
+          id: "project-1",
+          name: "Harbor Studio",
+          brandKitId: null,
+        },
         content: {
           elements: [],
           appState: {},
@@ -270,7 +275,9 @@ describe("CanvasPage record locate", () => {
       expect(fetchCanvasMock).toHaveBeenCalledWith("token-canvas", "canvas-1");
     });
 
-    await user.click(screen.getByRole("button", { name: "locate record image" }));
+    await user.click(
+      await screen.findByRole("button", { name: "locate record image" }),
+    );
 
     expect(updateSceneMock).toHaveBeenCalledWith(
       expect.objectContaining({

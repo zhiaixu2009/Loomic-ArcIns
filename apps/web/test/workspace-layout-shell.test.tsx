@@ -5,7 +5,20 @@ import { cleanup, render, screen } from "@testing-library/react";
 import * as React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { usePathnameMock, replaceMock } = vi.hoisted(() => ({
+type MockAuthState = {
+  current: {
+    loading: boolean;
+    user: { id: string } | null;
+  };
+};
+
+const { authState, usePathnameMock, replaceMock } = vi.hoisted(() => ({
+  authState: {
+    current: {
+      loading: false,
+      user: { id: "user-1" },
+    },
+  } as MockAuthState,
   usePathnameMock: vi.fn(),
   replaceMock: vi.fn(),
 }));
@@ -18,10 +31,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("../src/lib/auth-context", () => ({
-  useAuth: () => ({
-    user: { id: "user-1" },
-    loading: false,
-  }),
+  useAuth: () => authState.current,
 }));
 
 vi.mock("../src/components/app-sidebar", () => ({
@@ -57,6 +67,11 @@ import WorkspaceLayout from "../src/app/(workspace)/layout";
 describe("WorkspaceLayout shell", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    sessionStorage.clear();
+    authState.current = {
+      loading: false,
+      user: { id: "user-1" },
+    };
     usePathnameMock.mockReturnValue("/brand-kit");
   });
 
@@ -105,5 +120,22 @@ describe("WorkspaceLayout shell", () => {
     expect(
       screen.queryByTestId("layout-credit-button"),
     ).not.toBeInTheDocument();
+  });
+
+  it("lets the canvas route own its loading shell instead of flashing the global loading screen", () => {
+    authState.current = {
+      loading: true,
+      user: null,
+    };
+    usePathnameMock.mockReturnValue("/canvas");
+
+    render(
+      <WorkspaceLayout>
+        <div data-testid="canvas-route-child">Canvas content</div>
+      </WorkspaceLayout>,
+    );
+
+    expect(screen.queryByText("Loading")).not.toBeInTheDocument();
+    expect(screen.getByTestId("canvas-route-child")).toBeInTheDocument();
   });
 });

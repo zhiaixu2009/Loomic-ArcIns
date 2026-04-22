@@ -18,6 +18,7 @@ export default function WorkspaceLayout({
   const router = useRouter();
   const pathname = usePathname();
   const immersiveChrome = pathname === "/home" || pathname === "/canvas";
+  const letCanvasOwnLaunchOverlay = pathname === "/canvas";
 
   useEffect(() => {
     if (!loading && !user) {
@@ -25,11 +26,11 @@ export default function WorkspaceLayout({
     }
   }, [loading, router, user]);
 
-  if (loading) {
+  if (loading && !letCanvasOwnLaunchOverlay) {
     return <LoadingScreen />;
   }
 
-  if (!user) {
+  if (!user && !loading) {
     return null;
   }
 

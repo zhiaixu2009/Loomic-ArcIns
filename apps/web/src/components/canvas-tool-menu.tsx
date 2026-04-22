@@ -1,8 +1,9 @@
-"use client";
+﻿"use client";
 
 import {
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
   memo,
@@ -12,6 +13,8 @@ import {
 import { createPortal } from "react-dom";
 import {
   ArrowUpRight,
+  ChevronLeft,
+  ChevronRight,
   Circle,
   Diamond,
   Hand,
@@ -24,6 +27,7 @@ import {
   Square,
   Type,
   Video,
+  X,
 } from "lucide-react";
 
 import {
@@ -39,6 +43,12 @@ import {
   type VideoGeneratorData,
 } from "../lib/canvas-video-generator";
 import { insertImageOnCanvas, isVideoUrl } from "../lib/canvas-elements";
+import { loadOfficialGalleryLibrary } from "../lib/official-gallery-library";
+import {
+  officialGallerySeedLibrary,
+  type OfficialGalleryCategory,
+  type OfficialGalleryItem,
+} from "../lib/official-gallery-seeds";
 import { ImageGeneratorPanel } from "./canvas/image-generator-panel";
 import { VideoGeneratorPanel } from "./canvas/video-generator-panel";
 import { VideoPlayerPanel } from "./canvas/video-player-panel";
@@ -111,19 +121,7 @@ type ArchitectureShapeFlyoutItemId =
   | "arrow"
   | "line"
   | "polyline";
-type AddModalTab = "local-upload" | "official-gallery" | "enterprise-gallery" | "my-creations";
-type OfficialGalleryCategoryId =
-  | "architecture-render"
-  | "interior-render"
-  | "landscape-render"
-  | "urban-render"
-  | "color-plan"
-  | "collage-render"
-  | "illustration-render"
-  | "competition-render"
-  | "night-render"
-  | "plan-section-reference"
-  | "interior-plan";
+type AddModalTab = "local-upload" | "official-gallery" | "my-creations";
 type MyCreationSourceId =
   | "ai-drawing"
   | "banana-agent"
@@ -137,6 +135,12 @@ type GallerySampleItem = {
   url: string;
   width: number;
   height: number;
+};
+type AddModalTabDefinition = {
+  id: AddModalTab;
+  label: string;
+  description: string;
+  icon: React.ComponentType<{ className?: string }>;
 };
 type ShapeToolbarStyle = {
   strokeColor: string;
@@ -256,100 +260,75 @@ const ARCHITECTURE_SHAPE_FLYOUT_ITEMS: Array<{
   },
 ];
 
-const ADD_MODAL_TABS: Array<{
-  id: AddModalTab;
-  label: string;
-}> = [
-  { id: "local-upload", label: "本地上传" },
-  { id: "official-gallery", label: "官方图库" },
-  { id: "enterprise-gallery", label: "企业图库" },
-  { id: "my-creations", label: "我的创作" },
+const ADD_MODAL_TABS: AddModalTabDefinition[] = [
+  {
+    id: "local-upload",
+    label: "本地上传",
+    description: "从本地文件快速插入参考图",
+    icon: ImageUp,
+  },
+  {
+    id: "official-gallery",
+    label: "官方图库",
+    description: "从本地受控图库挑选稳定素材",
+    icon: Sparkles,
+  },
+  {
+    id: "my-creations",
+    label: "我的创作",
+    description: "复用近期整理过的创作样例",
+    icon: Pencil,
+  },
 ];
 
-const OFFICIAL_GALLERY_MAJOR_CATEGORIES: Array<{
-  id: OfficialGalleryCategoryId;
-  label: string;
-}> = [
-  { id: "architecture-render", label: "建筑效果图" },
-  { id: "interior-render", label: "室内效果图" },
-  { id: "landscape-render", label: "景观效果图" },
-  { id: "urban-render", label: "城市效果图" },
-  { id: "color-plan", label: "彩平参考图" },
-  { id: "collage-render", label: "拼贴效果图" },
-  { id: "illustration-render", label: "插画效果图" },
-  { id: "competition-render", label: "竞赛效果图" },
-  { id: "night-render", label: "夜景效果图" },
-  { id: "plan-section-reference", label: "平立剖参考" },
-  { id: "interior-plan", label: "室内平面图" },
-];
+function buildOfficialGallerySeedItemIndex(library: OfficialGalleryCategory[]) {
+  const index = new Map<string, OfficialGalleryItem>();
 
-const ARCHITECTURE_RENDER_SUBTYPES = [
-  "默认",
-  "别墅",
-  "小区住宅",
-  "办公楼",
-  "办公园区",
-  "文化建筑",
-  "酒店",
-  "商业综合体",
-  "学校",
-  "幼儿园",
-  "体育馆",
-  "售楼部",
-  "会所",
-  "商业街",
-  "商业门头",
-  "医院",
-  "工业厂房",
-  "交通建筑",
-  "文旅",
-  "民宿",
-] as const;
+  for (const category of library) {
+    for (const subtype of category.subtypes) {
+      for (const item of subtype.items) {
+        index.set(item.id, item);
+      }
+    }
+  }
 
-const OFFICIAL_GALLERY_SAMPLE_ITEMS = [
-  {
-    id: "architecture-default-1",
-    label: "建筑效果图 默认 1",
-    url: "http://image-assets.soutushenqi.com/jzxz_photo/top_tier_architectural_rendering/8b19a4cf-c1be-4ff0-834b-02ba814eb4fd.png?x-tos-process=image/resize,w_480",
-    width: 1600,
-    height: 900,
-  },
-  {
-    id: "architecture-default-2",
-    label: "建筑效果图 默认 2",
-    url: "http://image-assets.soutushenqi.com/jzxz_photo/top_tier_architectural_rendering/9ee1d14e-b422-4587-8fda-4c4dac6eb128.png?x-tos-process=image/resize,w_480",
-    width: 1600,
-    height: 900,
-  },
-  {
-    id: "architecture-default-3",
-    label: "建筑效果图 默认 3",
-    url: "http://image-assets.soutushenqi.com/jzxz_photo/top_tier_architectural_rendering/9c3d4e53-ba53-4cc5-a526-53906020b225.png?x-tos-process=image/resize,w_480",
-    width: 1600,
-    height: 900,
-  },
-  {
-    id: "architecture-default-4",
-    label: "建筑效果图 默认 4",
-    url: "http://image-assets.soutushenqi.com/jzxz_photo/top_tier_architectural_rendering/c03941e9-2cc5-4c10-a3db-9737d562e1a1.png?x-tos-process=image/resize,w_480",
-    width: 1600,
-    height: 900,
-  },
-  {
-    id: "architecture-villa-1",
-    label: "建筑效果图 别墅 1",
-    url: "http://image-assets.soutushenqi.com/jzxz_photo/top_tier_architectural_rendering/562251b1-bc95-487e-b033-b24dec7e7537.png?x-tos-process=image/resize,w_480",
-    width: 1600,
-    height: 900,
-  },
-  {
-    id: "architecture-villa-2",
-    label: "建筑效果图 别墅 2",
-    url: "http://image-assets.soutushenqi.com/jzxz_photo/top_tier_architectural_rendering/ef7ae925-d089-4b7d-bd96-6d937a709bd3.png?x-tos-process=image/resize,w_480",
-    width: 1600,
-    height: 900,
-  },
-] as const;
+  return index;
+}
+
+const OFFICIAL_GALLERY_SEED_ITEM_INDEX =
+  buildOfficialGallerySeedItemIndex(officialGallerySeedLibrary);
+
+function buildSeedBackedGalleryItem(
+  id: string,
+  label: string,
+  seedItemId: string,
+): GallerySampleItem {
+  const fallbackItem =
+    officialGallerySeedLibrary[0]?.subtypes[0]?.items[0] ?? {
+      id: "fallback",
+      label: "Fallback",
+      url: "/official-gallery/architecture-default-1.png",
+      width: 1600,
+      height: 900,
+    };
+  const seedItem = OFFICIAL_GALLERY_SEED_ITEM_INDEX.get(seedItemId) ?? fallbackItem;
+
+  if (!OFFICIAL_GALLERY_SEED_ITEM_INDEX.has(seedItemId)) {
+    console.warn("[canvas-tool-menu] missing seed gallery item, using fallback asset", {
+      id,
+      label,
+      seedItemId,
+    });
+  }
+
+  return {
+    id,
+    label,
+    url: seedItem.url,
+    width: seedItem.width,
+    height: seedItem.height,
+  };
+}
 
 const MY_CREATION_SOURCES: Array<{
   id: MyCreationSourceId;
@@ -365,100 +344,28 @@ const MY_CREATION_SOURCES: Array<{
 
 const MY_CREATION_SAMPLE_ITEMS: Record<MyCreationSourceId, GallerySampleItem[]> = {
   "ai-drawing": [
-    {
-      id: "my-ai-drawing-1",
-      label: "AI创作绘图 1",
-      url: "http://image-assets.soutushenqi.com/jzxz_photo/top_tier_architectural_rendering/8b19a4cf-c1be-4ff0-834b-02ba814eb4fd.png?x-tos-process=image/resize,w_480",
-      width: 1600,
-      height: 900,
-    },
-    {
-      id: "my-ai-drawing-2",
-      label: "AI创作绘图 2",
-      url: "http://image-assets.soutushenqi.com/jzxz_photo/top_tier_architectural_rendering/9ee1d14e-b422-4587-8fda-4c4dac6eb128.png?x-tos-process=image/resize,w_480",
-      width: 1600,
-      height: 900,
-    },
+    buildSeedBackedGalleryItem("my-ai-drawing-1", "AI创作绘图 1", "architecture-default-1"),
+    buildSeedBackedGalleryItem("my-ai-drawing-2", "AI创作绘图 2", "architecture-default-2"),
   ],
   "banana-agent": [
-    {
-      id: "my-banana-agent-1",
-      label: "Banana智能体 1",
-      url: "http://image-assets.soutushenqi.com/jzxz_photo/top_tier_architectural_rendering/9c3d4e53-ba53-4cc5-a526-53906020b225.png?x-tos-process=image/resize,w_480",
-      width: 1600,
-      height: 900,
-    },
-    {
-      id: "my-banana-agent-2",
-      label: "Banana智能体 2",
-      url: "http://image-assets.soutushenqi.com/jzxz_photo/top_tier_architectural_rendering/c03941e9-2cc5-4c10-a3db-9737d562e1a1.png?x-tos-process=image/resize,w_480",
-      width: 1600,
-      height: 900,
-    },
+    buildSeedBackedGalleryItem("my-banana-agent-1", "Banana智能体 1", "architecture-default-3"),
+    buildSeedBackedGalleryItem("my-banana-agent-2", "Banana智能体 2", "architecture-default-4"),
   ],
   "model-render": [
-    {
-      id: "my-model-render-1",
-      label: "AI模型渲染 1",
-      url: "http://image-assets.soutushenqi.com/jzxz_photo/top_tier_architectural_rendering/562251b1-bc95-487e-b033-b24dec7e7537.png?x-tos-process=image/resize,w_480",
-      width: 1600,
-      height: 900,
-    },
-    {
-      id: "my-model-render-2",
-      label: "AI模型渲染 2",
-      url: "http://image-assets.soutushenqi.com/jzxz_photo/top_tier_architectural_rendering/ef7ae925-d089-4b7d-bd96-6d937a709bd3.png?x-tos-process=image/resize,w_480",
-      width: 1600,
-      height: 900,
-    },
+    buildSeedBackedGalleryItem("my-model-render-1", "AI模型渲染 1", "architecture-villa-1"),
+    buildSeedBackedGalleryItem("my-model-render-2", "AI模型渲染 2", "architecture-villa-2"),
   ],
   "site-coloring": [
-    {
-      id: "my-site-coloring-1",
-      label: "AI总图彩平填色 1",
-      url: "http://image-assets.soutushenqi.com/jzxz_photo/top_tier_architectural_rendering/8b19a4cf-c1be-4ff0-834b-02ba814eb4fd.png?x-tos-process=image/resize,w_480",
-      width: 1600,
-      height: 900,
-    },
-    {
-      id: "my-site-coloring-2",
-      label: "AI总图彩平填色 2",
-      url: "http://image-assets.soutushenqi.com/jzxz_photo/top_tier_architectural_rendering/9c3d4e53-ba53-4cc5-a526-53906020b225.png?x-tos-process=image/resize,w_480",
-      width: 1600,
-      height: 900,
-    },
+    buildSeedBackedGalleryItem("my-site-coloring-1", "AI总图彩平填色 1", "architecture-default-1"),
+    buildSeedBackedGalleryItem("my-site-coloring-2", "AI总图彩平填色 2", "architecture-default-3"),
   ],
   "hand-drawing": [
-    {
-      id: "my-hand-drawing-1",
-      label: "手绘创作 1",
-      url: "http://image-assets.soutushenqi.com/jzxz_photo/top_tier_architectural_rendering/9ee1d14e-b422-4587-8fda-4c4dac6eb128.png?x-tos-process=image/resize,w_480",
-      width: 1600,
-      height: 900,
-    },
-    {
-      id: "my-hand-drawing-2",
-      label: "手绘创作 2",
-      url: "http://image-assets.soutushenqi.com/jzxz_photo/top_tier_architectural_rendering/562251b1-bc95-487e-b033-b24dec7e7537.png?x-tos-process=image/resize,w_480",
-      width: 1600,
-      height: 900,
-    },
+    buildSeedBackedGalleryItem("my-hand-drawing-1", "手绘创作 1", "architecture-default-2"),
+    buildSeedBackedGalleryItem("my-hand-drawing-2", "手绘创作 2", "architecture-villa-1"),
   ],
   inpaint: [
-    {
-      id: "my-inpaint-1",
-      label: "局部重绘 1",
-      url: "http://image-assets.soutushenqi.com/jzxz_photo/top_tier_architectural_rendering/c03941e9-2cc5-4c10-a3db-9737d562e1a1.png?x-tos-process=image/resize,w_480",
-      width: 1600,
-      height: 900,
-    },
-    {
-      id: "my-inpaint-2",
-      label: "局部重绘 2",
-      url: "http://image-assets.soutushenqi.com/jzxz_photo/top_tier_architectural_rendering/ef7ae925-d089-4b7d-bd96-6d937a709bd3.png?x-tos-process=image/resize,w_480",
-      width: 1600,
-      height: 900,
-    },
+    buildSeedBackedGalleryItem("my-inpaint-1", "局部重绘 1", "architecture-default-4"),
+    buildSeedBackedGalleryItem("my-inpaint-2", "局部重绘 2", "architecture-villa-2"),
   ],
 };
 
@@ -754,11 +661,17 @@ export function CanvasToolMenu({
   const [shapeFlyoutOpen, setShapeFlyoutOpen] = useState(false);
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [activeAddTab, setActiveAddTab] = useState<AddModalTab>("local-upload");
-  const [enterpriseGateOpen, setEnterpriseGateOpen] = useState(false);
+  const [officialGalleryLibrary, setOfficialGalleryLibrary] =
+    useState<OfficialGalleryCategory[]>(officialGallerySeedLibrary);
+  const [officialGalleryLoading, setOfficialGalleryLoading] = useState(false);
+  const [officialGalleryLoaded, setOfficialGalleryLoaded] = useState(false);
+  const [officialGalleryLoadError, setOfficialGalleryLoadError] = useState<string | null>(
+    null,
+  );
   const [activeOfficialGalleryCategory, setActiveOfficialGalleryCategory] =
-    useState<OfficialGalleryCategoryId>("architecture-render");
+    useState<string>(() => officialGallerySeedLibrary[0]?.id ?? "");
   const [activeOfficialGallerySubtype, setActiveOfficialGallerySubtype] =
-    useState<string>("默认");
+    useState<string>(() => officialGallerySeedLibrary[0]?.subtypes[0]?.id ?? "");
   const [activeMyCreationSource, setActiveMyCreationSource] =
     useState<MyCreationSourceId>("ai-drawing");
   const [shapeToolbarStyle, setShapeToolbarStyle] = useState<ShapeToolbarStyle>(() =>
@@ -1485,9 +1398,8 @@ export function CanvasToolMenu({
     };
   }, [shapeFlyoutOpen]);
 
-  useEffect(() => {
+useEffect(() => {
     if (!addModalOpen) {
-      setEnterpriseGateOpen(false);
       return;
     }
 
@@ -1504,41 +1416,126 @@ export function CanvasToolMenu({
     };
   }, [addModalOpen]);
 
-  const activeOfficialSubtypeOptions =
-    activeOfficialGalleryCategory === "architecture-render"
-      ? [...ARCHITECTURE_RENDER_SUBTYPES]
-      : ["默认"];
-
-  const activeOfficialGalleryItems =
-    activeOfficialGalleryCategory === "architecture-render"
-      ? activeOfficialGallerySubtype === "别墅"
-        ? OFFICIAL_GALLERY_SAMPLE_ITEMS.filter((item) => item.id.includes("villa"))
-        : OFFICIAL_GALLERY_SAMPLE_ITEMS.filter((item) => item.id.includes("default"))
-      : OFFICIAL_GALLERY_SAMPLE_ITEMS.filter((item) => item.id.includes("default"));
-  const activeMyCreationItems =
-    MY_CREATION_SAMPLE_ITEMS[activeMyCreationSource] ?? [];
-
-  const closeAddModal = useCallback(() => {
-    setAddModalOpen(false);
-    setEnterpriseGateOpen(false);
-  }, []);
-
-  const handleAddTabSelect = useCallback((tab: AddModalTab) => {
-    if (tab === "enterprise-gallery") {
-      setEnterpriseGateOpen(true);
+  const loadOfficialGalleryData = useCallback(async () => {
+    if (officialGalleryLoading) {
       return;
     }
 
-    setEnterpriseGateOpen(false);
+    setOfficialGalleryLoading(true);
+    setOfficialGalleryLoadError(null);
+    console.info("[canvas-tool-menu] loading official gallery library");
+
+    try {
+      const nextLibrary = await loadOfficialGalleryLibrary();
+      const resolvedLibrary =
+        nextLibrary.length > 0 ? nextLibrary : officialGallerySeedLibrary;
+
+      setOfficialGalleryLibrary(resolvedLibrary);
+      setOfficialGalleryLoaded(true);
+      console.info("[canvas-tool-menu] official gallery library ready", {
+        categoryCount: resolvedLibrary.length,
+      });
+    } catch (error) {
+      console.warn(
+        "[canvas-tool-menu] failed to load official gallery library, falling back to seeds",
+        error,
+      );
+      setOfficialGalleryLibrary(officialGallerySeedLibrary);
+      setOfficialGalleryLoaded(true);
+      setOfficialGalleryLoadError("官方图库暂时未连上在线图源，已切换到本地受控素材库。");
+    } finally {
+      setOfficialGalleryLoading(false);
+    }
+  }, [officialGalleryLoading]);
+
+  useEffect(() => {
+    if (
+      !addModalOpen ||
+      activeAddTab !== "official-gallery" ||
+      officialGalleryLoaded ||
+      officialGalleryLoading
+    ) {
+      return;
+    }
+
+    void loadOfficialGalleryData();
+  }, [
+    activeAddTab,
+    addModalOpen,
+    loadOfficialGalleryData,
+    officialGalleryLoaded,
+    officialGalleryLoading,
+  ]);
+
+  useEffect(() => {
+    const nextCategory =
+      officialGalleryLibrary.find((category) => category.id === activeOfficialGalleryCategory) ??
+      officialGalleryLibrary[0];
+
+    if (!nextCategory) {
+      return;
+    }
+
+    if (nextCategory.id !== activeOfficialGalleryCategory) {
+      setActiveOfficialGalleryCategory(nextCategory.id);
+      return;
+    }
+
+    const nextSubtype =
+      nextCategory.subtypes.find((subtype) => subtype.id === activeOfficialGallerySubtype) ??
+      nextCategory.subtypes[0];
+
+    if (nextSubtype && nextSubtype.id !== activeOfficialGallerySubtype) {
+      setActiveOfficialGallerySubtype(nextSubtype.id);
+    }
+  }, [
+    activeOfficialGalleryCategory,
+    activeOfficialGallerySubtype,
+    officialGalleryLibrary,
+  ]);
+
+  const activeOfficialGalleryCategoryRecord = useMemo(
+    () =>
+      officialGalleryLibrary.find((category) => category.id === activeOfficialGalleryCategory) ??
+      officialGalleryLibrary[0] ??
+      null,
+    [activeOfficialGalleryCategory, officialGalleryLibrary],
+  );
+  const activeOfficialSubtypeOptions = useMemo(
+    () => activeOfficialGalleryCategoryRecord?.subtypes ?? [],
+    [activeOfficialGalleryCategoryRecord],
+  );
+  const activeOfficialGallerySubtypeRecord = useMemo(
+    () =>
+      activeOfficialSubtypeOptions.find((subtype) => subtype.id === activeOfficialGallerySubtype) ??
+      activeOfficialSubtypeOptions[0] ??
+      null,
+    [activeOfficialGallerySubtype, activeOfficialSubtypeOptions],
+  );
+  const activeOfficialGalleryItems = useMemo(
+    () => activeOfficialGallerySubtypeRecord?.items ?? [],
+    [activeOfficialGallerySubtypeRecord],
+  );
+  const activeMyCreationItems = MY_CREATION_SAMPLE_ITEMS[activeMyCreationSource] ?? [];
+
+  const closeAddModal = useCallback(() => {
+    setAddModalOpen(false);
+  }, []);
+
+  const handleAddTabSelect = useCallback((tab: AddModalTab) => {
     setActiveAddTab(tab);
   }, []);
 
   const handleSelectOfficialGalleryCategory = useCallback(
-    (category: OfficialGalleryCategoryId) => {
-      setActiveOfficialGalleryCategory(category);
-      setActiveOfficialGallerySubtype("默认");
+    (categoryId: string) => {
+      const nextSubtypeId =
+        officialGalleryLibrary.find((category) => category.id === categoryId)?.subtypes[0]?.id ??
+        "";
+
+      setActiveOfficialGalleryCategory(categoryId);
+      setActiveOfficialGallerySubtype(nextSubtypeId);
     },
-    [],
+    [officialGalleryLibrary],
   );
 
   const handleScrollOfficialGalleryCategories = useCallback(
@@ -1599,7 +1596,7 @@ export function CanvasToolMenu({
   );
 
   const handleInsertOfficialGalleryImage = useCallback(
-    async (item: (typeof OFFICIAL_GALLERY_SAMPLE_ITEMS)[number], index: number) => {
+    async (item: GallerySampleItem, index: number) => {
       await handleInsertGalleryImage(item, {
         index,
         logSource: "official-gallery",
@@ -1617,12 +1614,6 @@ export function CanvasToolMenu({
     },
     [handleInsertGalleryImage],
   );
-
-  const handleOpenEnterpriseUpgrade = useCallback(() => {
-    if (typeof window !== "undefined") {
-      window.open("/pricing", "_blank", "noopener,noreferrer");
-    }
-  }, []);
 
   const renderArchitectureRail = () => {
     const resolvedActiveArchitectureShapeItemId =
@@ -2102,7 +2093,7 @@ export function CanvasToolMenu({
     );
   };
 
-  const renderAddModal = () => {
+const renderAddModal = () => {
     if (!addModalOpen || typeof document === "undefined") {
       return null;
     }
@@ -2124,39 +2115,58 @@ export function CanvasToolMenu({
           className="relative flex h-[min(78vh,760px)] w-[min(1100px,calc(100vw-48px))] max-h-[calc(100vh-48px)] max-w-[1100px] flex-col overflow-hidden rounded-[10px] border border-slate-200 bg-white shadow-[0_28px_80px_rgba(15,23,42,0.14)]"
           onMouseDown={(event) => event.stopPropagation()}
         >
-          <div className="flex items-center gap-5 border-b border-slate-200 px-6 py-4">
-            <button
-              type="button"
-              aria-label="返回"
-              className="inline-flex items-center gap-2 rounded-[8px] px-2 py-1.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100 hover:text-slate-900"
-              onClick={closeAddModal}
-            >
-              <span className="text-base leading-none">←</span>
-              <span>返回</span>
-            </button>
+          <button
+            type="button"
+            aria-label="关闭添加素材窗口"
+            className="absolute right-6 top-5 z-10 inline-flex h-10 w-10 items-center justify-center rounded-[12px] border border-slate-200 bg-white text-slate-500 transition-colors hover:border-slate-300 hover:text-slate-900"
+            onClick={closeAddModal}
+          >
+            <X className="h-4 w-4" />
+          </button>
+
+          <div className="border-b border-slate-200 bg-[linear-gradient(180deg,rgba(248,250,252,0.98),rgba(255,255,255,0.98))] px-6 pb-5 pt-6 pr-20">
             <div
               role="tablist"
               aria-label="添加素材分类"
-              className="flex flex-1 items-center gap-5 overflow-x-auto text-sm"
+              className="grid gap-3 sm:grid-cols-3"
             >
               {ADD_MODAL_TABS.map((tab) => {
+                const Icon = tab.icon;
                 const selected = activeAddTab === tab.id;
+
                 return (
                   <button
                     key={tab.id}
                     type="button"
                     role="tab"
+                    aria-label={tab.label}
                     aria-selected={selected}
                     aria-controls={`add-material-panel-${tab.id}`}
                     id={`add-material-tab-${tab.id}`}
-                    className={`relative shrink-0 border-b-2 pb-3 font-medium transition-colors ${
+                    className={`group flex min-h-[88px] items-start gap-3 rounded-[14px] border px-4 py-3 text-left transition-all ${
                       selected
-                        ? "border-slate-900 text-slate-900"
-                        : "border-transparent text-slate-500 hover:text-slate-900"
+                        ? "border-slate-900 bg-white shadow-[0_14px_32px_rgba(15,23,42,0.08)]"
+                        : "border-slate-200 bg-slate-50/80 hover:border-slate-300 hover:bg-white"
                     }`}
                     onClick={() => handleAddTabSelect(tab.id)}
                   >
-                    {tab.label}
+                    <span
+                      className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] transition-colors ${
+                        selected
+                          ? "bg-slate-900 text-white"
+                          : "bg-white text-slate-600 group-hover:bg-slate-100"
+                      }`}
+                    >
+                      <Icon className="h-4 w-4" />
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block text-sm font-semibold text-slate-900">
+                        {tab.label}
+                      </span>
+                      <span aria-hidden="true" className="mt-1 block text-xs leading-5 text-slate-500">
+                        {tab.description}
+                      </span>
+                    </span>
                   </button>
                 );
               })}
@@ -2175,18 +2185,52 @@ export function CanvasToolMenu({
                 aria-labelledby="add-material-tab-local-upload"
                 className="flex h-full min-h-[440px] items-center justify-center"
               >
-                <button
-                  type="button"
-                  aria-label="上传图片"
-                  className="inline-flex h-16 min-w-[180px] items-center justify-center rounded-[10px] border border-slate-200 bg-slate-50 px-8 text-base font-medium text-slate-800 transition-colors hover:border-slate-300 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
-                  onClick={() => {
-                    onUploadReference?.();
-                    closeAddModal();
-                  }}
-                  disabled={typeof onUploadReference !== "function"}
-                >
-                  上传图片
-                </button>
+                <div className="w-full max-w-[760px] rounded-[18px] border border-slate-200 bg-[radial-gradient(circle_at_top,rgba(241,245,249,0.8),rgba(255,255,255,1))] p-6 shadow-[0_18px_40px_rgba(15,23,42,0.06)]">
+                  <div className="mx-auto flex max-w-[520px] flex-col items-center text-center">
+                    <div className="flex h-16 w-16 items-center justify-center rounded-[20px] bg-slate-900 text-white shadow-[0_18px_32px_rgba(15,23,42,0.18)]">
+                      <ImageUp className="h-7 w-7" />
+                    </div>
+                    <h3 className="mt-4 text-2xl font-semibold tracking-tight text-slate-900">
+                      上传本地图片
+                    </h3>
+                    <p className="mt-2 text-sm leading-6 text-slate-500">
+                      支持 PNG、JPG、WEBP。上传后会直接插入当前画板，适合快速补参考图和过程稿。
+                    </p>
+                    <button
+                      type="button"
+                      aria-label="上传图片"
+                      className="mt-6 inline-flex h-14 min-w-[220px] items-center justify-center gap-3 rounded-[14px] bg-slate-900 px-8 text-base font-semibold text-white shadow-[0_16px_32px_rgba(15,23,42,0.16)] transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                      onClick={() => {
+                        onUploadReference?.();
+                        closeAddModal();
+                      }}
+                      disabled={typeof onUploadReference !== "function"}
+                    >
+                      <ImageUp className="h-5 w-5" />
+                      上传图片
+                    </button>
+                  </div>
+                  <div className="mt-6 grid gap-3 text-sm sm:grid-cols-3">
+                    <div className="rounded-[14px] border border-white bg-white/90 px-4 py-3 shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
+                      <div className="font-semibold text-slate-900">快速插入</div>
+                      <p className="mt-1 leading-6 text-slate-500">
+                        选完文件后会直接回到当前画板继续操作。
+                      </p>
+                    </div>
+                    <div className="rounded-[14px] border border-white bg-white/90 px-4 py-3 shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
+                      <div className="font-semibold text-slate-900">稳定展示</div>
+                      <p className="mt-1 leading-6 text-slate-500">
+                        插入后保留原图比例，减少封面裁切和缩放出错。
+                      </p>
+                    </div>
+                    <div className="rounded-[14px] border border-white bg-white/90 px-4 py-3 shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
+                      <div className="font-semibold text-slate-900">继续生产</div>
+                      <p className="mt-1 leading-6 text-slate-500">
+                        适合补参考、贴材质和整理过程稿，不打断当前流畅度。
+                      </p>
+                    </div>
+                  </div>
+                </div>
               </div>
             ) : null}
 
@@ -2197,6 +2241,28 @@ export function CanvasToolMenu({
                 aria-labelledby="add-material-tab-official-gallery"
                 className="grid gap-4"
               >
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-[16px] border border-slate-200 bg-slate-50/80 px-4 py-3">
+                  <div>
+                    <div className="text-sm font-semibold text-slate-900">官方图库</div>
+                    <p className="mt-1 text-xs leading-5 text-slate-500">
+                      已切换为本地受控素材源，优先保证加载稳定、可维护和后续可继续沉淀。
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    className="inline-flex h-10 items-center gap-2 rounded-[10px] border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition-colors hover:border-slate-300 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+                    onClick={() => void loadOfficialGalleryData()}
+                    disabled={officialGalleryLoading}
+                  >
+                    <Sparkles className="h-4 w-4" />
+                    刷新图库
+                  </button>
+                </div>
+                {officialGalleryLoadError ? (
+                  <div className="rounded-[12px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                    {officialGalleryLoadError}
+                  </div>
+                ) : null}
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
@@ -2204,15 +2270,15 @@ export function CanvasToolMenu({
                     className="inline-flex h-8 w-8 items-center justify-center rounded-[8px] border border-slate-200 bg-white text-slate-600 transition-colors hover:bg-slate-100"
                     onClick={() => handleScrollOfficialGalleryCategories("left")}
                   >
-                    ‹
+                    <ChevronLeft className="h-4 w-4" />
                   </button>
                   <div
                     ref={officialGalleryCategoryStripRef}
                     data-testid="official-gallery-category-strip"
                     className="flex flex-1 gap-2 overflow-x-auto py-1"
                   >
-                    {OFFICIAL_GALLERY_MAJOR_CATEGORIES.map((category) => {
-                      const selected = activeOfficialGalleryCategory === category.id;
+                    {officialGalleryLibrary.map((category) => {
+                      const selected = activeOfficialGalleryCategoryRecord?.id === category.id;
                       return (
                         <button
                           key={category.id}
@@ -2223,9 +2289,7 @@ export function CanvasToolMenu({
                               ? "border-slate-900 bg-slate-900 text-white"
                               : "border-slate-200 bg-white text-slate-700 hover:bg-slate-100"
                           }`}
-                          onClick={() =>
-                            handleSelectOfficialGalleryCategory(category.id)
-                          }
+                          onClick={() => handleSelectOfficialGalleryCategory(category.id)}
                         >
                           {category.label}
                         </button>
@@ -2238,15 +2302,15 @@ export function CanvasToolMenu({
                     className="inline-flex h-8 w-8 items-center justify-center rounded-[8px] border border-slate-200 bg-white text-slate-600 transition-colors hover:bg-slate-100"
                     onClick={() => handleScrollOfficialGalleryCategories("right")}
                   >
-                    ›
+                    <ChevronRight className="h-4 w-4" />
                   </button>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {activeOfficialSubtypeOptions.map((subtype) => {
-                    const selected = activeOfficialGallerySubtype === subtype;
+                    const selected = activeOfficialGallerySubtypeRecord?.id === subtype.id;
                     return (
                       <button
-                        key={subtype}
+                        key={subtype.id}
                         type="button"
                         aria-pressed={selected}
                         className={`rounded-[8px] border px-3 py-2 text-sm font-medium transition-colors ${
@@ -2254,39 +2318,67 @@ export function CanvasToolMenu({
                             ? "border-slate-900 bg-slate-100 text-slate-900"
                             : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
                         }`}
-                        onClick={() => setActiveOfficialGallerySubtype(subtype)}
+                        onClick={() => setActiveOfficialGallerySubtype(subtype.id)}
                       >
-                        {subtype}
+                        {subtype.label}
                       </button>
                     );
                   })}
                 </div>
-                <div
-                  data-testid="official-gallery-grid"
-                  className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-6"
-                >
-                  {activeOfficialGalleryItems.map((item, index) => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      aria-label={`插入官方图库图片 ${
-                        OFFICIAL_GALLERY_MAJOR_CATEGORIES.find(
-                          (category) => category.id === activeOfficialGalleryCategory,
-                        )?.label ?? "建筑效果图"
-                      } ${activeOfficialGallerySubtype} ${index + 1}`}
-                      className="group overflow-hidden rounded-[10px] border border-slate-200 bg-white text-left transition-colors hover:border-slate-300"
-                      onClick={() => handleInsertOfficialGalleryImage(item, index)}
-                    >
-                      <div className="aspect-[4/3] overflow-hidden bg-slate-100">
-                        <img
-                          src={item.url}
-                          alt={item.label}
-                          className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-[1.02]"
-                        />
+                {officialGalleryLoading && activeOfficialGalleryItems.length === 0 ? (
+                  <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-6">
+                    {Array.from({ length: 6 }).map((_, index) => (
+                      <div
+                        key={`official-gallery-loading-${index}`}
+                        className="overflow-hidden rounded-[14px] border border-slate-200 bg-white p-3"
+                      >
+                        <div className="aspect-[4/3] animate-pulse rounded-[10px] bg-slate-100" />
+                        <div className="mt-3 h-3 w-2/3 animate-pulse rounded bg-slate-100" />
                       </div>
-                    </button>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                ) : activeOfficialGalleryItems.length === 0 ? (
+                  <div className="flex min-h-[300px] flex-col items-center justify-center rounded-[16px] border border-dashed border-slate-300 bg-slate-50 px-8 text-center">
+                    <div className="flex h-14 w-14 items-center justify-center rounded-full bg-white text-slate-400 shadow-[0_12px_28px_rgba(15,23,42,0.06)]">
+                      <Sparkles className="h-6 w-6" />
+                    </div>
+                    <div className="mt-4 text-base font-semibold text-slate-900">
+                      当前分类还没有可用图片
+                    </div>
+                    <p className="mt-2 max-w-[420px] text-sm leading-6 text-slate-500">
+                      先保留这个分类入口，后续可以继续往本地图库库表补真实图片，不需要再改弹窗结构。
+                    </p>
+                  </div>
+                ) : (
+                  <div
+                    data-testid="official-gallery-grid"
+                    className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-6"
+                  >
+                    {activeOfficialGalleryItems.map((item, index) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        aria-label={`插入官方图库图片 ${item.label}`}
+                        className="group overflow-hidden rounded-[14px] border border-slate-200 bg-white text-left shadow-[0_8px_20px_rgba(15,23,42,0.04)] transition-all hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-[0_18px_28px_rgba(15,23,42,0.08)]"
+                        onClick={() => handleInsertOfficialGalleryImage(item, index)}
+                      >
+                        <div className="aspect-[4/3] overflow-hidden bg-slate-100">
+                          <img
+                            src={item.url}
+                            alt={item.label}
+                            className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-[1.02]"
+                          />
+                        </div>
+                        <div className="border-t border-slate-100 px-3 py-2.5">
+                          <p className="truncate text-sm font-medium text-slate-800">
+                            {item.label}
+                          </p>
+                          <p className="mt-1 text-xs text-slate-500">点击后直接插入当前画板</p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             ) : null}
 
@@ -2297,6 +2389,17 @@ export function CanvasToolMenu({
                 aria-labelledby="add-material-tab-my-creations"
                 className="grid gap-4"
               >
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-[16px] border border-slate-200 bg-slate-50/80 px-4 py-3">
+                  <div>
+                    <div className="text-sm font-semibold text-slate-900">我的创作</div>
+                    <p className="mt-1 text-xs leading-5 text-slate-500">
+                      当前先接入本地样例资产，后续可以无缝替换成用户真实生成内容而不改交互层。
+                    </p>
+                  </div>
+                  <div className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-600">
+                    {activeMyCreationItems.length} 个样例
+                  </div>
+                </div>
                 <div className="flex flex-wrap gap-2">
                   {MY_CREATION_SOURCES.map((source) => {
                     const selected = activeMyCreationSource === source.id;
@@ -2318,11 +2421,9 @@ export function CanvasToolMenu({
                   })}
                 </div>
                 {activeMyCreationItems.length === 0 ? (
-                  <div
-                    className="flex min-h-[360px] flex-col items-center justify-center rounded-[10px] border border-dashed border-slate-300 bg-slate-50 px-8 text-center"
-                  >
+                  <div className="flex min-h-[360px] flex-col items-center justify-center rounded-[10px] border border-dashed border-slate-300 bg-slate-50 px-8 text-center">
                     <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-white text-2xl text-slate-300">
-                      □
+                      ✦
                     </div>
                     <div className="text-sm font-medium text-slate-700">数据为空</div>
                   </div>
@@ -2336,7 +2437,7 @@ export function CanvasToolMenu({
                         key={item.id}
                         type="button"
                         aria-label={`插入我的创作图片 ${item.label}`}
-                        className="group overflow-hidden rounded-[10px] border border-slate-200 bg-white text-left transition-colors hover:border-slate-300"
+                        className="group overflow-hidden rounded-[14px] border border-slate-200 bg-white text-left shadow-[0_8px_20px_rgba(15,23,42,0.04)] transition-all hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-[0_18px_28px_rgba(15,23,42,0.08)]"
                         onClick={() => handleInsertMyCreationImage(item, index)}
                       >
                         <div className="aspect-[4/3] overflow-hidden bg-slate-100">
@@ -2350,9 +2451,7 @@ export function CanvasToolMenu({
                           <p className="truncate text-sm font-medium text-slate-800">
                             {item.label}
                           </p>
-                          <p className="mt-1 text-xs text-slate-500">
-                            点击后重新插回当前画布
-                          </p>
+                          <p className="mt-1 text-xs text-slate-500">点击后重新插回当前画板</p>
                         </div>
                       </button>
                     ))}
@@ -2360,54 +2459,12 @@ export function CanvasToolMenu({
                 )}
               </div>
             ) : null}
-
-            {activeAddTab === "enterprise-gallery" ? (
-              <div
-                id="add-material-panel-enterprise-gallery"
-                role="tabpanel"
-                aria-labelledby="add-material-tab-enterprise-gallery"
-                className="hidden"
-              >
-                企业图库
-              </div>
-            ) : null}
           </div>
-
-          {enterpriseGateOpen ? (
-            <div className="absolute inset-0 flex items-center justify-center bg-slate-950/18 px-6">
-              <div className="w-full max-w-[440px] rounded-[10px] border border-slate-200 bg-white p-6 shadow-[0_28px_80px_rgba(15,23,42,0.18)]">
-                <div className="text-lg font-semibold text-slate-900">
-                  开通【企业会员】解锁企业图库
-                </div>
-                <p className="mt-3 text-sm leading-7 text-slate-500">
-                  尊敬的用户，企业图库为企业会员专享功能，支持企业成员上传、管理和使用企业内部专属的在线图片素材
-                </p>
-                <div className="mt-6 flex justify-end gap-3">
-                  <button
-                    type="button"
-                    className="inline-flex h-10 items-center justify-center rounded-[8px] border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100"
-                    onClick={() => setEnterpriseGateOpen(false)}
-                  >
-                    取消
-                  </button>
-                  <button
-                    type="button"
-                    className="inline-flex h-10 items-center justify-center rounded-[8px] bg-slate-900 px-4 text-sm font-medium text-white transition-colors hover:bg-slate-800"
-                    onClick={handleOpenEnterpriseUpgrade}
-                  >
-                    去开通
-                  </button>
-                </div>
-              </div>
-            </div>
-          ) : null}
         </div>
       </div>,
       document.body,
     );
-  };
-
-  const renderClassicToolbar = () => (
+  };  const renderClassicToolbar = () => (
     <div
       className="absolute bottom-5 z-30 flex items-center gap-0.5 rounded-[10px] border border-border bg-card/75 p-1 shadow-card backdrop-blur-lg transition-[left,transform] duration-200"
       style={{
@@ -2536,3 +2593,7 @@ export function CanvasToolMenu({
     </>
   );
 }
+
+
+
+

@@ -4,8 +4,63 @@ import { act, cleanup, fireEvent, render, screen, within } from "@testing-librar
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-const { insertImageOnCanvasMock } = vi.hoisted(() => ({
+const { insertImageOnCanvasMock, loadOfficialGalleryLibraryMock } = vi.hoisted(() => ({
   insertImageOnCanvasMock: vi.fn(() => Promise.resolve()),
+  loadOfficialGalleryLibraryMock: vi.fn(() =>
+    Promise.resolve([
+      {
+        id: "architecture-render",
+        label: "建筑效果图",
+        subtypes: [
+          {
+            id: "default",
+            label: "默认",
+            items: [
+              {
+                id: "architecture-default-1",
+                label: "建筑效果图 默认 1",
+                url: "/official-gallery/architecture-default-1.png",
+                width: 1600,
+                height: 900,
+              },
+            ],
+          },
+          {
+            id: "villa",
+            label: "别墅",
+            items: [
+              {
+                id: "architecture-villa-1",
+                label: "建筑效果图 别墅 1",
+                url: "/official-gallery/architecture-villa-1.png",
+                width: 1600,
+                height: 900,
+              },
+            ],
+          },
+        ],
+      },
+      {
+        id: "interior-render",
+        label: "室内效果图",
+        subtypes: [
+          {
+            id: "default",
+            label: "默认",
+            items: [
+              {
+                id: "interior-default-1",
+                label: "室内效果图 默认 1",
+                url: "/official-gallery/interior-default-1.png",
+                width: 1600,
+                height: 900,
+              },
+            ],
+          },
+        ],
+      },
+    ]),
+  ),
 }));
 
 vi.mock("../src/lib/canvas-image-generator", () => ({
@@ -25,6 +80,10 @@ vi.mock("../src/lib/canvas-elements", () => ({
   isVideoUrl: vi.fn(() => false),
 }));
 
+vi.mock("../src/lib/official-gallery-library", () => ({
+  loadOfficialGalleryLibrary: loadOfficialGalleryLibraryMock,
+}));
+
 vi.mock("../src/components/canvas/image-generator-panel", () => ({
   ImageGeneratorPanel: () => null,
 }));
@@ -42,6 +101,7 @@ import { CanvasToolMenu } from "../src/components/canvas-tool-menu";
 afterEach(() => {
   cleanup();
   insertImageOnCanvasMock.mockClear();
+  loadOfficialGalleryLibraryMock.mockClear();
 });
 
 function createMockExcalidrawApi() {
@@ -140,8 +200,12 @@ describe("CanvasToolMenu", () => {
     );
     expect(screen.getByRole("tab", { name: "本地上传" })).toBeTruthy();
     expect(screen.getByRole("tab", { name: "官方图库" })).toBeTruthy();
-    expect(screen.getByRole("tab", { name: "企业图库" })).toBeTruthy();
     expect(screen.getByRole("tab", { name: "我的创作" })).toBeTruthy();
+    expect(screen.queryByRole("tab", { name: "企业图库" })).toBeNull();
+    expect(screen.queryByRole("heading", { name: "添加素材" })).toBeNull();
+    expect(
+      screen.queryByText("上传本地图片，或从官方图库与我的创作中快速插入到当前画板。"),
+    ).toBeNull();
     expect(screen.getByRole("button", { name: "上传图片" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: "上传参考图" })).toBeNull();
     expect(screen.queryByRole("button", { name: "插入参考板" })).toBeNull();
@@ -169,7 +233,7 @@ describe("CanvasToolMenu", () => {
     await user.click(screen.getByRole("button", { name: "添加" }));
     await user.click(screen.getByRole("tab", { name: "官方图库" }));
 
-    expect(screen.getByRole("button", { name: "建筑效果图" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "建筑效果图" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "室内效果图" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "默认" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "别墅" })).toBeInTheDocument();
@@ -191,7 +255,7 @@ describe("CanvasToolMenu", () => {
     expect(screen.queryByRole("dialog", { name: "添加素材" })).toBeNull();
   });
 
-  it("opens the enterprise entitlement dialog instead of rendering a normal enterprise gallery list", async () => {
+  it("removes the enterprise gallery entry from the add-material modal", async () => {
     const user = userEvent.setup();
     const excalidrawApi = createMockExcalidrawApi();
 
@@ -206,13 +270,10 @@ describe("CanvasToolMenu", () => {
     );
 
     await user.click(screen.getByRole("button", { name: "添加" }));
-    await user.click(screen.getByRole("tab", { name: "企业图库" }));
 
-    expect(
-      screen.getByText("开通【企业会员】解锁企业图库"),
-    ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "取消" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "去开通" })).toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "企业图库" })).toBeNull();
+    expect(screen.queryByText("开通【企业会员】解锁企业图库")).toBeNull();
+    expect(screen.queryByRole("button", { name: "去开通" })).toBeNull();
   });
 
   it("renders the my-creations source strip with local sample assets and reinserts a selected asset onto the canvas", async () => {

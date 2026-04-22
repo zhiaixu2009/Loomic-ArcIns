@@ -643,6 +643,128 @@ export type Database = {
         }
         Relationships: []
       }
+      official_gallery_assets: {
+        Row: {
+          asset_url: string
+          category_id: string
+          created_at: string
+          height: number
+          id: string
+          is_active: boolean
+          sort_order: number
+          subtype_id: string
+          title: string
+          updated_at: string
+          width: number
+        }
+        Insert: {
+          asset_url: string
+          category_id: string
+          created_at?: string
+          height: number
+          id: string
+          is_active?: boolean
+          sort_order?: number
+          subtype_id: string
+          title: string
+          updated_at?: string
+          width: number
+        }
+        Update: {
+          asset_url?: string
+          category_id?: string
+          created_at?: string
+          height?: number
+          id?: string
+          is_active?: boolean
+          sort_order?: number
+          subtype_id?: string
+          title?: string
+          updated_at?: string
+          width?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "official_gallery_assets_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "official_gallery_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "official_gallery_assets_subtype_id_fkey"
+            columns: ["subtype_id"]
+            isOneToOne: false
+            referencedRelation: "official_gallery_subtypes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      official_gallery_categories: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          label: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id: string
+          is_active?: boolean
+          label: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          label?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      official_gallery_subtypes: {
+        Row: {
+          category_id: string
+          created_at: string
+          id: string
+          is_active: boolean
+          label: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          category_id: string
+          created_at?: string
+          id: string
+          is_active?: boolean
+          label: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          category_id?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          label?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "official_gallery_subtypes_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "official_gallery_categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       home_example_categories: {
         Row: {
           accent: string | null

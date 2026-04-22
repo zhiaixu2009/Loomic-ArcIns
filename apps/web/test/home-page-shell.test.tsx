@@ -205,6 +205,26 @@ describe("HomePage shell", () => {
     });
   });
 
+  it("refreshes homepage projects after an explicit project-thumbnail refresh signal", async () => {
+    render(<HomePage />);
+
+    await screen.findByText("Harbor Complex");
+    expect(fetchProjectsMock).toHaveBeenCalledTimes(1);
+
+    window.dispatchEvent(
+      new CustomEvent("loomic:project-thumbnail-refresh", {
+        detail: {
+          projectId: "project-1",
+          updatedAt: "2026-04-22T09:00:00.000Z",
+        },
+      }),
+    );
+
+    await waitFor(() => {
+      expect(fetchProjectsMock).toHaveBeenCalledTimes(2);
+    });
+  });
+
   it("schedules a generic canvas warmup on mount so new-project navigation can reuse cached route resources", () => {
     render(<HomePage />);
 
@@ -322,10 +342,15 @@ describe("HomePage shell", () => {
   it("keeps the new-project tile and existing recent-project tiles square, and exposes a delete action on existing projects", async () => {
     render(<HomePage />);
 
+    const projectGrid = screen.getByTestId("home-project-grid");
     const newProjectTile = screen.getByRole("button", { name: "新建项目" });
     const projectTitle = await screen.findByText("Harbor Complex");
     const projectCard = projectTitle.closest("article");
 
+    expect(projectGrid).toHaveClass("xl:grid-cols-6");
+    expect(projectGrid).not.toHaveClass(
+      "grid-cols-[repeat(auto-fit,minmax(220px,1fr))]",
+    );
     expect(newProjectTile).toHaveClass("aspect-square");
     expect(projectCard).not.toBeNull();
     expect(projectCard).toHaveClass("aspect-square");

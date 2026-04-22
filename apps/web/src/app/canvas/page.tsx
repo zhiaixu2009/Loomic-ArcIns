@@ -1,8 +1,8 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useSearchParams, useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState, Suspense, type ChangeEvent } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 
 import type {
   CanvasCollaboratorProfile,
@@ -14,7 +14,7 @@ import type {
   CanvasSelectedElement,
   CanvasViewportState,
 } from "../../components/canvas-editor";
-import { LoadingScreen } from "../../components/loading-screen";
+import { ProjectOpeningScreen } from "../../components/project-opening-screen";
 import { useAuth } from "../../lib/auth-context";
 import { useCanvasCollaboration } from "../../hooks/use-canvas-collaboration";
 import { useCredits } from "../../hooks/use-credits";
@@ -47,9 +47,11 @@ import {
   prepareImageFileForInteractiveUpload,
 } from "../../lib/image-upload-preprocessing";
 import {
+  clearProjectCreationTiming,
   CREATE_PROJECT_LAUNCH_ID_KEY,
   CREATE_PROJECT_REQUEST_STARTED_AT_KEY,
   LOADING_PREVIEW_OPENED_AT_KEY,
+  hasPendingProjectLaunch,
   readSessionTimingNumber,
 } from "../../lib/project-creation-timing";
 import { buildCanvasUrl, isArchitectureStudio } from "../../lib/studio-routes";
@@ -104,6 +106,13 @@ type CanvasImageEditorState = {
   elementId: string;
   fileName: string;
   source: string;
+};
+
+type CanvasRouteState = {
+  architectureMode: boolean;
+  canvasId: string | null;
+  initialPrompt: string | undefined;
+  initialSessionId: string | undefined;
 };
 
 const CANVAS_ZOOM_STEP = 1.15;
@@ -178,6 +187,17 @@ function downloadUrlFile(url: string, fileName: string) {
   document.body.removeChild(anchor);
 }
 
+function readCanvasRouteState(
+  searchParams: Pick<URLSearchParams, "get">,
+): CanvasRouteState {
+  return {
+    architectureMode: isArchitectureStudio(searchParams.get("studio")),
+    canvasId: searchParams.get("id"),
+    initialPrompt: searchParams.get("prompt") ?? undefined,
+    initialSessionId: searchParams.get("session") ?? undefined,
+  };
+}
+
 function getSceneImageSource(
   element: Record<string, any>,
   files: Record<string, any>,
@@ -227,12 +247,18 @@ function isImportedCanvasWrapper(
 
 function CanvasPageContent() {
   const searchParams = useSearchParams();
-  const canvasId = searchParams.get("id");
-  const initialSessionId = searchParams.get("session") ?? undefined;
-  const architectureMode = isArchitectureStudio(searchParams.get("studio"));
-  // Capture prompt once — router.replace will strip it from URL, but the
-  // value must survive for the auto-send effect in ChatSidebar.
-  const [initialPrompt] = useState(() => searchParams.get("prompt") ?? undefined);
+  const routeState = useMemo(
+    () => readCanvasRouteState(searchParams),
+    [searchParams],
+  );
+  const canvasId = routeState.canvasId;
+  const initialSessionId = routeState.initialSessionId;
+  const architectureMode = routeState.architectureMode;
+  // Capture prompt once from the initial location. Session-aware URL updates
+  // later strip prompt to prevent duplicate auto-send on refresh.
+  const [initialPrompt, setInitialPrompt] = useState<string | undefined>(
+    routeState.initialPrompt,
+  );
   const { user, session, loading: authLoading, signOut } = useAuth();
   const { balance: creditBalance, loading: creditsLoading } = useCredits();
   const { error: toastError } = useToast();
@@ -255,6 +281,10 @@ function CanvasPageContent() {
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pageLoading, setPageLoading] = useState(true);
+  const [editorReady, setEditorReady] = useState(false);
+  const [showProjectOpeningOverlay, setShowProjectOpeningOverlay] = useState(() =>
+    hasPendingProjectLaunch(),
+  );
   // 建筑工作台默认收起右侧面板，优先呈现底部居中输入框；经典模式仍保留桌面默认展开。
   const [chatOpen, setChatOpen] = useState(() => {
     if (architectureMode) {
@@ -392,6 +422,7 @@ function CanvasPageContent() {
   const handleApiReady = useCallback((api: any) => {
     excalidrawApiRef.current = api;
     setExcalidrawApi(api);
+    setEditorReady(true);
   }, []);
 
   const handleCanvasFlushReady = useCallback((flush: () => Promise<void>) => {
@@ -2082,6 +2113,42 @@ function CanvasPageContent() {
   }, [canvasData?.id, handleFlushCanvasBeforeNavigate]);
 
   useEffect(() => {
+    if (initialPrompt === undefined && routeState.initialPrompt !== undefined) {
+      setInitialPrompt(routeState.initialPrompt);
+    }
+  }, [initialPrompt, routeState.initialPrompt]);
+
+  useEffect(() => {
+    setEditorReady(false);
+  }, [canvasData?.id]);
+
+  useEffect(() => {
+    if (
+      !showProjectOpeningOverlay ||
+      authLoading ||
+      pageLoading ||
+      !canvasData?.id ||
+      !accessToken ||
+      !editorReady
+    ) {
+      return;
+    }
+
+    console.info("[canvas-page] completed project-opening overlay", {
+      canvasId: canvasData.id,
+    });
+    clearProjectCreationTiming();
+    setShowProjectOpeningOverlay(false);
+  }, [
+    accessToken,
+    authLoading,
+    canvasData?.id,
+    editorReady,
+    pageLoading,
+    showProjectOpeningOverlay,
+  ]);
+
+  useEffect(() => {
     if (authLoading) return;
     if (!userId) {
       routerRef.current.replace("/login");
@@ -2161,7 +2228,7 @@ function CanvasPageContent() {
   }
 
   if (authLoading || pageLoading) {
-    return <LoadingScreen />;
+    return <ProjectOpeningScreen />;
   }
 
   if (error) {
@@ -2176,6 +2243,7 @@ function CanvasPageContent() {
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-white">
+      {showProjectOpeningOverlay ? <ProjectOpeningScreen /> : null}
       <div className="flex-1 relative min-w-0 overflow-hidden">
         <div className="absolute left-4 top-4 z-20 flex items-center gap-3 rounded-[10px] border border-slate-200 bg-white/96 px-3 py-2 shadow-[0_12px_30px_rgba(15,23,42,0.08)] backdrop-blur">
           <CanvasLogoMenu
@@ -2413,9 +2481,5 @@ function CanvasPageContent() {
 }
 
 export default function CanvasPage() {
-  return (
-    <Suspense fallback={<LoadingScreen />}>
-      <CanvasPageContent />
-    </Suspense>
-  );
+  return <CanvasPageContent />;
 }

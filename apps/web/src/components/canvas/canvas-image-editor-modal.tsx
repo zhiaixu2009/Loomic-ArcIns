@@ -2764,21 +2764,15 @@ export function CanvasImageEditorModal({
                   event.target.value = "";
                 }}
               />
-              <div className="mt-3 grid grid-cols-2 gap-2 rounded-[10px] bg-slate-100 p-1">
-                <button
-                  type="button"
-                  aria-pressed="true"
-                  className={`${MODAL_RADIUS_CLASS} bg-slate-800 px-3 py-2 text-sm font-semibold text-white`}
+              <div className="mt-3 flex items-center justify-between gap-3 rounded-[10px] bg-slate-100 p-1.5">
+                <div
+                  className={`${MODAL_RADIUS_CLASS} inline-flex items-center bg-slate-800 px-3 py-2 text-sm font-semibold text-white`}
                 >
                   官方图库
-                </button>
-                <button
-                  type="button"
-                  aria-disabled="true"
-                  className={`${MODAL_RADIUS_CLASS} bg-transparent px-3 py-2 text-sm font-semibold text-slate-400`}
-                >
-                  企业图库
-                </button>
+                </div>
+                <span className="pr-2 text-xs font-medium text-slate-500">
+                  已切换为本地受控图库
+                </span>
               </div>
             </div>
 

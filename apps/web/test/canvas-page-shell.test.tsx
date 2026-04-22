@@ -7,16 +7,29 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithToast } from "./render-with-toast";
 
 const {
+  authState,
+  deferCanvasApiReady,
   fetchCanvasMock,
   fetchProjectMock,
   replaceMock,
-  searchParamsValue,
+  searchParamsState,
 } = vi.hoisted(() => ({
+  authState: {
+    current: {
+      loading: false,
+      session: { access_token: "token-canvas" },
+      signOut: vi.fn().mockResolvedValue(undefined),
+      user: { id: "user-1" },
+    },
+  },
+  deferCanvasApiReady: {
+    current: false,
+  },
   fetchCanvasMock: vi.fn(),
   fetchProjectMock: vi.fn(),
   replaceMock: vi.fn(),
-  searchParamsValue: {
-    current: "id=canvas-1&studio=architecture",
+  searchParamsState: {
+    current: new URLSearchParams("id=canvas-1&studio=architecture"),
   },
 }));
 
@@ -25,16 +38,11 @@ vi.mock("next/navigation", () => ({
     replace: replaceMock,
     push: vi.fn(),
   }),
-  useSearchParams: () => new URLSearchParams(searchParamsValue.current),
+  useSearchParams: () => searchParamsState.current,
 }));
 
 vi.mock("../src/lib/auth-context", () => ({
-  useAuth: () => ({
-    user: { id: "user-1" },
-    session: { access_token: "token-canvas" },
-    loading: false,
-    signOut: vi.fn().mockResolvedValue(undefined),
-  }),
+  useAuth: () => authState.current,
 }));
 
 vi.mock("../src/hooks/use-canvas-collaboration", () => ({
@@ -161,6 +169,10 @@ vi.mock("../src/components/canvas-editor", () => ({
     }) => void;
   }) => {
     React.useEffect(() => {
+      if (deferCanvasApiReady.current) {
+        return;
+      }
+
       props.onApiReady?.({
         getSceneElements: () => [],
         getFiles: () => ({}),
@@ -264,7 +276,16 @@ import CanvasPage from "../src/app/canvas/page";
 describe("CanvasPage shell", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    searchParamsValue.current = "id=canvas-1&studio=architecture";
+    authState.current = {
+      loading: false,
+      session: { access_token: "token-canvas" },
+      signOut: vi.fn().mockResolvedValue(undefined),
+      user: { id: "user-1" },
+    };
+    deferCanvasApiReady.current = false;
+    sessionStorage.clear();
+    window.history.replaceState({}, "", "/canvas?id=canvas-1&studio=architecture");
+    searchParamsState.current = new URLSearchParams("id=canvas-1&studio=architecture");
     fetchCanvasMock.mockResolvedValue({
       canvas: {
         id: "canvas-1",
@@ -292,6 +313,49 @@ describe("CanvasPage shell", () => {
 
   afterEach(() => {
     cleanup();
+  });
+
+  it("reads the current search params during existing-project navigation instead of relying on a stale window search snapshot", async () => {
+    window.history.replaceState({}, "", "/canvas");
+    searchParamsState.current = new URLSearchParams("id=canvas-1&studio=architecture");
+
+    renderWithToast(<CanvasPage />);
+
+    await waitFor(() => {
+      expect(fetchCanvasMock).toHaveBeenCalledWith("token-canvas", "canvas-1");
+    });
+
+    expect(screen.queryByText("缂哄皯鐢诲竷 ID")).toBeNull();
+  });
+
+  it("keeps the project-opening shell on screen during the initial canvas boot instead of flashing the generic loader", async () => {
+    fetchCanvasMock.mockImplementation(() => new Promise(() => {}));
+
+    renderWithToast(<CanvasPage />);
+
+    await waitFor(() => {
+      expect(fetchCanvasMock).toHaveBeenCalledWith("token-canvas", "canvas-1");
+    });
+
+    expect(screen.getByTestId("project-opening-screen")).toBeTruthy();
+    expect(screen.queryByText("Loading")).toBeNull();
+  });
+
+  it("keeps the project-opening overlay visible until the editor API is ready during a fresh launch", async () => {
+    deferCanvasApiReady.current = true;
+    sessionStorage.setItem("loomic:create-project-launch-id", "launch-1");
+
+    renderWithToast(<CanvasPage />);
+
+    await waitFor(() => {
+      expect(fetchCanvasMock).toHaveBeenCalledWith("token-canvas", "canvas-1");
+    });
+
+    expect(screen.getByText("正在打开项目")).toBeTruthy();
+    expect(
+      screen.getByText("新的无限画布正在准备中，请稍候片刻。"),
+    ).toBeTruthy();
+    expect(screen.queryByText("Loading")).toBeNull();
   });
 
   it("keeps the immersive shell simplified while leaving the layers panel collapsed by default", async () => {
@@ -393,8 +457,14 @@ describe("CanvasPage shell", () => {
   });
 
   it("mounts the chat sidebar immediately when the canvas URL carries an initial prompt", async () => {
-    searchParamsValue.current =
-      "id=canvas-1&studio=architecture&prompt=%E7%AB%8B%E5%8D%B3%E7%94%9F%E6%88%90";
+    window.history.replaceState(
+      {},
+      "",
+      "/canvas?id=canvas-1&studio=architecture&prompt=%E7%AB%8B%E5%8D%B3%E7%94%9F%E6%88%90",
+    );
+    searchParamsState.current = new URLSearchParams(
+      "id=canvas-1&studio=architecture&prompt=%E7%AB%8B%E5%8D%B3%E7%94%9F%E6%88%90",
+    );
 
     renderWithToast(<CanvasPage />);
 

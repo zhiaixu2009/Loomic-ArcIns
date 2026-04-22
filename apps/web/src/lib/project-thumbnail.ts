@@ -96,12 +96,13 @@ export async function createProjectThumbnailBlob(options: {
 export function selectProjectThumbnailFocusElements(
   elements: readonly Record<string, unknown>[],
 ) {
-  const imageElements = elements
-    .filter(isImageSceneElement)
-    .sort(compareSceneElementsByArea)
-    .slice(0, 4);
+  const imageElements = elements.filter(isImageSceneElement);
 
-  return imageElements;
+  // Excalidraw keeps scene elements in insertion order, so the trailing image
+  // entries map to the most recently added visuals on the board.
+  const recentImageElements = imageElements.slice(-4);
+
+  return recentImageElements;
 }
 
 async function exportSceneBlob(options: {
@@ -138,18 +139,6 @@ function isRenderableSceneElement(element: Record<string, unknown>) {
 function isImageSceneElement(element: Record<string, unknown>) {
   const candidate = element as SceneElement;
   return candidate.type === "image" && typeof candidate.fileId === "string";
-}
-
-function compareSceneElementsByArea(
-  left: Record<string, unknown>,
-  right: Record<string, unknown>,
-) {
-  return getSceneElementArea(right) - getSceneElementArea(left);
-}
-
-function getSceneElementArea(element: Record<string, unknown>) {
-  const candidate = element as SceneElement;
-  return Math.max(1, Number(candidate.width ?? 0)) * Math.max(1, Number(candidate.height ?? 0));
 }
 
 async function composeProjectThumbnailMosaic(tileBlobs: Blob[]) {
