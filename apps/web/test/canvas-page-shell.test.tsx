@@ -5,6 +5,7 @@ import * as React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { renderWithToast } from "./render-with-toast";
+import { EXISTING_PROJECT_OPENING_MIN_VISIBLE_MS_TEST_OVERRIDE_KEY } from "../src/lib/project-creation-timing";
 
 const {
   authState,
@@ -276,6 +277,7 @@ import CanvasPage from "../src/app/canvas/page";
 describe("CanvasPage shell", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    Reflect.set(window, EXISTING_PROJECT_OPENING_MIN_VISIBLE_MS_TEST_OVERRIDE_KEY, 0);
     authState.current = {
       loading: false,
       session: { access_token: "token-canvas" },
@@ -312,7 +314,12 @@ describe("CanvasPage shell", () => {
   });
 
   afterEach(() => {
+    Reflect.deleteProperty(
+      window,
+      EXISTING_PROJECT_OPENING_MIN_VISIBLE_MS_TEST_OVERRIDE_KEY,
+    );
     cleanup();
+    vi.useRealTimers();
   });
 
   it("reads the current search params during existing-project navigation instead of relying on a stale window search snapshot", async () => {
@@ -339,6 +346,94 @@ describe("CanvasPage shell", () => {
 
     expect(screen.getByTestId("project-opening-screen")).toBeTruthy();
     expect(screen.queryByText("Loading")).toBeNull();
+  });
+
+  it("keeps the existing-project opening shell visible for at least 1.5 seconds even when the canvas loads immediately", async () => {
+    vi.useFakeTimers();
+    Reflect.set(
+      window,
+      EXISTING_PROJECT_OPENING_MIN_VISIBLE_MS_TEST_OVERRIDE_KEY,
+      1_500,
+    );
+
+    let resolveCanvasFetch:
+      | ((value: {
+          canvas: {
+            id: string;
+            name: string;
+            projectId: string;
+            project: {
+              id: string;
+              name: string;
+              brandKitId: string | null;
+            };
+            content: {
+              elements: never[];
+              appState: Record<string, never>;
+              files: Record<string, never>;
+            };
+          };
+        }) => void)
+      | undefined;
+
+    fetchCanvasMock.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveCanvasFetch = resolve;
+        }),
+    );
+
+    await React.act(async () => {
+      renderWithToast(<CanvasPage />);
+      await Promise.resolve();
+    });
+
+    expect(fetchCanvasMock).toHaveBeenCalledWith("token-canvas", "canvas-1");
+    expect(screen.getByTestId("project-opening-screen")).toBeTruthy();
+
+    if (!resolveCanvasFetch) {
+      throw new Error("Expected fetchCanvas to still be pending");
+    }
+
+    const resolvePendingCanvasFetch = resolveCanvasFetch;
+
+    await React.act(async () => {
+      resolvePendingCanvasFetch({
+        canvas: {
+          id: "canvas-1",
+          name: "Architecture Canvas",
+          projectId: "project-1",
+          project: {
+            id: "project-1",
+            name: "Harbor Studio",
+            brandKitId: "brand-kit-1",
+          },
+          content: {
+            elements: [],
+            appState: {},
+            files: {},
+          },
+        },
+      });
+      await Promise.resolve();
+    });
+
+    expect(screen.getByTestId("project-opening-screen")).toBeTruthy();
+    expect(screen.queryByTestId("canvas-editor")).toBeNull();
+
+    await React.act(async () => {
+      await vi.advanceTimersByTimeAsync(1_499);
+    });
+
+    expect(screen.getByTestId("project-opening-screen")).toBeTruthy();
+    expect(screen.queryByTestId("canvas-editor")).toBeNull();
+
+    await React.act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+
+    expect(screen.queryByTestId("project-opening-screen")).toBeNull();
+    expect(screen.getByTestId("canvas-editor")).toBeTruthy();
   });
 
   it("keeps the project-opening overlay visible until the editor API is ready during a fresh launch", async () => {

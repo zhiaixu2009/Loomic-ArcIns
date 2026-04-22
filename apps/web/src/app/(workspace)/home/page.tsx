@@ -81,6 +81,7 @@ export default function HomePage() {
   const routerRef = useRef(router);
   routerRef.current = router;
   const hasInitializedRef = useRef(false);
+  const hasLoadedProjectsRef = useRef(false);
 
   const projects = useMemo(() => selectProjectsForHome(allProjects), [allProjects]);
 
@@ -113,17 +114,26 @@ export default function HomePage() {
     [],
   );
 
-  const loadProjects = useCallback(async () => {
+  const loadProjects = useCallback(async (options?: { preserveVisibleCards?: boolean }) => {
     const token = getToken();
     if (!token) {
       return;
     }
 
-    setProjectsLoading(true);
+    const preserveVisibleCards =
+      options?.preserveVisibleCards === true && hasLoadedProjectsRef.current;
+
+    if (!preserveVisibleCards) {
+      setProjectsLoading(true);
+    } else {
+      console.info("[home] refreshing projects in the background without replacing visible cards");
+    }
+
     try {
       const data = await fetchProjects(token);
       setTotalProjectCount(data.projects.length);
       setAllProjects(data.projects);
+      hasLoadedProjectsRef.current = true;
     } catch (error) {
       if (error instanceof ApiAuthError) {
         await signOutRef.current();
@@ -133,7 +143,9 @@ export default function HomePage() {
 
       console.warn("[home] failed to load homepage projects", error);
     } finally {
-      setProjectsLoading(false);
+      if (!preserveVisibleCards) {
+        setProjectsLoading(false);
+      }
     }
   }, [getToken]);
 
@@ -153,7 +165,7 @@ export default function HomePage() {
     }
 
     console.info("[home] consuming queued thumbnail refresh signal", pendingRefresh);
-    void loadProjects();
+    void loadProjects({ preserveVisibleCards: true });
   }, [loadProjects]);
 
   useEffect(() => scheduleCanvasExperienceWarmup(router), [router]);
@@ -161,7 +173,7 @@ export default function HomePage() {
   useEffect(() => {
     const handleWindowFocus = () => {
       console.info("[home] refreshing projects after window focus");
-      void loadProjects();
+      void loadProjects({ preserveVisibleCards: true });
     };
 
     const handlePageShow = (event: PageTransitionEvent) => {
@@ -170,12 +182,12 @@ export default function HomePage() {
       }
 
       console.info("[home] refreshing projects after bfcache restore");
-      void loadProjects();
+      void loadProjects({ preserveVisibleCards: true });
     };
     const removeThumbnailRefreshListener = addProjectThumbnailRefreshListener(
       (detail) => {
         console.info("[home] refreshing projects after thumbnail refresh signal", detail);
-        void loadProjects();
+        void loadProjects({ preserveVisibleCards: true });
       },
     );
 

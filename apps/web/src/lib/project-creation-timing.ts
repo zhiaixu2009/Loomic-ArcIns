@@ -7,11 +7,16 @@ export const CREATE_PROJECT_LAUNCH_ID_KEY =
 export const LOADING_PREVIEW_OPENED_AT_KEY =
   "loomic:loading-preview-opened-at";
 
+export const EXISTING_PROJECT_OPENING_MIN_VISIBLE_MS_TEST_OVERRIDE_KEY =
+  "__LOOMIC_EXISTING_PROJECT_OPENING_MIN_VISIBLE_MS__";
+
 const PROJECT_CREATION_TIMING_KEYS = [
   CREATE_PROJECT_REQUEST_STARTED_AT_KEY,
   CREATE_PROJECT_LAUNCH_ID_KEY,
   LOADING_PREVIEW_OPENED_AT_KEY,
 ] as const;
+
+const DEFAULT_EXISTING_PROJECT_OPENING_MIN_VISIBLE_MS = 1_500;
 
 export function createProjectLaunchId() {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -51,6 +56,27 @@ export function hasPendingProjectLaunch() {
   } catch {
     return false;
   }
+}
+
+export function readExistingProjectOpeningMinVisibleMs() {
+  if (typeof window === "undefined") {
+    return DEFAULT_EXISTING_PROJECT_OPENING_MIN_VISIBLE_MS;
+  }
+
+  const overrideValue = Reflect.get(
+    window,
+    EXISTING_PROJECT_OPENING_MIN_VISIBLE_MS_TEST_OVERRIDE_KEY,
+  );
+
+  if (
+    typeof overrideValue === "number" &&
+    Number.isFinite(overrideValue) &&
+    overrideValue >= 0
+  ) {
+    return overrideValue;
+  }
+
+  return DEFAULT_EXISTING_PROJECT_OPENING_MIN_VISIBLE_MS;
 }
 
 export function clearProjectCreationTiming() {

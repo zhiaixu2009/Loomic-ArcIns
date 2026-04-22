@@ -52,6 +52,7 @@ import {
   CREATE_PROJECT_REQUEST_STARTED_AT_KEY,
   LOADING_PREVIEW_OPENED_AT_KEY,
   hasPendingProjectLaunch,
+  readExistingProjectOpeningMinVisibleMs,
   readSessionTimingNumber,
 } from "../../lib/project-creation-timing";
 import { buildCanvasUrl, isArchitectureStudio } from "../../lib/studio-routes";
@@ -282,9 +283,15 @@ function CanvasPageContent() {
   const [error, setError] = useState<string | null>(null);
   const [pageLoading, setPageLoading] = useState(true);
   const [editorReady, setEditorReady] = useState(false);
-  const [showProjectOpeningOverlay, setShowProjectOpeningOverlay] = useState(() =>
-    hasPendingProjectLaunch(),
+  const [pendingProjectLaunchAtEntry] = useState(() => hasPendingProjectLaunch());
+  const [existingProjectOpeningMinVisibleMs] = useState(() =>
+    readExistingProjectOpeningMinVisibleMs(),
   );
+  const [showProjectOpeningOverlay, setShowProjectOpeningOverlay] = useState(
+    pendingProjectLaunchAtEntry,
+  );
+  const [existingProjectOpeningMinimumElapsed, setExistingProjectOpeningMinimumElapsed] =
+    useState(() => pendingProjectLaunchAtEntry || !canvasId);
   // 建筑工作台默认收起右侧面板，优先呈现底部居中输入框；经典模式仍保留桌面默认展开。
   const [chatOpen, setChatOpen] = useState(() => {
     if (architectureMode) {
@@ -2119,6 +2126,39 @@ function CanvasPageContent() {
   }, [initialPrompt, routeState.initialPrompt]);
 
   useEffect(() => {
+    if (
+      !canvasId ||
+      pendingProjectLaunchAtEntry ||
+      existingProjectOpeningMinVisibleMs <= 0
+    ) {
+      setExistingProjectOpeningMinimumElapsed(true);
+      return;
+    }
+
+    console.info("[canvas-page] enforcing minimum existing-project opening duration", {
+      canvasId,
+      minDurationMs: existingProjectOpeningMinVisibleMs,
+    });
+    setExistingProjectOpeningMinimumElapsed(false);
+
+    const timeoutId = window.setTimeout(() => {
+      console.info("[canvas-page] existing-project opening minimum duration satisfied", {
+        canvasId,
+        minDurationMs: existingProjectOpeningMinVisibleMs,
+      });
+      setExistingProjectOpeningMinimumElapsed(true);
+    }, existingProjectOpeningMinVisibleMs);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [
+    canvasId,
+    existingProjectOpeningMinVisibleMs,
+    pendingProjectLaunchAtEntry,
+  ]);
+
+  useEffect(() => {
     setEditorReady(false);
   }, [canvasData?.id]);
 
@@ -2227,7 +2267,12 @@ function CanvasPageContent() {
     );
   }
 
-  if (authLoading || pageLoading) {
+  const shouldKeepExistingProjectOpeningScreenVisible =
+    !pendingProjectLaunchAtEntry &&
+    !existingProjectOpeningMinimumElapsed &&
+    !error;
+
+  if (authLoading || pageLoading || shouldKeepExistingProjectOpeningScreenVisible) {
     return <ProjectOpeningScreen />;
   }
 

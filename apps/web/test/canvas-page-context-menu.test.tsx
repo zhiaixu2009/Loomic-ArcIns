@@ -6,6 +6,7 @@ import * as React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { renderWithToast } from "./render-with-toast";
+import { EXISTING_PROJECT_OPENING_MIN_VISIBLE_MS_TEST_OVERRIDE_KEY } from "../src/lib/project-creation-timing";
 
 const {
   fetchCanvasMock,
@@ -385,6 +386,7 @@ import CanvasPage from "../src/app/canvas/page";
 describe("CanvasPage context menu mode", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    Reflect.set(window, EXISTING_PROJECT_OPENING_MIN_VISIBLE_MS_TEST_OVERRIDE_KEY, 0);
     window.history.replaceState({}, "", "/canvas?id=canvas-1&studio=architecture");
     fetchImageBlobWithFallbackMock.mockResolvedValue(
       new Blob(["image"], { type: "image/png" }),
@@ -416,6 +418,10 @@ describe("CanvasPage context menu mode", () => {
   });
 
   afterEach(() => {
+    Reflect.deleteProperty(
+      window,
+      EXISTING_PROJECT_OPENING_MIN_VISIBLE_MS_TEST_OVERRIDE_KEY,
+    );
     cleanup();
   });
 

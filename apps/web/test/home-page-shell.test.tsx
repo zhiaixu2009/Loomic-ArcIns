@@ -205,6 +205,73 @@ describe("HomePage shell", () => {
     });
   });
 
+  it("keeps rendered recent-project cards visible while a focus-triggered refresh is still in flight", async () => {
+    let resolveSecondFetch:
+      | ((value: {
+          projects: Array<{
+            id: string;
+            name: string;
+            primaryCanvas: { id: string };
+            thumbnailUrl: string | null;
+            updatedAt: string;
+          }>;
+        }) => void)
+      | undefined;
+
+    fetchProjectsMock
+      .mockResolvedValueOnce({
+        projects: [
+          {
+            id: "project-1",
+            name: "Harbor Complex",
+            primaryCanvas: { id: "canvas-1" },
+            thumbnailUrl: null,
+            updatedAt: "2026-04-14T10:00:00.000Z",
+          },
+        ],
+      })
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveSecondFetch = resolve;
+          }),
+      );
+
+    render(<HomePage />);
+
+    await screen.findByText("Harbor Complex");
+    expect(screen.queryByTestId("home-projects-skeleton")).not.toBeInTheDocument();
+
+    window.dispatchEvent(new Event("focus"));
+
+    await waitFor(() => {
+      expect(fetchProjectsMock).toHaveBeenCalledTimes(2);
+    });
+
+    expect(screen.getByText("Harbor Complex")).toBeInTheDocument();
+    expect(screen.queryByTestId("home-projects-skeleton")).not.toBeInTheDocument();
+
+    if (!resolveSecondFetch) {
+      throw new Error("Expected the focus refresh fetch to still be pending");
+    }
+
+    resolveSecondFetch({
+      projects: [
+        {
+          id: "project-1",
+          name: "Harbor Complex",
+          primaryCanvas: { id: "canvas-1" },
+          thumbnailUrl: null,
+          updatedAt: "2026-04-22T10:00:00.000Z",
+        },
+      ],
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("Harbor Complex")).toBeInTheDocument();
+    });
+  });
+
   it("refreshes homepage projects after an explicit project-thumbnail refresh signal", async () => {
     render(<HomePage />);
 

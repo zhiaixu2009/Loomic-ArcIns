@@ -2508,3 +2508,18 @@
   - post-rebuild sanity:
     - `curl.exe -s http://127.0.0.1:3001/api/health`
     - real browser session `debtfix6` reached authenticated `/home` with `0` console errors
+
+## 2026-04-22 Home Scrollbar Findings
+
+- The current “home jitter” regression is better described as a scrollbar-gutter width shift than as a project-grid content refresh problem.
+- Fresh browser inspection showed the relevant scroll layer is not the workspace `main` element but the `PageTransition` wrapper on `/home`.
+- Why this matters:
+  - the wrapper currently behaves as the vertical scroll container on the home route
+  - when a classic right-side scrollbar appears during home entry, the content width can visibly jump
+  - the user-facing symptom therefore presents as “the homepage shakes” even though the underlying issue is a transient scrollbar-width reflow
+- The bounded fix is intentionally narrow:
+  - reserve `scrollbar-gutter: stable` on `/home`
+  - do not apply the same gutter rule to `/canvas`, because the canvas route is full-screen and should not inherit an always-reserved strip
+- Regression proof now exists at two layers:
+  - unit/regression: `apps/web/test/page-transition.test.tsx`
+  - runtime/browser: authenticated `/home` now reports `scrollbarGutter = stable` and remains vertically scrollable

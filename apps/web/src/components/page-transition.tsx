@@ -7,6 +7,7 @@ import type { ReactNode } from "react";
 export function PageTransition({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const useStaticEnter = pathname === "/home" || pathname === "/canvas";
+  const reserveHomeScrollbarGutter = pathname === "/home";
 
   return (
     <AnimatePresence mode="wait">
@@ -19,6 +20,13 @@ export function PageTransition({ children }: { children: ReactNode }) {
           duration: useStaticEnter ? 0.12 : 0.2,
           ease: useStaticEnter ? "easeOut" : "easeInOut",
         }}
+        style={
+          reserveHomeScrollbarGutter
+            ? {
+                scrollbarGutter: "stable",
+              }
+            : {}
+        }
         className="h-full overflow-x-hidden"
       >
         {children}

@@ -3900,3 +3900,27 @@
 - Closure status:
   - the runtime thumbnail upload regression remains fixed
   - the previously recorded residual `apps/server` type debt is now fully closed
+
+## 2026-04-22 Home Scrollbar-Gutter Re-Triage
+
+- The re-opened “home jitter” issue was re-triaged from fresh browser evidence after the earlier card-refresh hypothesis proved incomplete.
+- Fresh DOM/runtime inspection showed the visible width shift is caused by the right-side vertical scrollbar appearing on the `/home` route during entry.
+- Important implementation detail:
+  - the effective home scroll container is the `PageTransition` wrapper in `apps/web/src/components/page-transition.tsx`
+  - fresh browser runtime sampling on `/home` showed:
+    - `overflowY = auto`
+    - `scrollHeight = 1075`
+    - `clientHeight = 720`
+    - `scrollbarGutter = stable` after the fix
+- Stable correction landed as:
+  - reserve `scrollbar-gutter: stable` only for `/home` inside `PageTransition`
+  - keep `/canvas` unchanged so the full-screen canvas does not inherit a permanent gutter strip
+- Verification collected for this closure:
+  - new regression: `apps/web/test/page-transition.test.tsx`
+  - bounded regression bundle:
+    - `apps/web/test/home-page-shell.test.tsx`
+    - `apps/web/test/workspace-layout-shell.test.tsx`
+  - fresh web typecheck:
+    - `node D:\\97-CodingProject\\Loomic-ArcIns\\node_modules\\.pnpm\\typescript@5.9.3\\node_modules\\typescript\\lib\\tsc.js -p D:\\97-CodingProject\\Loomic-ArcIns\\apps\\web\\tsconfig.json --noEmit`
+  - real-browser runtime proof:
+    - authenticated `/home` check reported `scrollbarGutter = stable` on the transition wrapper while the route remained vertically scrollable
