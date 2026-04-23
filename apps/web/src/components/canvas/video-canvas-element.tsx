@@ -71,6 +71,7 @@ export function VideoCanvasElement({
   return (
     <div
       style={{ width, height }}
+      data-canvas-wheel-zoom-blocked="true"
       className="relative flex items-center justify-center overflow-hidden rounded-lg bg-black"
       onPointerDown={stopPropagation}
       onPointerUp={stopPropagation}

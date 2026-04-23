@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { selectProjectThumbnailFocusElements } from "../src/lib/project-thumbnail";
+import {
+  buildProjectThumbnailSrc,
+  selectProjectThumbnailFocusElements,
+} from "../src/lib/project-thumbnail";
 
 describe("selectProjectThumbnailFocusElements", () => {
   it("keeps the last four added image elements for the thumbnail mosaic instead of prioritizing the largest images", () => {
@@ -54,5 +57,18 @@ describe("selectProjectThumbnailFocusElements", () => {
       expect.objectContaining({ id: "image-4" }),
       expect.objectContaining({ id: "image-5" }),
     ]);
+  });
+});
+
+describe("buildProjectThumbnailSrc", () => {
+  it("keeps inline preview data urls untouched instead of appending cache-busting params", () => {
+    const inlinePreviewUrl = "data:image/webp;base64,cHJldmlldy10aHVtYm5haWw=";
+
+    expect(
+      buildProjectThumbnailSrc(
+        inlinePreviewUrl,
+        "2026-04-23T01:02:03.000Z",
+      ),
+    ).toBe(inlinePreviewUrl);
   });
 });

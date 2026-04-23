@@ -6,6 +6,7 @@ import type {
   VideoGenerationPreference,
 } from "@loomic/shared";
 import type { ReadyAttachment } from "@/hooks/use-image-attachments";
+import type { ProjectThumbnailRefreshDetail } from "@/lib/project-thumbnail-refresh";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -32,6 +33,22 @@ import { formatDate } from "@/lib/utils";
 const HOME_PROJECTS_LIMIT = 100;
 const HOME_PROJECT_SKELETON_COUNT = 7;
 const HOME_PROJECT_PREFETCH_LIMIT = 12;
+
+type OptimisticProjectThumbnail = {
+  projectId: string;
+  projectName?: string;
+  canvasId?: string;
+  thumbnailDataUrl?: string;
+  updatedAt: string;
+};
+
+type RecentProjectCard = {
+  id: string;
+  name: string;
+  canvasId: string;
+  thumbnailUrl: string | null;
+  updatedAt: string;
+};
 
 const HOME_NAV_ITEMS = [
   "首页",
@@ -65,12 +82,151 @@ function selectProjectsForHome(projects: ProjectSummary[]) {
   return selectedProjects;
 }
 
+function timestampToMillis(value?: string | null) {
+  const millis = value ? Date.parse(value) : Number.NaN;
+  return Number.isFinite(millis) ? millis : 0;
+}
+
+function mergeOptimisticProjectThumbnail(
+  current: OptimisticProjectThumbnail | undefined,
+  incoming: OptimisticProjectThumbnail,
+): OptimisticProjectThumbnail {
+  if (!current) {
+    return incoming;
+  }
+
+  const incomingAt = timestampToMillis(incoming.updatedAt);
+  const currentAt = timestampToMillis(current.updatedAt);
+
+  if (incomingAt < currentAt) {
+    return current;
+  }
+
+  return buildOptimisticProjectThumbnail({
+    projectId: incoming.projectId,
+    updatedAt: incoming.updatedAt,
+    projectName: incoming.projectName ?? current.projectName,
+    canvasId: incoming.canvasId ?? current.canvasId,
+    thumbnailDataUrl: incoming.thumbnailDataUrl ?? current.thumbnailDataUrl,
+  });
+}
+
+function buildOptimisticProjectThumbnail(options: {
+  projectId: string;
+  updatedAt: string;
+  projectName: string | undefined;
+  canvasId: string | undefined;
+  thumbnailDataUrl: string | undefined;
+}): OptimisticProjectThumbnail {
+  return {
+    projectId: options.projectId,
+    updatedAt: options.updatedAt,
+    ...(options.projectName ? { projectName: options.projectName } : {}),
+    ...(options.canvasId ? { canvasId: options.canvasId } : {}),
+    ...(options.thumbnailDataUrl
+      ? { thumbnailDataUrl: options.thumbnailDataUrl }
+      : {}),
+  };
+}
+
+function buildRecentProjectCards(options: {
+  optimisticProjectThumbnails: Record<string, OptimisticProjectThumbnail>;
+  projects: ProjectSummary[];
+}) {
+  const recentProjectCards: RecentProjectCard[] = [];
+  const seenProjectIds = new Set<string>();
+
+  for (const project of options.projects) {
+    const optimisticThumbnail = options.optimisticProjectThumbnails[project.id];
+    const shouldPreferOptimisticThumbnail =
+      Boolean(optimisticThumbnail?.thumbnailDataUrl) &&
+      timestampToMillis(optimisticThumbnail?.updatedAt) >
+        timestampToMillis(project.updatedAt);
+
+    recentProjectCards.push({
+      id: project.id,
+      name: optimisticThumbnail?.projectName ?? project.name,
+      canvasId: optimisticThumbnail?.canvasId ?? project.primaryCanvas.id,
+      thumbnailUrl: shouldPreferOptimisticThumbnail
+        ? optimisticThumbnail?.thumbnailDataUrl ?? null
+        : project.thumbnailUrl ?? null,
+      updatedAt: shouldPreferOptimisticThumbnail
+        ? optimisticThumbnail?.updatedAt ?? project.updatedAt
+        : project.updatedAt,
+    });
+    seenProjectIds.add(project.id);
+  }
+
+  const optimisticOnlyCards = Object.values(options.optimisticProjectThumbnails)
+    .filter(
+      (optimisticThumbnail) =>
+        !seenProjectIds.has(optimisticThumbnail.projectId) &&
+        Boolean(optimisticThumbnail.projectName) &&
+        Boolean(optimisticThumbnail.canvasId),
+    )
+    .sort(
+      (left, right) =>
+        timestampToMillis(right.updatedAt) - timestampToMillis(left.updatedAt),
+    )
+    .map((optimisticThumbnail) => ({
+      id: optimisticThumbnail.projectId,
+      name: optimisticThumbnail.projectName ?? "未命名项目",
+      canvasId: optimisticThumbnail.canvasId ?? "",
+      thumbnailUrl: optimisticThumbnail.thumbnailDataUrl ?? null,
+      updatedAt: optimisticThumbnail.updatedAt,
+    }));
+
+  return [...optimisticOnlyCards, ...recentProjectCards].slice(
+    0,
+    HOME_PROJECTS_LIMIT,
+  );
+}
+
+function createOptimisticProjectThumbnail(
+  detail: ProjectThumbnailRefreshDetail | null,
+) {
+  if (!detail) {
+    return null;
+  }
+
+  if (!detail.thumbnailDataUrl && !detail.projectName && !detail.canvasId) {
+    return null;
+  }
+
+  return buildOptimisticProjectThumbnail({
+    projectId: detail.projectId,
+    projectName: detail.projectName,
+    canvasId: detail.canvasId,
+    thumbnailDataUrl: detail.thumbnailDataUrl,
+    updatedAt: detail.updatedAt,
+  });
+}
+
 export default function HomePage() {
   const { session, signOut } = useAuth();
   const router = useRouter();
   const { create: createNewProject, creating } = useCreateProject();
   const { openProjectLibrary } = useProjectLibrary();
+  const initialPendingThumbnailRefreshRef = useRef<ProjectThumbnailRefreshDetail | null>(
+    typeof window === "undefined"
+      ? null
+      : consumePendingProjectThumbnailRefresh(),
+  );
   const [allProjects, setAllProjects] = useState<ProjectSummary[]>([]);
+  const [optimisticProjectThumbnails, setOptimisticProjectThumbnails] = useState<
+    Record<string, OptimisticProjectThumbnail>
+  >(() => {
+    const initialOptimisticProjectThumbnail = createOptimisticProjectThumbnail(
+      initialPendingThumbnailRefreshRef.current,
+    );
+
+    return initialOptimisticProjectThumbnail
+      ? {
+          [initialOptimisticProjectThumbnail.projectId]:
+            initialOptimisticProjectThumbnail,
+        }
+      : {};
+  });
   const [projectsLoading, setProjectsLoading] = useState(true);
   const [totalProjectCount, setTotalProjectCount] = useState(0);
   const [newProjectDialogOpen, setNewProjectDialogOpen] = useState(false);
@@ -84,9 +240,26 @@ export default function HomePage() {
   const hasLoadedProjectsRef = useRef(false);
 
   const projects = useMemo(() => selectProjectsForHome(allProjects), [allProjects]);
+  const recentProjectCards = useMemo(
+    () =>
+      buildRecentProjectCards({
+        optimisticProjectThumbnails,
+        projects,
+      }),
+    [optimisticProjectThumbnails, projects],
+  );
 
   const handleDeleted = useCallback((projectId: string) => {
     setAllProjects((prev) => prev.filter((project) => project.id !== projectId));
+    setOptimisticProjectThumbnails((prev) => {
+      if (!(projectId in prev)) {
+        return prev;
+      }
+
+      const next = { ...prev };
+      delete next[projectId];
+      return next;
+    });
     setTotalProjectCount((prev) => Math.max(0, prev - 1));
   }, []);
 
@@ -106,48 +279,102 @@ export default function HomePage() {
   const projectLimitReached = totalProjectCount >= HOME_PROJECTS_LIMIT;
 
   const getToken = useCallback(() => accessTokenRef.current ?? null, []);
-  const getProjectCanvasUrl = useCallback(
-    (project: ProjectSummary) =>
-      buildCanvasUrl(project.primaryCanvas.id, {
+  const getRecentProjectCardCanvasUrl = useCallback(
+    (project: RecentProjectCard) =>
+      buildCanvasUrl(project.canvasId, {
         studio: "architecture",
       }),
     [],
   );
 
-  const loadProjects = useCallback(async (options?: { preserveVisibleCards?: boolean }) => {
-    const token = getToken();
-    if (!token) {
-      return;
-    }
-
-    const preserveVisibleCards =
-      options?.preserveVisibleCards === true && hasLoadedProjectsRef.current;
-
-    if (!preserveVisibleCards) {
-      setProjectsLoading(true);
-    } else {
-      console.info("[home] refreshing projects in the background without replacing visible cards");
-    }
-
-    try {
-      const data = await fetchProjects(token);
-      setTotalProjectCount(data.projects.length);
-      setAllProjects(data.projects);
-      hasLoadedProjectsRef.current = true;
-    } catch (error) {
-      if (error instanceof ApiAuthError) {
-        await signOutRef.current();
-        routerRef.current.replace("/login");
+  const handleProjectThumbnailRefresh = useCallback(
+    (detail: ProjectThumbnailRefreshDetail) => {
+      if (!detail.thumbnailDataUrl && !detail.projectName && !detail.canvasId) {
         return;
       }
 
-      console.warn("[home] failed to load homepage projects", error);
-    } finally {
-      if (!preserveVisibleCards) {
-        setProjectsLoading(false);
+      const nextThumbnail = buildOptimisticProjectThumbnail({
+        projectId: detail.projectId,
+        projectName: detail.projectName,
+        canvasId: detail.canvasId,
+        thumbnailDataUrl: detail.thumbnailDataUrl,
+        updatedAt: detail.updatedAt,
+      });
+
+      setOptimisticProjectThumbnails((prev) => ({
+        ...prev,
+        [detail.projectId]: mergeOptimisticProjectThumbnail(
+          prev[detail.projectId],
+          nextThumbnail,
+        ),
+      }));
+    },
+    [],
+  );
+
+  const loadProjects = useCallback(
+    async (options?: { preserveVisibleCards?: boolean }) => {
+      const token = getToken();
+      if (!token) {
+        return;
       }
-    }
-  }, [getToken]);
+
+      const preserveVisibleCards =
+        options?.preserveVisibleCards === true && hasLoadedProjectsRef.current;
+
+      if (!preserveVisibleCards) {
+        setProjectsLoading(true);
+      } else {
+        console.info(
+          "[home] refreshing projects in the background without replacing visible cards",
+        );
+      }
+
+      try {
+        const data = await fetchProjects(token);
+        setTotalProjectCount(data.projects.length);
+        setAllProjects(data.projects);
+        setOptimisticProjectThumbnails((prev) => {
+          let next = prev;
+
+          for (const project of data.projects) {
+            const optimisticThumbnail = next[project.id];
+            if (!optimisticThumbnail) {
+              continue;
+            }
+
+            if (
+              timestampToMillis(project.updatedAt) >=
+                timestampToMillis(optimisticThumbnail.updatedAt) &&
+              Boolean(project.thumbnailUrl)
+            ) {
+              if (next === prev) {
+                next = { ...prev };
+              }
+
+              delete next[project.id];
+            }
+          }
+
+          return next;
+        });
+        hasLoadedProjectsRef.current = true;
+      } catch (error) {
+        if (error instanceof ApiAuthError) {
+          await signOutRef.current();
+          routerRef.current.replace("/login");
+          return;
+        }
+
+        console.warn("[home] failed to load homepage projects", error);
+      } finally {
+        if (!preserveVisibleCards) {
+          setProjectsLoading(false);
+        }
+      }
+    },
+    [getToken],
+  );
 
   useEffect(() => {
     if (hasInitializedRef.current) {
@@ -165,8 +392,9 @@ export default function HomePage() {
     }
 
     console.info("[home] consuming queued thumbnail refresh signal", pendingRefresh);
+    handleProjectThumbnailRefresh(pendingRefresh);
     void loadProjects({ preserveVisibleCards: true });
-  }, [loadProjects]);
+  }, [handleProjectThumbnailRefresh, loadProjects]);
 
   useEffect(() => scheduleCanvasExperienceWarmup(router), [router]);
 
@@ -184,9 +412,11 @@ export default function HomePage() {
       console.info("[home] refreshing projects after bfcache restore");
       void loadProjects({ preserveVisibleCards: true });
     };
+
     const removeThumbnailRefreshListener = addProjectThumbnailRefreshListener(
       (detail) => {
         console.info("[home] refreshing projects after thumbnail refresh signal", detail);
+        handleProjectThumbnailRefresh(detail);
         void loadProjects({ preserveVisibleCards: true });
       },
     );
@@ -199,21 +429,23 @@ export default function HomePage() {
       window.removeEventListener("pageshow", handlePageShow);
       removeThumbnailRefreshListener();
     };
-  }, [loadProjects]);
+  }, [handleProjectThumbnailRefresh, loadProjects]);
 
   useEffect(() => {
-    if (projects.length === 0) {
+    if (recentProjectCards.length === 0) {
       return;
     }
 
-    projects.slice(0, HOME_PROJECT_PREFETCH_LIMIT).forEach((project) => {
-      router.prefetch?.(getProjectCanvasUrl(project));
-    });
+    recentProjectCards
+      .slice(0, HOME_PROJECT_PREFETCH_LIMIT)
+      .forEach((project) => {
+        router.prefetch?.(getRecentProjectCardCanvasUrl(project));
+      });
 
     console.info("[home] prefetched homepage project canvases", {
-      count: Math.min(projects.length, HOME_PROJECT_PREFETCH_LIMIT),
+      count: Math.min(recentProjectCards.length, HOME_PROJECT_PREFETCH_LIMIT),
     });
-  }, [getProjectCanvasUrl, projects, router]);
+  }, [getRecentProjectCardCanvasUrl, recentProjectCards, router]);
 
   const handlePromptSubmit = useCallback(
     (
@@ -311,9 +543,7 @@ export default function HomePage() {
             <h1 className="text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">
               AI创作无限画布Agent
             </h1>
-            <p className="mt-3 text-base text-slate-500">
-              让设计灵感来的更快一些！
-            </p>
+            <p className="mt-3 text-base text-slate-500">让设计灵感来的更快一些！</p>
           </div>
 
           <div className="mx-auto mt-6 max-w-[920px]">
@@ -364,9 +594,7 @@ export default function HomePage() {
               >
                 项目库
               </button>
-              <p className="text-sm text-slate-500">
-                当前共 {totalProjectCount} 个项目
-              </p>
+              <p className="text-sm text-slate-500">当前共 {totalProjectCount} 个项目</p>
             </div>
           </div>
 
@@ -402,18 +630,18 @@ export default function HomePage() {
               </div>
             </button>
 
-            {projectsLoading ? (
+            {projectsLoading && recentProjectCards.length === 0 ? (
               <HomeProjectsSkeleton
                 includeNewProjectPlaceholder={false}
                 projectCount={HOME_PROJECT_SKELETON_COUNT}
               />
             ) : (
-              projects.map((project) => (
+              recentProjectCards.map((project) => (
                 <article
                   key={project.id}
                   data-testid={`recent-project-card-${project.id}`}
                   className="group relative flex aspect-square cursor-pointer flex-col overflow-hidden rounded-[10px] border border-slate-200 bg-white shadow-[0_12px_28px_rgba(15,23,42,0.04)] transition-shadow hover:shadow-[0_18px_36px_rgba(15,23,42,0.08)]"
-                  onClick={() => router.push(getProjectCanvasUrl(project))}
+                  onClick={() => router.push(getRecentProjectCardCanvasUrl(project))}
                 >
                   <button
                     type="button"

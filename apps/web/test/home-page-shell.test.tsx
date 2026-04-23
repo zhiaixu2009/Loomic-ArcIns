@@ -131,6 +131,7 @@ import HomePage from "../src/app/(workspace)/home/page";
 describe("HomePage shell", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    window.sessionStorage.clear();
     creatingState.current = false;
     fetchProjectsMock.mockResolvedValue({
       projects: [
@@ -284,6 +285,27 @@ describe("HomePage shell", () => {
           projectId: "project-1",
           updatedAt: "2026-04-22T09:00:00.000Z",
         },
+      }),
+    );
+
+    await waitFor(() => {
+      expect(fetchProjectsMock).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  it("refreshes homepage projects after a cross-tab project-thumbnail refresh storage event", async () => {
+    render(<HomePage />);
+
+    await screen.findByText("Harbor Complex");
+    expect(fetchProjectsMock).toHaveBeenCalledTimes(1);
+
+    window.dispatchEvent(
+      new StorageEvent("storage", {
+        key: "loomic:project-thumbnail-refresh:broadcast",
+        newValue: JSON.stringify({
+          projectId: "project-1",
+          updatedAt: "2026-04-22T09:30:00.000Z",
+        }),
       }),
     );
 
@@ -473,6 +495,71 @@ describe("HomePage shell", () => {
       within(screen.getByTestId("home-project-grid")).getAllByRole("button")[0],
     ).toHaveTextContent("新建项目");
     expect(screen.getByTestId("home-projects-skeleton")).toBeInTheDocument();
+  });
+
+  it("renders a queued thumbnail-preview card immediately while the home fetch is still loading", async () => {
+    fetchProjectsMock.mockReturnValue(new Promise(() => {}));
+    window.sessionStorage.setItem(
+      "loomic:project-thumbnail-refresh:pending",
+      JSON.stringify({
+        projectId: "project-preview",
+        projectName: "Immediate Preview Project",
+        canvasId: "canvas-preview",
+        thumbnailDataUrl:
+          "data:image/webp;base64,cHJldmlldy10aHVtYm5haWw=",
+        updatedAt: "2026-04-23T00:55:00.000Z",
+      }),
+    );
+
+    render(<HomePage />);
+
+    const projectTitle = await screen.findByText("Immediate Preview Project");
+    const projectCard = projectTitle.closest("article");
+    const projectThumbnail = projectCard?.querySelector("img");
+
+    expect(projectCard).not.toBeNull();
+    expect(projectThumbnail).not.toBeNull();
+    expect((projectThumbnail as HTMLImageElement).src).toBe(
+      "data:image/webp;base64,cHJldmlldy10aHVtYm5haWw=",
+    );
+    expect(screen.queryByTestId("home-projects-skeleton")).not.toBeInTheDocument();
+  });
+
+  it("keeps a newer queued thumbnail preview visible when the first home fetch returns an older stale thumbnail", async () => {
+    window.sessionStorage.setItem(
+      "loomic:project-thumbnail-refresh:pending",
+      JSON.stringify({
+        projectId: "project-1",
+        projectName: "Harbor Complex",
+        canvasId: "canvas-1",
+        thumbnailDataUrl:
+          "data:image/webp;base64,bmV3ZXItcHJldmlldy10aHVtYm5haWw=",
+        updatedAt: "2026-04-23T00:55:00.000Z",
+      }),
+    );
+    fetchProjectsMock.mockResolvedValue({
+      projects: [
+        {
+          id: "project-1",
+          name: "Harbor Complex",
+          primaryCanvas: { id: "canvas-1" },
+          thumbnailUrl:
+            "http://host.docker.internal:54321/storage/v1/object/public/project-assets/workspace-1/project-1/thumbnail.webp",
+          updatedAt: "2026-04-23T00:50:13.000Z",
+        },
+      ],
+    });
+
+    render(<HomePage />);
+
+    const projectTitle = await screen.findByText("Harbor Complex");
+    const projectCard = projectTitle.closest("article");
+    const projectThumbnail = projectCard?.querySelector("img");
+
+    expect(projectThumbnail).not.toBeNull();
+    expect((projectThumbnail as HTMLImageElement).src).toBe(
+      "data:image/webp;base64,bmV3ZXItcHJldmlldy10aHVtYm5haWw=",
+    );
   });
 
   it("keeps the home shell visible during create pending instead of switching to a full-page loading screen", async () => {

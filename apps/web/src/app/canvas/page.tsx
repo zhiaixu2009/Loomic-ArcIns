@@ -2379,6 +2379,7 @@ function CanvasPageContent() {
         <CanvasEditor
           canvasId={canvasData.id}
           projectId={canvasData.projectId}
+          projectName={projectName}
           accessToken={accessToken}
           immersiveArchitecture={architectureMode}
           initialContent={canvasData.content}

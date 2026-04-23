@@ -29,6 +29,14 @@ export function buildProjectThumbnailSrc(
   updatedAt?: string | null,
 ) {
   const resolvedUrl = resolveBrowserAssetUrl(thumbnailUrl);
+
+  if (
+    resolvedUrl.startsWith("data:") ||
+    resolvedUrl.startsWith("blob:")
+  ) {
+    return resolvedUrl;
+  }
+
   const baseOrigin =
     typeof window !== "undefined" ? window.location.origin : "http://localhost";
 

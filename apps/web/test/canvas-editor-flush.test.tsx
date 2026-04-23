@@ -299,4 +299,191 @@ describe("CanvasEditor flush", () => {
       }),
     );
   });
+
+  it("uploads a current-scene thumbnail on mount for an existing canvas so stale blank covers can self-heal", async () => {
+    apiState.sceneElements = [
+      {
+        id: "existing-shape-1",
+        type: "rectangle",
+        x: 120,
+        y: 90,
+        width: 320,
+        height: 240,
+      },
+    ];
+
+    render(
+      <CanvasEditor
+        accessToken="token"
+        canvasId="canvas-existing"
+        initialContent={{
+          elements: apiState.sceneElements,
+          appState: {},
+          files: {},
+        }}
+        projectId="project-existing"
+      />,
+    );
+
+    await screen.findByTestId("mock-excalidraw-surface");
+
+    await waitFor(() => {
+      expect(uploadThumbnailMock).toHaveBeenCalledWith(
+        "token",
+        "project-existing",
+        expect.any(Blob),
+      );
+    });
+    expect(exportToBlobMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        elements: [
+          expect.objectContaining({
+            id: "existing-shape-1",
+          }),
+        ],
+      }),
+    );
+  });
+
+  it("flushes a fresh thumbnail after programmatic scene updates insert new canvas content", async () => {
+    const onApiReady = vi.fn();
+    const onFlushReady = vi.fn();
+
+    render(
+      <CanvasEditor
+        accessToken="token"
+        canvasId="canvas-programmatic"
+        initialContent={{
+          elements: [],
+          appState: {},
+          files: {},
+        }}
+        onApiReady={onApiReady}
+        onFlushReady={onFlushReady}
+        projectId="project-programmatic"
+      />,
+    );
+
+    await screen.findByTestId("mock-excalidraw-surface");
+    await waitFor(() => expect(onApiReady).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(uploadThumbnailMock).toHaveBeenCalledWith(
+        "token",
+        "project-programmatic",
+        expect.any(Blob),
+      ),
+    );
+
+    uploadThumbnailMock.mockClear();
+    exportToBlobMock.mockClear();
+
+    const patchedApi = onApiReady.mock.calls.at(-1)?.[0] as
+      | {
+          updateScene: (scene: {
+            captureUpdate?: string;
+            elements?: Record<string, unknown>[];
+          }) => void;
+        }
+      | undefined;
+    const flush = onFlushReady.mock.calls.at(-1)?.[0] as
+      | (() => Promise<void>)
+      | undefined;
+
+    expect(patchedApi?.updateScene).toBeTypeOf("function");
+    expect(flush).toBeTypeOf("function");
+
+    apiState.sceneElements = [
+      {
+        id: "programmatic-shape-1",
+        type: "rectangle",
+        x: 40,
+        y: 50,
+        width: 260,
+        height: 180,
+      },
+    ];
+
+    await act(async () => {
+      patchedApi?.updateScene({
+        captureUpdate: "IMMEDIATELY",
+        elements: apiState.sceneElements,
+      });
+      await flush?.();
+    });
+
+    expect(uploadThumbnailMock).toHaveBeenCalledWith(
+      "token",
+      "project-programmatic",
+      expect.any(Blob),
+    );
+    expect(exportToBlobMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        elements: [
+          expect.objectContaining({
+            id: "programmatic-shape-1",
+          }),
+        ],
+      }),
+    );
+  });
+
+  it("prioritizes thumbnail uploads immediately when the recent image focus set changes", async () => {
+    render(
+      <CanvasEditor
+        accessToken="token"
+        canvasId="canvas-image-priority"
+        initialContent={{
+          elements: [],
+          appState: {},
+          files: {},
+        }}
+        projectId="project-image-priority"
+      />,
+    );
+
+    await screen.findByTestId("mock-excalidraw-surface");
+    await waitFor(() => {
+      expect(uploadThumbnailMock).toHaveBeenCalledWith(
+        "token",
+        "project-image-priority",
+        expect.any(Blob),
+      );
+    });
+
+    uploadThumbnailMock.mockClear();
+    exportToBlobMock.mockClear();
+    vi.useFakeTimers();
+
+    apiState.sceneElements = [
+      {
+        id: "image-1",
+        type: "image",
+        fileId: "file-1",
+        x: 40,
+        y: 50,
+        width: 260,
+        height: 180,
+      },
+    ];
+
+    await act(async () => {
+      excalidrawOnChangeRef.current?.(apiState.sceneElements, apiState.appState);
+      await vi.advanceTimersByTimeAsync(1);
+    });
+
+    expect(uploadThumbnailMock).toHaveBeenCalledWith(
+      "token",
+      "project-image-priority",
+      expect.any(Blob),
+    );
+    expect(exportToBlobMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        elements: [
+          expect.objectContaining({
+            id: "image-1",
+          }),
+        ],
+      }),
+    );
+  });
 });

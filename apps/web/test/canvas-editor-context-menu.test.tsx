@@ -10,7 +10,26 @@ const {
   saveCanvasMock,
   uploadThumbnailMock,
 } = vi.hoisted(() => {
-  const state = {
+  type TestAppState = {
+    gridModeEnabled: boolean;
+    height?: number;
+    offsetLeft?: number;
+    offsetTop?: number;
+    scrollX?: number;
+    scrollY?: number;
+    selectedElementIds: Record<string, boolean>;
+    viewBackgroundColor: string;
+    width?: number;
+    zoom?: {
+      value?: number;
+    };
+  } & Record<string, unknown>;
+
+  const state: {
+    appState: TestAppState;
+    files: Record<string, unknown>;
+    sceneElements: Record<string, unknown>[];
+  } = {
     appState: {
       gridModeEnabled: false,
       selectedElementIds: {} as Record<string, boolean>,
@@ -159,8 +178,15 @@ describe("CanvasEditor context menu", () => {
     apiState.files = {};
     apiState.appState = {
       gridModeEnabled: false,
+      height: 720,
+      offsetLeft: 0,
+      offsetTop: 0,
+      scrollX: 0,
+      scrollY: 0,
       selectedElementIds: {},
       viewBackgroundColor: "#ffffff",
+      width: 1280,
+      zoom: { value: 1 },
     };
     delete (mockExcalidrawApi as Record<string, unknown>).__loomicProgrammaticSaveWrapped;
     mockExcalidrawApi.addFiles.mockClear();
@@ -426,5 +452,56 @@ describe("CanvasEditor context menu", () => {
         height: 480,
       }),
     ]);
+  });
+
+  it("maps mouse-wheel scrolling to pointer-centered canvas zoom instead of vertical canvas scrolling", async () => {
+    apiState.appState = {
+      ...apiState.appState,
+      height: 720,
+      offsetLeft: 0,
+      offsetTop: 0,
+      scrollX: 0,
+      scrollY: 0,
+      width: 1280,
+      zoom: { value: 1 },
+    };
+
+    const onViewportChange = vi.fn();
+
+    render(
+      <CanvasEditor
+        accessToken="token"
+        canvasId="canvas-1"
+        initialContent={{
+          elements: [],
+          appState: {},
+          files: {},
+        }}
+        onViewportChange={onViewportChange}
+        projectId="project-1"
+      />,
+    );
+
+    const surface = await screen.findByTestId("mock-excalidraw-surface");
+    const container = surface.parentElement as HTMLElement;
+
+    fireEvent.wheel(container, {
+      bubbles: true,
+      cancelable: true,
+      clientX: 320,
+      clientY: 240,
+      deltaY: -120,
+    });
+
+    expect(apiState.appState.zoom?.value).toBeCloseTo(1.15);
+    expect(apiState.appState.scrollX).toBeCloseTo(-41.7391304348);
+    expect(apiState.appState.scrollY).toBeCloseTo(-31.3043478261);
+    expect(onViewportChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        scrollX: expect.closeTo(-41.7391304348, 5),
+        scrollY: expect.closeTo(-31.3043478261, 5),
+        zoom: 1.15,
+      }),
+    );
   });
 });

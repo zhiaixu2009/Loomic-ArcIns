@@ -10,7 +10,10 @@ import type { CanvasCollaborator, CanvasCursor } from "@loomic/shared";
 import type { WebSocketHandle } from "../hooks/use-websocket";
 import { resolveBrowserAssetUrl } from "../lib/browser-asset-url";
 import { getServerBaseUrl } from "../lib/env";
-import { createProjectThumbnailBlob } from "../lib/project-thumbnail";
+import {
+  createProjectThumbnailBlob,
+  selectProjectThumbnailFocusElements,
+} from "../lib/project-thumbnail";
 import { emitProjectThumbnailRefresh } from "../lib/project-thumbnail-refresh";
 import { saveCanvas, uploadThumbnail } from "../lib/server-api";
 import { VideoCanvasElement } from "./canvas/video-canvas-element";
@@ -72,6 +75,7 @@ export type RemoteCanvasCursor = {
 type CanvasEditorProps = {
   canvasId: string;
   projectId: string;
+  projectName?: string;
   accessToken: string;
   immersiveArchitecture?: boolean;
   initialContent: {
@@ -103,6 +107,9 @@ type CanvasEditorProps = {
 const SAVE_DEBOUNCE_MS = 1500;
 const THUMBNAIL_DEBOUNCE_MS = 4_000;
 const THUMBNAIL_MAX_SIZE = 400;
+const CANVAS_WHEEL_ZOOM_STEP = 1.15;
+const CANVAS_WHEEL_ZOOM_MIN = 0.1;
+const CANVAS_WHEEL_ZOOM_MAX = 4;
 
 function serializeCanvasFile(file: any): Record<string, unknown> {
   const hasStorageUrl =
@@ -158,9 +165,79 @@ function isContextMenuTargetBlocked(target: EventTarget | null) {
   );
 }
 
+function isWheelZoomTargetBlocked(target: EventTarget | null) {
+  const element = target as HTMLElement | null;
+  if (!element) {
+    return false;
+  }
+
+  return Boolean(
+    element.closest(
+      "button, input, textarea, select, option, video, [role='menu'], [role='dialog'], [contenteditable='true'], [data-canvas-wheel-zoom-blocked='true']",
+    ),
+  );
+}
+
+function getNextWheelZoomAppState(options: {
+  appState: {
+    offsetLeft?: number;
+    offsetTop?: number;
+    scrollX?: number;
+    scrollY?: number;
+    zoom?: { value?: number };
+  };
+  currentZoom: number;
+  nextZoom: number;
+  viewportX: number;
+  viewportY: number;
+  fallbackOffsetLeft: number;
+  fallbackOffsetTop: number;
+}) {
+  const offsetLeft = options.appState.offsetLeft ?? options.fallbackOffsetLeft;
+  const offsetTop = options.appState.offsetTop ?? options.fallbackOffsetTop;
+  const appLayerX = options.viewportX - offsetLeft;
+  const appLayerY = options.viewportY - offsetTop;
+  const baseScrollX =
+    (options.appState.scrollX ?? 0) +
+    (appLayerX - appLayerX / options.currentZoom);
+  const baseScrollY =
+    (options.appState.scrollY ?? 0) +
+    (appLayerY - appLayerY / options.currentZoom);
+  const zoomOffsetScrollX = -(appLayerX - appLayerX / options.nextZoom);
+  const zoomOffsetScrollY = -(appLayerY - appLayerY / options.nextZoom);
+
+  return {
+    scrollX: baseScrollX + zoomOffsetScrollX,
+    scrollY: baseScrollY + zoomOffsetScrollY,
+    zoom: {
+      value: options.nextZoom,
+    },
+  };
+}
+
+function buildThumbnailFocusSignature(elements: readonly Record<string, unknown>[]) {
+  return selectProjectThumbnailFocusElements(elements)
+    .map((element) => {
+      const candidate = element as { fileId?: string; id?: string };
+      return `${candidate.id ?? ""}:${candidate.fileId ?? ""}`;
+    })
+    .join("|");
+}
+
+function blobToDataUrl(blob: Blob) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () =>
+      reject(new Error("Failed to encode project thumbnail preview."));
+    reader.readAsDataURL(blob);
+  });
+}
+
 export function CanvasEditor({
   canvasId,
   projectId,
+  projectName,
   accessToken,
   immersiveArchitecture = false,
   initialContent,
@@ -213,10 +290,20 @@ export function CanvasEditor({
     appState: Record<string, unknown>;
     files: Record<string, Record<string, unknown>>;
   } | null>(null);
+  const queueThumbnailUploadRef = useRef<
+    ((
+      reason: "change" | "initial-load" | "programmatic",
+      options?: { immediate?: boolean },
+    ) => void) | null
+  >(null);
   const initialThumbnailQueuedRef = useRef(false);
   const pendingThumbnailVersionRef = useRef(0);
   const syncedThumbnailVersionRef = useRef(0);
   const thumbnailUploadPromiseRef = useRef<Promise<void> | null>(null);
+  const pendingImmediateThumbnailRef = useRef(false);
+  const thumbnailFocusSignatureRef = useRef(
+    buildThumbnailFocusSignature(initialContent.elements),
+  );
 
   // Ref to hold initialContent.files for storageUrl lookup in handleChange
   // without adding the full initialContent to the dependency array.
@@ -278,6 +365,13 @@ export function CanvasEditor({
     }
     return { inlineFiles: inline, pendingUrls: pending };
   }, [initialContent.files]);
+  const [storageFilesReady, setStorageFilesReady] = useState(
+    () => pendingUrls.length === 0,
+  );
+
+  useEffect(() => {
+    setStorageFilesReady(pendingUrls.length === 0);
+  }, [pendingUrls.length]);
 
   // Lazily resolve storage URLs and inject into Excalidraw
   useEffect(() => {
@@ -319,6 +413,10 @@ export function CanvasEditor({
         excalidrawApi.addFiles(Object.values(resolved));
         console.log(`[canvas-editor] Resolved ${Object.keys(resolved).length} storage files`);
       }
+
+      if (!cancelled) {
+        setStorageFilesReady(true);
+      }
     }
 
     resolveFiles();
@@ -355,9 +453,20 @@ export function CanvasEditor({
             Array.isArray(scene?.elements) &&
             scene.captureUpdate !== "NONE"
           ) {
+            const prioritizeThumbnailUpload =
+              buildThumbnailFocusSignature(scene.elements) !==
+                thumbnailFocusSignatureRef.current &&
+              buildThumbnailFocusSignature(scene.elements).length > 0;
+
+            thumbnailFocusSignatureRef.current = buildThumbnailFocusSignature(
+              scene.elements,
+            );
             queueCanvasSave({
               api: patchedApi,
               source: "programmatic",
+            });
+            queueThumbnailUploadRef.current?.("programmatic", {
+              immediate: prioritizeThumbnailUpload,
             });
           }
         };
@@ -392,7 +501,13 @@ export function CanvasEditor({
 
       const uploadTask = (async () => {
         const api = excalidrawApiRef.current ?? excalidrawApi;
-        if (!api) {
+        if (!api || !storageFilesReady) {
+          if (!storageFilesReady) {
+            console.info("[canvas-editor] thumbnail upload deferred until storage files hydrate", {
+              projectId,
+              requestedVersion,
+            });
+          }
           return;
         }
 
@@ -413,6 +528,30 @@ export function CanvasEditor({
             return;
           }
 
+          if (projectName && canvasId) {
+            try {
+              const previewUpdatedAt = new Date().toISOString();
+              const previewDataUrl = await blobToDataUrl(blob);
+              emitProjectThumbnailRefresh({
+                projectId,
+                updatedAt: previewUpdatedAt,
+                projectName,
+                canvasId,
+                thumbnailDataUrl: previewDataUrl,
+              });
+              console.info("[canvas-editor] dispatched optimistic thumbnail preview", {
+                projectId,
+                requestedVersion,
+              });
+            } catch (previewError) {
+              console.warn("[canvas-editor] failed to encode optimistic thumbnail preview", {
+                projectId,
+                requestedVersion,
+                error: previewError,
+              });
+            }
+          }
+
           console.log("[canvas-editor] uploading thumbnail", {
             blobBytes: blob.size,
             projectId,
@@ -422,6 +561,8 @@ export function CanvasEditor({
           emitProjectThumbnailRefresh({
             projectId,
             updatedAt: new Date().toISOString(),
+            ...(projectName ? { projectName } : {}),
+            ...(canvasId ? { canvasId } : {}),
           });
 
           if (pendingThumbnailVersionRef.current <= requestedVersion) {
@@ -448,33 +589,76 @@ export function CanvasEditor({
         }
       }
     },
-    [excalidrawApi, projectId],
+    [canvasId, excalidrawApi, projectId, projectName, storageFilesReady],
   );
 
+  const scheduleThumbnailUpload = useCallback(
+    (requestedVersion: number) => {
+      if (thumbnailTimerRef.current) {
+        clearTimeout(thumbnailTimerRef.current);
+      }
+
+      const delayMs = pendingImmediateThumbnailRef.current
+        ? 0
+        : THUMBNAIL_DEBOUNCE_MS;
+      pendingImmediateThumbnailRef.current = false;
+      thumbnailTimerRef.current = setTimeout(() => {
+        thumbnailTimerRef.current = null;
+        void uploadSceneThumbnail(requestedVersion);
+      }, delayMs);
+    },
+    [uploadSceneThumbnail],
+  );
+
+  const queueThumbnailUpload = useCallback(
+    (
+      reason: "change" | "initial-load" | "programmatic",
+      options?: { immediate?: boolean },
+    ) => {
+      const nextThumbnailVersion = pendingThumbnailVersionRef.current + 1;
+      pendingThumbnailVersionRef.current = nextThumbnailVersion;
+
+      if (options?.immediate) {
+        pendingImmediateThumbnailRef.current = true;
+      }
+
+      console.info("[canvas-editor] queued thumbnail refresh", {
+        immediate: options?.immediate === true,
+        projectId,
+        reason,
+        requestedVersion: nextThumbnailVersion,
+        storageFilesReady,
+      });
+
+      if (!storageFilesReady) {
+        return;
+      }
+
+      scheduleThumbnailUpload(nextThumbnailVersion);
+    },
+    [projectId, scheduleThumbnailUpload, storageFilesReady],
+  );
+  queueThumbnailUploadRef.current = queueThumbnailUpload;
+
   useEffect(() => {
-    if (!excalidrawApi || initialThumbnailQueuedRef.current) {
+    if (!storageFilesReady) {
       return;
     }
 
-    if (initialElementCountRef.current !== 0 || pendingUrls.length > 0) {
+    if (thumbnailTimerRef.current) {
       return;
     }
 
-    initialThumbnailQueuedRef.current = true;
-    const initialThumbnailVersion = Math.max(
-      pendingThumbnailVersionRef.current,
-      1,
-    );
-    pendingThumbnailVersionRef.current = initialThumbnailVersion;
+    if (pendingThumbnailVersionRef.current <= syncedThumbnailVersionRef.current) {
+      return;
+    }
 
-    const idleHandle = ric(() => {
-      void uploadSceneThumbnail(initialThumbnailVersion);
+    console.info("[canvas-editor] resuming deferred thumbnail refresh after storage hydration", {
+      projectId,
+      requestedVersion: pendingThumbnailVersionRef.current,
     });
-
-    return () => {
-      cic(idleHandle);
-    };
-  }, [excalidrawApi, pendingUrls.length, uploadSceneThumbnail]);
+    scheduleThumbnailUpload(pendingThumbnailVersionRef.current);
+  }, [projectId, scheduleThumbnailUpload, storageFilesReady]);
 
   // Normalize agent-created elements on initial load.
   // Uses DOM text measurement to fix server-side approximation errors.
@@ -523,6 +707,11 @@ export function CanvasEditor({
       // during Excalidraw's internal initialization, which would cause a
       // FULL REPLACE with empty content and silently wipe existing data.
       hydratedRef.current = true;
+
+      if (!initialThumbnailQueuedRef.current) {
+        initialThumbnailQueuedRef.current = true;
+        queueThumbnailUploadRef.current?.("initial-load", { immediate: true });
+      }
     });
     return () => cic(idleHandle);
   }, [excalidrawApi]);
@@ -530,6 +719,13 @@ export function CanvasEditor({
   const handleChange = useCallback(
     (elements: readonly any[], appState: any) => {
       syncViewport(appState);
+      const nextThumbnailFocusSignature = buildThumbnailFocusSignature(
+        elements as readonly Record<string, unknown>[],
+      );
+      const prioritizeThumbnailUpload =
+        nextThumbnailFocusSignature !== thumbnailFocusSignatureRef.current &&
+        nextThumbnailFocusSignature.length > 0;
+      thumbnailFocusSignatureRef.current = nextThumbnailFocusSignature;
 
       // Keep floating toolbar state live even before save hydration unlocks.
       const selectedIds = appState.selectedElementIds
@@ -590,15 +786,12 @@ export function CanvasEditor({
       });
 
       // --- 2. Debounced thumbnail (runs much less frequently than save) ---
-      const nextThumbnailVersion = pendingThumbnailVersionRef.current + 1;
-      pendingThumbnailVersionRef.current = nextThumbnailVersion;
-      if (thumbnailTimerRef.current) clearTimeout(thumbnailTimerRef.current);
-      thumbnailTimerRef.current = setTimeout(() => {
-        void uploadSceneThumbnail(nextThumbnailVersion);
-      }, THUMBNAIL_DEBOUNCE_MS);
+      queueThumbnailUpload("change", {
+        immediate: prioritizeThumbnailUpload,
+      });
 
     },
-    [queueCanvasSave, syncViewport, uploadSceneThumbnail],
+    [queueCanvasSave, queueThumbnailUpload, syncViewport],
   );
 
   // Register screenshot RPC handler so the server can request canvas captures
@@ -943,6 +1136,74 @@ export function CanvasEditor({
       });
     };
   }, [onContextMenuRequest, onSelectionIntent]);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) {
+      return;
+    }
+
+    const handleWheel = (event: WheelEvent) => {
+      if (isWheelZoomTargetBlocked(event.target)) {
+        return;
+      }
+
+      if (Math.abs(event.deltaY) < Math.abs(event.deltaX) || event.deltaY === 0) {
+        return;
+      }
+
+      const api = excalidrawApiRef.current;
+      const currentAppState = api?.getAppState?.();
+      const currentZoom = currentAppState?.zoom?.value ?? 1;
+      const nextZoom = Math.min(
+        Math.max(
+          event.deltaY < 0
+            ? currentZoom * CANVAS_WHEEL_ZOOM_STEP
+            : currentZoom / CANVAS_WHEEL_ZOOM_STEP,
+          CANVAS_WHEEL_ZOOM_MIN,
+        ),
+        CANVAS_WHEEL_ZOOM_MAX,
+      );
+
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+
+      if (!api?.updateScene || nextZoom === currentZoom) {
+        return;
+      }
+
+      const bounds = container.getBoundingClientRect();
+      const nextAppState = getNextWheelZoomAppState({
+        appState: currentAppState ?? {},
+        currentZoom,
+        nextZoom,
+        viewportX: event.clientX,
+        viewportY: event.clientY,
+        fallbackOffsetLeft: bounds.left,
+        fallbackOffsetTop: bounds.top,
+      });
+
+      api.updateScene({
+        appState: {
+          ...(currentAppState ?? {}),
+          ...nextAppState,
+        },
+      });
+      syncViewport(nextAppState);
+    };
+
+    container.addEventListener("wheel", handleWheel, {
+      capture: true,
+      passive: false,
+    });
+
+    return () => {
+      container.removeEventListener("wheel", handleWheel, {
+        capture: true,
+      });
+    };
+  }, [syncViewport]);
 
   return (
     <ErrorBoundary
