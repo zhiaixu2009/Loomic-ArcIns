@@ -270,6 +270,109 @@ describe("CanvasEditor flush", () => {
     );
   });
 
+  it("stores an optimistic thumbnail preview before a slow canvas save finishes during navigation flush", async () => {
+    const onFlushReady = vi.fn();
+
+    render(
+      <CanvasEditor
+        accessToken="token"
+        canvasId="canvas-navigation"
+        initialContent={{
+          elements: [],
+          appState: {},
+          files: {},
+        }}
+        onFlushReady={onFlushReady}
+        projectId="project-navigation"
+        projectName="Navigation Project"
+      />,
+    );
+
+    await screen.findByTestId("mock-excalidraw-surface");
+    await waitFor(() => expect(onFlushReady).toHaveBeenCalled());
+    await waitFor(() => {
+      expect(uploadThumbnailMock).toHaveBeenCalledWith(
+        "token",
+        "project-navigation",
+        expect.any(Blob),
+      );
+    });
+
+    window.sessionStorage.clear();
+    saveCanvasMock.mockClear();
+    exportToBlobMock.mockClear();
+    uploadThumbnailMock.mockClear();
+
+    let resolveSave:
+      | ((value: undefined | PromiseLike<undefined>) => void)
+      | undefined;
+    let resolveThumbnailUpload:
+      | ((value: undefined | PromiseLike<undefined>) => void)
+      | undefined;
+    saveCanvasMock.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveSave = resolve;
+        }),
+    );
+    uploadThumbnailMock.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveThumbnailUpload = resolve;
+        }),
+    );
+
+    apiState.sceneElements = [
+      {
+        id: "shape-navigation-1",
+        type: "rectangle",
+        x: 80,
+        y: 60,
+        width: 280,
+        height: 180,
+      },
+    ];
+
+    await act(async () => {
+      excalidrawOnChangeRef.current?.(apiState.sceneElements, apiState.appState);
+    });
+
+    const flush = onFlushReady.mock.calls.at(-1)?.[0] as
+      | (() => Promise<void>)
+      | undefined;
+    expect(flush).toBeTypeOf("function");
+
+    let flushPromise: Promise<void> | undefined;
+    await act(async () => {
+      flushPromise = flush?.();
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      const serializedRefresh = window.sessionStorage.getItem(
+        "loomic:project-thumbnail-refresh:pending",
+      );
+      expect(serializedRefresh).toContain("\"projectId\":\"project-navigation\"");
+      expect(serializedRefresh).toContain("\"thumbnailDataUrl\":\"data:image/webp;base64,");
+    });
+
+    expect(saveCanvasMock).toHaveBeenCalledTimes(1);
+    expect(resolveSave).toBeTypeOf("function");
+    expect(resolveThumbnailUpload).toBeTypeOf("function");
+
+    await act(async () => {
+      resolveSave?.(undefined);
+      resolveThumbnailUpload?.(undefined);
+      await flushPromise;
+    });
+
+    expect(uploadThumbnailMock).toHaveBeenCalledWith(
+      "token",
+      "project-navigation",
+      expect.any(Blob),
+    );
+  });
+
   it("uploads an initial blank thumbnail for a freshly created empty canvas", async () => {
     render(
       <CanvasEditor

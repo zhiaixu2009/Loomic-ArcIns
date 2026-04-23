@@ -139,3 +139,55 @@
   - home not rendering the fresher in-memory preview soon enough
   - first return relying on async fetch timing
 - This fix keeps the newest thumbnail preview visible from the moment the user returns home, then transparently hands off to the persisted server thumbnail once it catches up.
+
+## 2026-04-23 - Same-Tab Browser Back Could Return Before The Latest Cover Preview Was Broadcast
+
+### Scope
+
+- `新建项目 -> 画板中添加多张图片 -> 点击浏览器左上角后退键 -> 返回首页`
+- This only reproduces on the same-tab create fallback path:
+  - the normal create flow opens the canvas in a new tab
+  - when the browser blocks `window.open`, project creation falls back to in-page navigation
+  - that same-tab fallback is the path behind the user-reported browser-back regression
+
+### Symptoms
+
+- After returning home with the browser back button, the newest project card could still show a blank or stale cover even though the canvas had already received multiple images.
+- The regression was easiest to trigger when the user returned immediately, before the slower canvas save finished.
+
+### Root Cause
+
+1. The browser-back path depends on `CanvasPage -> popstate -> handleFlushCanvasBeforeNavigate -> CanvasEditor.flushPendingPersistence()`.
+2. `flushPendingPersistence()` previously awaited `flushPendingSave()` first.
+3. `flushPendingSave()` waits for the canvas `PUT` request, so the optimistic thumbnail preview broadcast was delayed behind the slower save round-trip.
+4. On the same-tab fallback path, home could mount before `sessionStorage` / custom-event received the latest `thumbnailDataUrl`, so the return-home card had no fresh preview to render immediately.
+
+### Fix Summary
+
+- In `apps/web/src/components/canvas-editor.tsx`:
+  - navigation flush now starts the save flush and thumbnail flush together instead of serializing them behind the save request
+  - the optimistic thumbnail preview can be emitted while the save is still in flight
+  - save errors are still surfaced after both branches settle, so the navigation flush does not silently swallow persistence failures
+- In `apps/web/test/canvas-editor-flush.test.tsx`:
+  - added a regression test that pins the exact failure mode
+  - the new test holds `saveCanvas()` open, triggers the navigation flush, and proves `loomic:project-thumbnail-refresh:pending` already contains a `thumbnailDataUrl` before the save resolves
+
+### Verification
+
+- Automated regression checks:
+  - `node ../../node_modules/vitest/vitest.mjs run test/project-thumbnail.test.ts test/canvas-editor-flush.test.tsx test/home-page-shell.test.tsx --reporter=dot --pool forks`
+  - `node D:/97-CodingProject/Loomic-ArcIns/node_modules/.pnpm/typescript@5.9.3/node_modules/typescript/lib/tsc.js -p D:/97-CodingProject/Loomic-ArcIns/apps/web/tsconfig.json --noEmit`
+- Real browser verification on `http://127.0.0.1:3000` with account `free@test.loomic.com`:
+  - forced the popup-blocked same-tab fallback in a headed Chrome session by overriding `window.open` to return `null`
+  - created project `cover-back-immediate-20260423`
+  - inserted four local images through the canvas page hidden multi-file image input
+  - waited `100ms`, then triggered the browser back button
+  - result: home returned with the `cover-back-immediate-20260423` card already showing the updated cover instead of a blank tile
+  - evidence:
+    - home screenshot: `output/playwright/.playwright-cli/page-2026-04-23T15-42-05-600Z.png`
+    - canvas screenshot before back: `output/playwright/.playwright-cli/page-2026-04-23T15-32-38-433Z.png`
+    - console log: `output/playwright/.playwright-cli/console-2026-04-23T15-08-42-534Z.log`
+      - home received the optimistic refresh immediately after back:
+        - `[home] refreshing projects after thumbnail refresh signal { projectName: cover-back-immediate-20260423, thumbnailDataUrl: data:image/webp... }`
+      - the selected-project summary also showed the home grid already rebuilt with thumbnails:
+        - `[home] selected homepage projects { selectedCount: 7, selectedWithThumbnails: 7 }`

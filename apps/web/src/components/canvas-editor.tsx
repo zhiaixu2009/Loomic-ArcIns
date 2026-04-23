@@ -935,19 +935,36 @@ export function CanvasEditor({
   }, []);
 
   const flushPendingPersistence = useCallback(async () => {
-    await flushPendingSave();
+    let saveError: unknown;
+    const flushSavePromise = flushPendingSave().catch((error) => {
+      saveError = error;
+    });
+    const requestedThumbnailVersion = pendingThumbnailVersionRef.current;
 
-    if (
-      pendingThumbnailVersionRef.current > syncedThumbnailVersionRef.current
-    ) {
+    if (requestedThumbnailVersion > syncedThumbnailVersionRef.current) {
       if (thumbnailTimerRef.current) {
         clearTimeout(thumbnailTimerRef.current);
         thumbnailTimerRef.current = null;
       }
 
-      await uploadSceneThumbnail(pendingThumbnailVersionRef.current);
+      console.info("[canvas-editor] flushing pending thumbnail ahead of slow navigation save", {
+        canvasId: canvasIdRef.current,
+        projectId,
+        requestedVersion: requestedThumbnailVersion,
+      });
+
+      await Promise.all([
+        flushSavePromise,
+        uploadSceneThumbnail(requestedThumbnailVersion),
+      ]);
+    } else {
+      await flushSavePromise;
     }
-  }, [flushPendingSave, uploadSceneThumbnail]);
+
+    if (saveError) {
+      throw saveError;
+    }
+  }, [flushPendingSave, projectId, uploadSceneThumbnail]);
 
   useEffect(() => {
     onFlushReady?.(flushPendingPersistence);
