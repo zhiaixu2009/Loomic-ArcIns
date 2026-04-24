@@ -4,7 +4,11 @@ import { act, cleanup, fireEvent, render, screen, within } from "@testing-librar
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-const { insertImageOnCanvasMock, loadOfficialGalleryLibraryMock } = vi.hoisted(() => ({
+const {
+  insertImageOnCanvasMock,
+  loadOfficialGalleryLibraryMock,
+  loadOfficialGallerySubtypeItemsPageMock,
+} = vi.hoisted(() => ({
   insertImageOnCanvasMock: vi.fn(() => Promise.resolve()),
   loadOfficialGalleryLibraryMock: vi.fn(() =>
     Promise.resolve([
@@ -15,28 +19,14 @@ const { insertImageOnCanvasMock, loadOfficialGalleryLibraryMock } = vi.hoisted((
           {
             id: "default",
             label: "默认",
-            items: [
-              {
-                id: "architecture-default-1",
-                label: "建筑效果图 默认 1",
-                url: "/official-gallery/architecture-default-1.png",
-                width: 1600,
-                height: 900,
-              },
-            ],
+            assetCount: 2,
+            items: [],
           },
           {
             id: "villa",
             label: "别墅",
-            items: [
-              {
-                id: "architecture-villa-1",
-                label: "建筑效果图 别墅 1",
-                url: "/official-gallery/architecture-villa-1.png",
-                width: 1600,
-                height: 900,
-              },
-            ],
+            assetCount: 1,
+            items: [],
           },
         ],
       },
@@ -45,21 +35,94 @@ const { insertImageOnCanvasMock, loadOfficialGalleryLibraryMock } = vi.hoisted((
         label: "室内效果图",
         subtypes: [
           {
-            id: "default",
+            id: "interior-default",
             label: "默认",
-            items: [
-              {
-                id: "interior-default-1",
-                label: "室内效果图 默认 1",
-                url: "/official-gallery/interior-default-1.png",
-                width: 1600,
-                height: 900,
-              },
-            ],
+            assetCount: 1,
+            items: [],
           },
         ],
       },
     ]),
+  ),
+  loadOfficialGallerySubtypeItemsPageMock: vi.fn(
+    async (_accessToken: string, subtypeId: string, options?: { offset?: number }) => {
+      const offset = options?.offset ?? 0;
+
+      if (subtypeId === "default" && offset === 0) {
+        return {
+          subtypeId,
+          items: [
+            {
+              id: "architecture-default-1",
+              label: "建筑效果图 默认 1",
+              url: "/official-gallery/architecture-default-1.png",
+              width: 1600,
+              height: 900,
+            },
+          ],
+          nextOffset: 1,
+          totalCount: 2,
+        };
+      }
+
+      if (subtypeId === "default" && offset === 1) {
+        return {
+          subtypeId,
+          items: [
+            {
+              id: "architecture-default-2",
+              label: "建筑效果图 默认 2",
+              url: "/official-gallery/architecture-default-2.png",
+              width: 1600,
+              height: 900,
+            },
+          ],
+          nextOffset: null,
+          totalCount: 2,
+        };
+      }
+
+      if (subtypeId === "villa") {
+        return {
+          subtypeId,
+          items: [
+            {
+              id: "architecture-villa-1",
+              label: "建筑效果图 别墅 1",
+              url: "/official-gallery/architecture-villa-1.png",
+              width: 1600,
+              height: 900,
+            },
+          ],
+          nextOffset: null,
+          totalCount: 1,
+        };
+      }
+
+      if (subtypeId === "interior-default") {
+        return {
+          subtypeId,
+          items: [
+            {
+              id: "interior-default-1",
+              label: "室内效果图 默认 1",
+              url: "/official-gallery/interior-default-1.png",
+              width: 1600,
+              height: 900,
+            },
+          ],
+          nextOffset: null,
+          totalCount: 1,
+        };
+      }
+
+      return {
+        subtypeId,
+        items: [],
+        nextOffset: null,
+        totalCount: 0,
+      };
+    },
   ),
 }));
 
@@ -82,6 +145,7 @@ vi.mock("../src/lib/canvas-elements", () => ({
 
 vi.mock("../src/lib/official-gallery-library", () => ({
   loadOfficialGalleryLibrary: loadOfficialGalleryLibraryMock,
+  loadOfficialGallerySubtypeItemsPage: loadOfficialGallerySubtypeItemsPageMock,
 }));
 
 vi.mock("../src/components/canvas/image-generator-panel", () => ({
@@ -102,6 +166,7 @@ afterEach(() => {
   cleanup();
   insertImageOnCanvasMock.mockClear();
   loadOfficialGalleryLibraryMock.mockClear();
+  loadOfficialGallerySubtypeItemsPageMock.mockClear();
 });
 
 function createMockExcalidrawApi() {
@@ -216,7 +281,7 @@ describe("CanvasToolMenu", () => {
     expect(screen.queryByRole("dialog", { name: "添加素材" })).toBeNull();
   });
 
-  it("renders the live-style official gallery filters and inserts a selected gallery image onto the canvas", async () => {
+  it("loads official gallery items from paginated subtype queries and inserts a selected image onto the canvas", async () => {
     const user = userEvent.setup();
     const excalidrawApi = createMockExcalidrawApi();
 
@@ -233,16 +298,52 @@ describe("CanvasToolMenu", () => {
     await user.click(screen.getByRole("button", { name: "添加" }));
     await user.click(screen.getByRole("tab", { name: "官方图库" }));
 
+    expect(loadOfficialGalleryLibraryMock).toHaveBeenCalledWith("token-canvas");
     expect(await screen.findByRole("button", { name: "建筑效果图" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "室内效果图" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "默认" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "别墅" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /默认/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /别墅/ })).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "插入官方图库图片 建筑效果图 默认 1" }),
+      await screen.findByRole("button", { name: "插入官方图库图片 建筑效果图 默认 1" }),
+    ).toBeInTheDocument();
+    expect(loadOfficialGallerySubtypeItemsPageMock).toHaveBeenCalledWith(
+      "token-canvas",
+      "default",
+      {
+        limit: 60,
+        offset: 0,
+      },
+    );
+    expect(screen.getByRole("button", { name: "加载更多官方图库图片" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "加载更多官方图库图片" }));
+    expect(loadOfficialGallerySubtypeItemsPageMock).toHaveBeenCalledWith(
+      "token-canvas",
+      "default",
+      {
+        limit: 60,
+        offset: 1,
+      },
+    );
+    expect(
+      await screen.findByRole("button", { name: "插入官方图库图片 建筑效果图 默认 2" }),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /别墅/ }));
+    expect(loadOfficialGallerySubtypeItemsPageMock).toHaveBeenCalledWith(
+      "token-canvas",
+      "villa",
+      {
+        limit: 60,
+        offset: 0,
+      },
+    );
+    expect(
+      await screen.findByRole("button", { name: "插入官方图库图片 建筑效果图 别墅 1" }),
     ).toBeInTheDocument();
 
     await user.click(
-      screen.getByRole("button", { name: "插入官方图库图片 建筑效果图 默认 1" }),
+      screen.getByRole("button", { name: "插入官方图库图片 建筑效果图 别墅 1" }),
     );
 
     expect(insertImageOnCanvasMock).toHaveBeenCalledWith(
@@ -250,6 +351,7 @@ describe("CanvasToolMenu", () => {
       expect.objectContaining({
         type: "image",
         mimeType: "image/png",
+        title: "建筑效果图 别墅 1",
       }),
     );
     expect(screen.queryByRole("dialog", { name: "添加素材" })).toBeNull();

@@ -31,6 +31,8 @@ import type {
   ShareSnapshotResponse,
   ReviewPackageResponse,
   ExportManifestResponse,
+  OfficialGalleryResponse,
+  OfficialGalleryItemsPageResponse,
 } from "@loomic/shared";
 
 import { getServerBaseUrl } from "./env";
@@ -136,6 +138,43 @@ export async function fetchProjects(
   });
   if (!response.ok) return handleErrorResponse(response);
   return (await response.json()) as ProjectListResponse;
+}
+
+export async function fetchOfficialGallery(
+  accessToken: string,
+): Promise<OfficialGalleryResponse> {
+  const response = await fetch(`${getServerBaseUrl()}/api/official-gallery`, {
+    headers: authHeaders(accessToken),
+  });
+  if (!response.ok) return handleErrorResponse(response);
+  return (await response.json()) as OfficialGalleryResponse;
+}
+
+export async function fetchOfficialGallerySubtypeItems(
+  accessToken: string,
+  subtypeId: string,
+  options?: {
+    limit?: number;
+    offset?: number;
+  },
+): Promise<OfficialGalleryItemsPageResponse> {
+  const search = new URLSearchParams();
+  if (options?.limit != null) {
+    search.set("limit", String(options.limit));
+  }
+  if (options?.offset != null) {
+    search.set("offset", String(options.offset));
+  }
+
+  const suffix = search.toString().length > 0 ? `?${search.toString()}` : "";
+  const response = await fetch(
+    `${getServerBaseUrl()}/api/official-gallery/subtypes/${subtypeId}/items${suffix}`,
+    {
+      headers: authHeaders(accessToken),
+    },
+  );
+  if (!response.ok) return handleErrorResponse(response);
+  return (await response.json()) as OfficialGalleryItemsPageResponse;
 }
 
 export async function createProject(

@@ -27,6 +27,10 @@ import {
   type ProjectService,
 } from "./features/projects/project-service.js";
 import {
+  createOfficialGalleryService,
+  type OfficialGalleryService,
+} from "./features/official-gallery/official-gallery-service.js";
+import {
   createChatService,
   type ChatService,
 } from "./features/chat/chat-service.js";
@@ -85,6 +89,7 @@ import { registerModelRoutes } from "./http/models.js";
 import { registerImageModelRoutes } from "./http/image-models.js";
 import { registerVideoModelRoutes } from "./http/video-models.js";
 import { registerProjectRoutes } from "./http/projects.js";
+import { registerOfficialGalleryRoutes } from "./http/official-gallery.js";
 import { registerRunRoutes } from "./http/runs.js";
 import { registerSettingsRoutes } from "./http/settings.js";
 import { registerUploadRoutes } from "./http/uploads.js";
@@ -120,6 +125,7 @@ export type BuildAppOptions = {
   uploadService?: UploadService;
   mockEventDelayMs?: number;
   exportService?: ExportService;
+  officialGalleryService?: OfficialGalleryService;
   projectService?: ProjectService;
   settingsService?: SettingsService;
   threadService?: ThreadService;
@@ -166,6 +172,9 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   const projectService =
     options.projectService ??
     createProjectService({ createUserClient, getAdminClient, viewerService });
+  const officialGalleryService =
+    options.officialGalleryService ??
+    createOfficialGalleryService({ getAdminClient });
   const brandKitService =
     options.brandKitService ?? createBrandKitService({ createUserClient });
   const canvasService =
@@ -294,6 +303,10 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   void registerProjectRoutes(app, {
     auth,
     projectService,
+  });
+  void registerOfficialGalleryRoutes(app, {
+    auth,
+    officialGalleryService,
   });
   void registerCanvasRoutes(app, {
     auth,

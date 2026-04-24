@@ -64,6 +64,38 @@ export const projectCreateResponseSchema = z.object({
   project: projectSummarySchema,
 });
 
+export const officialGalleryItemSchema = z.object({
+  id: z.string().min(1),
+  label: z.string().min(1),
+  url: z.string().url(),
+  width: z.number().int().positive(),
+  height: z.number().int().positive(),
+});
+
+export const officialGallerySubtypeSchema = z.object({
+  id: z.string().min(1),
+  label: z.string().min(1),
+  assetCount: z.number().int().nonnegative().default(0),
+  items: z.array(officialGalleryItemSchema).default([]),
+});
+
+export const officialGalleryCategorySchema = z.object({
+  id: z.string().min(1),
+  label: z.string().min(1),
+  subtypes: z.array(officialGallerySubtypeSchema),
+});
+
+export const officialGalleryResponseSchema = z.object({
+  categories: z.array(officialGalleryCategorySchema),
+});
+
+export const officialGalleryItemsPageResponseSchema = z.object({
+  subtypeId: z.string().min(1),
+  items: z.array(officialGalleryItemSchema),
+  totalCount: z.number().int().nonnegative(),
+  nextOffset: z.number().int().nonnegative().nullable(),
+});
+
 export const unauthenticatedErrorResponseSchema = z.object({
   error: z.object({
     code: z.literal("unauthorized"),
@@ -125,6 +157,7 @@ export const applicationErrorCodeSchema = z.enum([
   "variant_not_found",
   "checkout_failed",
   "generation_failed",
+  "official_gallery_query_failed",
 ]);
 
 export const applicationErrorResponseSchema = z.object({
@@ -167,6 +200,13 @@ export type ViewerResponse = z.infer<typeof viewerResponseSchema>;
 export type ProjectListResponse = z.infer<typeof projectListResponseSchema>;
 export type ProjectCreateRequest = z.infer<typeof projectCreateRequestSchema>;
 export type ProjectCreateResponse = z.infer<typeof projectCreateResponseSchema>;
+export type OfficialGalleryItem = z.infer<typeof officialGalleryItemSchema>;
+export type OfficialGallerySubtype = z.infer<typeof officialGallerySubtypeSchema>;
+export type OfficialGalleryCategory = z.infer<typeof officialGalleryCategorySchema>;
+export type OfficialGalleryResponse = z.infer<typeof officialGalleryResponseSchema>;
+export type OfficialGalleryItemsPageResponse = z.infer<
+  typeof officialGalleryItemsPageResponseSchema
+>;
 export type UnauthenticatedErrorResponse = z.infer<
   typeof unauthenticatedErrorResponseSchema
 >;

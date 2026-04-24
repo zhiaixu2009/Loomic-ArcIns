@@ -188,6 +188,97 @@
     - canvas screenshot before back: `output/playwright/.playwright-cli/page-2026-04-23T15-32-38-433Z.png`
     - console log: `output/playwright/.playwright-cli/console-2026-04-23T15-08-42-534Z.log`
       - home received the optimistic refresh immediately after back:
-        - `[home] refreshing projects after thumbnail refresh signal { projectName: cover-back-immediate-20260423, thumbnailDataUrl: data:image/webp... }`
+      - `[home] refreshing projects after thumbnail refresh signal { projectName: cover-back-immediate-20260423, thumbnailDataUrl: data:image/webp... }`
       - the selected-project summary also showed the home grid already rebuilt with thumbnails:
         - `[home] selected homepage projects { selectedCount: 7, selectedWithThumbnails: 7 }`
+
+## 2026-04-24 - Official Gallery Switched From Demo Seeds To Real DB-Backed Library Sync
+
+### Scope
+
+- The canvas `添加 -> 官方图库` flow needed to stop depending on hardcoded demo data and use the real public Jianzhuxuezhang gallery.
+- Official gallery images had to be downloaded from the public upstream source, stored locally, and served from the local database / local storage URL instead of frontend constants.
+- The local mirror also needed enough operational tooling to finish large sync jobs safely.
+
+### Symptoms
+
+- The previously wired official gallery API / modal chain was functional, but the local dataset only contained a smoke seed:
+  - `1` category
+  - `1` subtype
+  - `28` assets
+- Trying to expand the sync naively exposed two deeper problems:
+  - the sync script originally accumulated the whole run in memory and only wrote to the database at the very end, so long-running jobs could time out without preserving meaningful progress
+  - stale asset cleanup only deactivated rows by `category_id` / `subtype_id`, so shrinking a subtype sync scope could leave old assets in that same subtype active
+
+### Root Cause
+
+1. The official gallery data source was no longer the blocker; the real blocker was the ingestion architecture.
+2. The sync pipeline used a monolithic “prepare everything -> apply once” flow, which is fragile for thousands of remote images and long browser-assisted fetches.
+3. The stale-row cleanup logic compared asset rows too coarsely, so it could not remove outdated asset ids within an already-active subtype.
+4. Re-running broader syncs without local-asset reuse would repeatedly re-download already mirrored assets, wasting time and making completion less likely.
+
+### Fix Summary
+
+- In `apps/server/src/features/official-gallery/official-gallery-sync.ts`:
+  - added tested helpers for:
+    - per-subtype asset limiting
+    - reusing previously mirrored local asset metadata
+    - stale-id diffing by concrete row id
+    - targeted category / subtype filtering for focused sync runs
+- In `scripts/sync-jzxz-official-gallery.ts`:
+  - added `--max-assets-per-subtype` so broad initial seeding can mirror the official taxonomy without unbounded pulls
+  - added local asset reuse so repeated sync runs do not re-download already mirrored files
+  - changed the sync architecture to persist category / subtype / asset rows incrementally during the run instead of waiting for a single final bulk write
+  - fixed cleanup to deactivate stale asset rows by `id` instead of only by parent subtype/category
+  - added targeted sync controls:
+    - `--category-label`
+    - `--subtype-label`
+    - `--skip-cleanup`
+  - used the targeted mode to fill the last missing `总平素材` subtypes without re-scanning the entire library
+- Data result after the completed sync work:
+  - `12` categories
+  - `99` subtypes
+  - `5313` locally stored official gallery assets
+- The locally mirrored asset URLs now resolve to the local public storage bucket:
+  - `http://127.0.0.1:54321/storage/v1/object/public/official-gallery-assets/...`
+
+### Verification
+
+- Automated regression checks:
+  - `node ../../node_modules/vitest/vitest.mjs run src/http/official-gallery.test.ts src/features/official-gallery/official-gallery-sync.test.ts --reporter=dot --pool forks`
+  - `node ../../node_modules/vitest/vitest.mjs run test/server-api.test.ts test/official-gallery-library.test.ts test/canvas-tool-menu.test.tsx --reporter=dot --pool forks`
+  - `node D:/97-CodingProject/Loomic-ArcIns/node_modules/.pnpm/typescript@5.9.3/node_modules/typescript/lib/tsc.js -p D:/97-CodingProject/Loomic-ArcIns/apps/server/tsconfig.json --noEmit`
+  - `node D:/97-CodingProject/Loomic-ArcIns/node_modules/.pnpm/typescript@5.9.3/node_modules/typescript/lib/tsc.js -p D:/97-CodingProject/Loomic-ArcIns/apps/web/tsconfig.json --noEmit`
+- Local DB / storage spot checks:
+  - active rows after the sync:
+    - `12` categories
+    - `99` subtypes
+    - `5313` assets
+  - final targeted `总平素材` subtype counts:
+    - `插画植物`: `60`
+    - `铺装素材`: `60`
+    - `交通车辆`: `60`
+    - `运动场地`: `35`
+  - sample mirrored asset row:
+    - `asset_url = http://127.0.0.1:54321/storage/v1/object/public/official-gallery-assets/...`
+    - `storage_bucket = official-gallery-assets`
+- Real browser verification on `http://127.0.0.1:3000` with account `free@test.loomic.com`:
+  - opened an existing project
+  - opened the canvas `添加` dialog
+  - switched to `官方图库`
+  - confirmed the modal rendered the full category strip from the DB-backed API
+  - confirmed the previously missing `总平素材` subtype buttons were present in the real UI:
+    - `插画植物`
+    - `铺装素材`
+    - `交通车辆`
+    - `运动场地`
+  - browser console evidence showed the frontend loading the server-backed library instead of bundled constants:
+    - `[official-gallery] received database-backed official gallery structure from server {categoryCount: 12}`
+    - `[official-gallery] received subtype items page from server {itemCount: 35, nextOffset: null, subtypeId: og-sub-db5e8b73f7, totalCount: 35}`
+  - screenshot artifact:
+    - `.playwright-cli/page-2026-04-24T03-20-22-309Z.png`
+
+### Notes
+
+- Full unlimited upstream coverage is much larger than a single quick smoke sync, so the script now supports resumable / targeted operational workflows rather than assuming a single uninterrupted run will always finish.
+- The current local mirror is intentionally persisted in the database and local storage so the canvas UI does not need to fallback to frontend hardcoded official-gallery seeds.

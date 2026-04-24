@@ -6,6 +6,8 @@ import {
   fetchViewer,
   fetchProjects,
   createProject,
+  fetchOfficialGallery,
+  fetchOfficialGallerySubtypeItems,
   fetchArchitectureExportManifest,
   fetchArchitectureReviewPackage,
   shareArchitectureSnapshot,
@@ -137,6 +139,74 @@ describe("authenticated server API", () => {
       }),
     );
     expect(result.projects).toHaveLength(1);
+  });
+
+  it("fetchOfficialGallery sends bearer token and returns database-backed categories", async () => {
+    const payload = {
+      categories: [
+        {
+          id: "plants",
+          label: "植物配景",
+          subtypes: [
+            {
+              id: "trees",
+              label: "绿树",
+              items: [
+                {
+                  id: "asset-1",
+                  label: "前景树 1",
+                  url: "http://127.0.0.1:54321/storage/v1/object/public/official-gallery-assets/plants/trees/asset-1.png",
+                  width: 1440,
+                  height: 960,
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    mockFetch.mockResolvedValue({ ok: true, status: 200, json: async () => payload });
+
+    const result = await fetchOfficialGallery("token_gallery");
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      "http://localhost:3001/api/official-gallery",
+      expect.objectContaining({
+        headers: { Authorization: "Bearer token_gallery" },
+      }),
+    );
+    expect(result).toEqual(payload);
+  });
+
+  it("fetchOfficialGallerySubtypeItems sends bearer token and returns paginated items", async () => {
+    const payload = {
+      subtypeId: "trees",
+      items: [
+        {
+          id: "asset-1",
+          label: "前景树 1",
+          url: "http://127.0.0.1:54321/storage/v1/object/public/official-gallery-assets/plants/trees/asset-1.png",
+          width: 1440,
+          height: 960,
+        },
+      ],
+      nextOffset: 60,
+      totalCount: 240,
+    };
+    mockFetch.mockResolvedValue({ ok: true, status: 200, json: async () => payload });
+
+    const result = await fetchOfficialGallerySubtypeItems("token_gallery", "trees", {
+      limit: 60,
+      offset: 0,
+    });
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      "http://localhost:3001/api/official-gallery/subtypes/trees/items?limit=60&offset=0",
+      expect.objectContaining({
+        headers: { Authorization: "Bearer token_gallery" },
+      }),
+    );
+    expect(result).toEqual(payload);
   });
 
   it("createProject throws ApiApplicationError with code on 409", async () => {

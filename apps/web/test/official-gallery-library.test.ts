@@ -1,152 +1,115 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { Database } from "@loomic/shared";
+const { fetchOfficialGalleryMock, fetchOfficialGallerySubtypeItemsMock } = vi.hoisted(
+  () => ({
+    fetchOfficialGalleryMock: vi.fn(),
+    fetchOfficialGallerySubtypeItemsMock: vi.fn(),
+  }),
+);
+
+vi.mock("../src/lib/server-api", () => ({
+  fetchOfficialGallery: fetchOfficialGalleryMock,
+  fetchOfficialGallerySubtypeItems: fetchOfficialGallerySubtypeItemsMock,
+}));
 
 import {
-  mapOfficialGalleryRows,
-  officialGallerySeedLibrary,
-} from "@/lib/official-gallery-library";
+  loadOfficialGalleryLibrary,
+  loadOfficialGallerySubtypeItemsPage,
+} from "../src/lib/official-gallery-library";
 
-type OfficialGalleryCategoryRow =
-  Database["public"]["Tables"]["official_gallery_categories"]["Row"];
-type OfficialGallerySubtypeRow =
-  Database["public"]["Tables"]["official_gallery_subtypes"]["Row"];
-type OfficialGalleryAssetRow =
-  Database["public"]["Tables"]["official_gallery_assets"]["Row"];
+describe("loadOfficialGalleryLibrary", () => {
+  beforeEach(() => {
+    fetchOfficialGalleryMock.mockReset();
+    fetchOfficialGallerySubtypeItemsMock.mockReset();
+  });
 
-describe("mapOfficialGalleryRows", () => {
-  it("groups and sorts categories, subtypes, and assets into the gallery browser shape", () => {
-    const categories: OfficialGalleryCategoryRow[] = [
-      {
-        id: "interior-render",
-        label: "室内效果图",
-        sort_order: 1,
-        is_active: true,
-        created_at: "2026-04-22T00:00:00.000Z",
-        updated_at: "2026-04-22T00:00:00.000Z",
-      },
-      {
-        id: "architecture-render",
-        label: "建筑效果图",
-        sort_order: 0,
-        is_active: true,
-        created_at: "2026-04-22T00:00:00.000Z",
-        updated_at: "2026-04-22T00:00:00.000Z",
-      },
-    ];
+  it("loads the official gallery structure from the authenticated server API", async () => {
+    fetchOfficialGalleryMock.mockResolvedValue({
+      categories: [
+        {
+          id: "plants",
+          label: "植物配景",
+          subtypes: [
+            {
+              id: "trees",
+              label: "绿树",
+              assetCount: 240,
+              items: [],
+            },
+          ],
+        },
+      ],
+    });
 
-    const subtypes: OfficialGallerySubtypeRow[] = [
+    await expect(loadOfficialGalleryLibrary("token-gallery")).resolves.toEqual([
       {
-        id: "villa",
-        category_id: "architecture-render",
-        label: "别墅",
-        sort_order: 1,
-        is_active: true,
-        created_at: "2026-04-22T00:00:00.000Z",
-        updated_at: "2026-04-22T00:00:00.000Z",
-      },
-      {
-        id: "default",
-        category_id: "architecture-render",
-        label: "默认",
-        sort_order: 0,
-        is_active: true,
-        created_at: "2026-04-22T00:00:00.000Z",
-        updated_at: "2026-04-22T00:00:00.000Z",
-      },
-    ];
-
-    const assets: OfficialGalleryAssetRow[] = [
-      {
-        id: "architecture-default-2",
-        asset_url: "/official-gallery/architecture-default-2.png",
-        category_id: "architecture-render",
-        created_at: "2026-04-22T00:00:00.000Z",
-        height: 900,
-        is_active: true,
-        sort_order: 1,
-        subtype_id: "default",
-        title: "建筑效果图 默认 2",
-        updated_at: "2026-04-22T00:00:00.000Z",
-        width: 1600,
-      },
-      {
-        id: "architecture-default-1",
-        asset_url: "/official-gallery/architecture-default-1.png",
-        category_id: "architecture-render",
-        created_at: "2026-04-22T00:00:00.000Z",
-        height: 900,
-        is_active: true,
-        sort_order: 0,
-        subtype_id: "default",
-        title: "建筑效果图 默认 1",
-        updated_at: "2026-04-22T00:00:00.000Z",
-        width: 1600,
-      },
-      {
-        id: "architecture-villa-1",
-        asset_url: "/official-gallery/architecture-villa-1.png",
-        category_id: "architecture-render",
-        created_at: "2026-04-22T00:00:00.000Z",
-        height: 900,
-        is_active: true,
-        sort_order: 0,
-        subtype_id: "villa",
-        title: "建筑效果图 别墅 1",
-        updated_at: "2026-04-22T00:00:00.000Z",
-        width: 1600,
-      },
-    ];
-
-    expect(mapOfficialGalleryRows(categories, subtypes, assets)).toEqual([
-      {
-        id: "architecture-render",
-        label: "建筑效果图",
+        id: "plants",
+        label: "植物配景",
         subtypes: [
           {
-            id: "default",
-            label: "默认",
-            items: [
-              {
-                id: "architecture-default-1",
-                label: "建筑效果图 默认 1",
-                url: "/official-gallery/architecture-default-1.png",
-                width: 1600,
-                height: 900,
-              },
-              {
-                id: "architecture-default-2",
-                label: "建筑效果图 默认 2",
-                url: "/official-gallery/architecture-default-2.png",
-                width: 1600,
-                height: 900,
-              },
-            ],
-          },
-          {
-            id: "villa",
-            label: "别墅",
-            items: [
-              {
-                id: "architecture-villa-1",
-                label: "建筑效果图 别墅 1",
-                url: "/official-gallery/architecture-villa-1.png",
-                width: 1600,
-                height: 900,
-              },
-            ],
+            id: "trees",
+            label: "绿树",
+            assetCount: 240,
+            items: [],
           },
         ],
       },
-      {
-        id: "interior-render",
-        label: "室内效果图",
-        subtypes: [],
-      },
     ]);
+
+    expect(fetchOfficialGalleryMock).toHaveBeenCalledWith("token-gallery");
   });
 
-  it("falls back to the bounded local seed library when the database is empty", () => {
-    expect(mapOfficialGalleryRows([], [], [])).toEqual(officialGallerySeedLibrary);
+  it("surfaces server failures instead of silently falling back to bundled seeds", async () => {
+    fetchOfficialGalleryMock.mockRejectedValue(new Error("gallery unavailable"));
+
+    await expect(loadOfficialGalleryLibrary("token-gallery")).rejects.toThrow(
+      "gallery unavailable",
+    );
+  });
+
+  it("loads subtype items pages from the authenticated server API", async () => {
+    fetchOfficialGallerySubtypeItemsMock.mockResolvedValue({
+      subtypeId: "trees",
+      items: [
+        {
+          id: "asset-1",
+          label: "前景树 1",
+          url: "http://127.0.0.1:54321/storage/v1/object/public/official-gallery-assets/plants/trees/asset-1.png",
+          width: 1440,
+          height: 960,
+        },
+      ],
+      nextOffset: 60,
+      totalCount: 240,
+    });
+
+    await expect(
+      loadOfficialGallerySubtypeItemsPage("token-gallery", "trees", {
+        limit: 60,
+        offset: 0,
+      }),
+    ).resolves.toEqual({
+      subtypeId: "trees",
+      items: [
+        {
+          id: "asset-1",
+          label: "前景树 1",
+          url: "http://127.0.0.1:54321/storage/v1/object/public/official-gallery-assets/plants/trees/asset-1.png",
+          width: 1440,
+          height: 960,
+        },
+      ],
+      nextOffset: 60,
+      totalCount: 240,
+    });
+
+    expect(fetchOfficialGallerySubtypeItemsMock).toHaveBeenCalledWith(
+      "token-gallery",
+      "trees",
+      {
+        limit: 60,
+        offset: 0,
+      },
+    );
   });
 });

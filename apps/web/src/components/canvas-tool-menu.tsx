@@ -43,11 +43,16 @@ import {
   type VideoGeneratorData,
 } from "../lib/canvas-video-generator";
 import { insertImageOnCanvas, isVideoUrl } from "../lib/canvas-elements";
-import { loadOfficialGalleryLibrary } from "../lib/official-gallery-library";
+import type {
+  OfficialGalleryCategory,
+  OfficialGalleryItem,
+} from "@loomic/shared";
+import {
+  loadOfficialGalleryLibrary,
+  loadOfficialGallerySubtypeItemsPage,
+} from "../lib/official-gallery-library";
 import {
   officialGallerySeedLibrary,
-  type OfficialGalleryCategory,
-  type OfficialGalleryItem,
 } from "../lib/official-gallery-seeds";
 import { ImageGeneratorPanel } from "./canvas/image-generator-panel";
 import { VideoGeneratorPanel } from "./canvas/video-generator-panel";
@@ -135,6 +140,14 @@ type GallerySampleItem = {
   url: string;
   width: number;
   height: number;
+};
+type OfficialGallerySubtypeCacheEntry = {
+  error: string | null;
+  items: OfficialGalleryItem[];
+  loaded: boolean;
+  loading: boolean;
+  nextOffset: number | null;
+  totalCount: number;
 };
 type AddModalTabDefinition = {
   id: AddModalTab;
@@ -281,7 +294,15 @@ const ADD_MODAL_TABS: AddModalTabDefinition[] = [
   },
 ];
 
-function buildOfficialGallerySeedItemIndex(library: OfficialGalleryCategory[]) {
+const OFFICIAL_GALLERY_PAGE_SIZE = 60;
+
+function buildOfficialGallerySeedItemIndex(
+  library: Array<{
+    subtypes: Array<{
+      items: OfficialGalleryItem[];
+    }>;
+  }>,
+) {
   const index = new Map<string, OfficialGalleryItem>();
 
   for (const category of library) {
@@ -328,6 +349,36 @@ function buildSeedBackedGalleryItem(
     width: seedItem.width,
     height: seedItem.height,
   };
+}
+
+function createOfficialGallerySubtypeCacheEntry(): OfficialGallerySubtypeCacheEntry {
+  return {
+    error: null,
+    items: [],
+    loaded: false,
+    loading: false,
+    nextOffset: 0,
+    totalCount: 0,
+  };
+}
+
+function mergeOfficialGalleryItems(
+  existingItems: OfficialGalleryItem[],
+  incomingItems: OfficialGalleryItem[],
+) {
+  const seen = new Set(existingItems.map((item) => item.id));
+  const merged = [...existingItems];
+
+  for (const item of incomingItems) {
+    if (seen.has(item.id)) {
+      continue;
+    }
+
+    seen.add(item.id);
+    merged.push(item);
+  }
+
+  return merged;
 }
 
 const MY_CREATION_SOURCES: Array<{
@@ -662,16 +713,19 @@ export function CanvasToolMenu({
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [activeAddTab, setActiveAddTab] = useState<AddModalTab>("local-upload");
   const [officialGalleryLibrary, setOfficialGalleryLibrary] =
-    useState<OfficialGalleryCategory[]>(officialGallerySeedLibrary);
+    useState<OfficialGalleryCategory[]>([]);
   const [officialGalleryLoading, setOfficialGalleryLoading] = useState(false);
   const [officialGalleryLoaded, setOfficialGalleryLoaded] = useState(false);
   const [officialGalleryLoadError, setOfficialGalleryLoadError] = useState<string | null>(
     null,
   );
+  const [officialGallerySubtypeCache, setOfficialGallerySubtypeCache] = useState<
+    Record<string, OfficialGallerySubtypeCacheEntry>
+  >({});
   const [activeOfficialGalleryCategory, setActiveOfficialGalleryCategory] =
-    useState<string>(() => officialGallerySeedLibrary[0]?.id ?? "");
+    useState<string>("");
   const [activeOfficialGallerySubtype, setActiveOfficialGallerySubtype] =
-    useState<string>(() => officialGallerySeedLibrary[0]?.subtypes[0]?.id ?? "");
+    useState<string>("");
   const [activeMyCreationSource, setActiveMyCreationSource] =
     useState<MyCreationSourceId>("ai-drawing");
   const [shapeToolbarStyle, setShapeToolbarStyle] = useState<ShapeToolbarStyle>(() =>
@@ -1416,37 +1470,159 @@ useEffect(() => {
     };
   }, [addModalOpen]);
 
-  const loadOfficialGalleryData = useCallback(async () => {
-    if (officialGalleryLoading) {
-      return;
-    }
+  const loadOfficialGalleryData = useCallback(
+    async (options?: { force?: boolean }) => {
+      if (officialGalleryLoading) {
+        return;
+      }
 
-    setOfficialGalleryLoading(true);
-    setOfficialGalleryLoadError(null);
-    console.info("[canvas-tool-menu] loading official gallery library");
+      const force = options?.force ?? false;
 
-    try {
-      const nextLibrary = await loadOfficialGalleryLibrary();
-      const resolvedLibrary =
-        nextLibrary.length > 0 ? nextLibrary : officialGallerySeedLibrary;
-
-      setOfficialGalleryLibrary(resolvedLibrary);
-      setOfficialGalleryLoaded(true);
-      console.info("[canvas-tool-menu] official gallery library ready", {
-        categoryCount: resolvedLibrary.length,
+      setOfficialGalleryLoading(true);
+      setOfficialGalleryLoadError(null);
+      console.info("[canvas-tool-menu] loading official gallery library", {
+        force,
       });
-    } catch (error) {
-      console.warn(
-        "[canvas-tool-menu] failed to load official gallery library, falling back to seeds",
-        error,
-      );
-      setOfficialGalleryLibrary(officialGallerySeedLibrary);
-      setOfficialGalleryLoaded(true);
-      setOfficialGalleryLoadError("官方图库暂时未连上在线图源，已切换到本地受控素材库。");
-    } finally {
-      setOfficialGalleryLoading(false);
-    }
-  }, [officialGalleryLoading]);
+
+      try {
+        const nextLibrary = await loadOfficialGalleryLibrary(accessToken);
+
+        setOfficialGalleryLibrary(nextLibrary);
+        setOfficialGalleryLoaded(true);
+        if (force) {
+          setOfficialGallerySubtypeCache({});
+        }
+        console.info("[canvas-tool-menu] official gallery library ready", {
+          categoryCount: nextLibrary.length,
+          force,
+        });
+      } catch (error) {
+        console.warn("[canvas-tool-menu] failed to load official gallery library", error);
+        setOfficialGalleryLoaded(true);
+        setOfficialGalleryLoadError("官方图库加载失败，请稍后重试。");
+        if (!officialGalleryLoaded) {
+          setOfficialGalleryLibrary([]);
+        }
+      } finally {
+        setOfficialGalleryLoading(false);
+      }
+    },
+    [accessToken, officialGalleryLoaded, officialGalleryLoading],
+  );
+
+  const loadOfficialGallerySubtypeData = useCallback(
+    async (
+      subtypeId: string,
+      options?: {
+        append?: boolean;
+        force?: boolean;
+      },
+    ) => {
+      if (!subtypeId) {
+        return;
+      }
+
+      const append = options?.append ?? false;
+      const force = options?.force ?? false;
+      const cacheEntry =
+        officialGallerySubtypeCache[subtypeId] ?? createOfficialGallerySubtypeCacheEntry();
+
+      if (cacheEntry.loading) {
+        return;
+      }
+
+      if (!append && !force && cacheEntry.loaded) {
+        return;
+      }
+
+      if (append && cacheEntry.nextOffset == null) {
+        return;
+      }
+
+      const requestOffset = append ? cacheEntry.nextOffset ?? 0 : 0;
+
+      setOfficialGallerySubtypeCache((currentCache) => {
+        const currentEntry =
+          currentCache[subtypeId] ?? createOfficialGallerySubtypeCacheEntry();
+
+        return {
+          ...currentCache,
+          [subtypeId]: {
+            ...currentEntry,
+            error: null,
+            items: append ? currentEntry.items : force ? [] : currentEntry.items,
+            loaded: append ? currentEntry.loaded : force ? false : currentEntry.loaded,
+            loading: true,
+          },
+        };
+      });
+
+      console.info("[canvas-tool-menu] loading official gallery subtype page", {
+        append,
+        force,
+        offset: requestOffset,
+        subtypeId,
+      });
+
+      try {
+        const page = await loadOfficialGallerySubtypeItemsPage(
+          accessToken,
+          subtypeId,
+          {
+            limit: OFFICIAL_GALLERY_PAGE_SIZE,
+            offset: requestOffset,
+          },
+        );
+
+        setOfficialGallerySubtypeCache((currentCache) => {
+          const currentEntry =
+            currentCache[subtypeId] ?? createOfficialGallerySubtypeCacheEntry();
+          const items = append
+            ? mergeOfficialGalleryItems(currentEntry.items, page.items)
+            : page.items;
+
+          return {
+            ...currentCache,
+            [subtypeId]: {
+              error: null,
+              items,
+              loaded: true,
+              loading: false,
+              nextOffset: page.nextOffset,
+              totalCount: page.totalCount,
+            },
+          };
+        });
+
+        console.info("[canvas-tool-menu] official gallery subtype page ready", {
+          append,
+          itemCount: page.items.length,
+          nextOffset: page.nextOffset,
+          subtypeId,
+          totalCount: page.totalCount,
+        });
+      } catch (error) {
+        console.warn("[canvas-tool-menu] failed to load official gallery subtype page", {
+          error,
+          subtypeId,
+        });
+        setOfficialGallerySubtypeCache((currentCache) => {
+          const currentEntry =
+            currentCache[subtypeId] ?? createOfficialGallerySubtypeCacheEntry();
+
+          return {
+            ...currentCache,
+            [subtypeId]: {
+              ...currentEntry,
+              error: "官方图库图片加载失败，请稍后重试。",
+              loading: false,
+            },
+          };
+        });
+      }
+    },
+    [accessToken, officialGallerySubtypeCache],
+  );
 
   useEffect(() => {
     if (
@@ -1465,6 +1641,31 @@ useEffect(() => {
     loadOfficialGalleryData,
     officialGalleryLoaded,
     officialGalleryLoading,
+  ]);
+
+  useEffect(() => {
+    if (
+      !addModalOpen ||
+      activeAddTab !== "official-gallery" ||
+      officialGalleryLoading ||
+      !activeOfficialGallerySubtype
+    ) {
+      return;
+    }
+
+    const cacheEntry = officialGallerySubtypeCache[activeOfficialGallerySubtype];
+    if (cacheEntry?.loading || cacheEntry?.loaded) {
+      return;
+    }
+
+    void loadOfficialGallerySubtypeData(activeOfficialGallerySubtype);
+  }, [
+    activeAddTab,
+    activeOfficialGallerySubtype,
+    addModalOpen,
+    loadOfficialGallerySubtypeData,
+    officialGalleryLoading,
+    officialGallerySubtypeCache,
   ]);
 
   useEffect(() => {
@@ -1512,10 +1713,31 @@ useEffect(() => {
       null,
     [activeOfficialGallerySubtype, activeOfficialSubtypeOptions],
   );
-  const activeOfficialGalleryItems = useMemo(
-    () => activeOfficialGallerySubtypeRecord?.items ?? [],
-    [activeOfficialGallerySubtypeRecord],
+  const activeOfficialGallerySubtypeCacheEntry = useMemo(
+    () =>
+      activeOfficialGallerySubtypeRecord
+        ? (officialGallerySubtypeCache[activeOfficialGallerySubtypeRecord.id] ??
+          createOfficialGallerySubtypeCacheEntry())
+        : null,
+    [activeOfficialGallerySubtypeRecord, officialGallerySubtypeCache],
   );
+  const activeOfficialGalleryItems = useMemo(
+    () => activeOfficialGallerySubtypeCacheEntry?.items ?? [],
+    [activeOfficialGallerySubtypeCacheEntry],
+  );
+  const activeOfficialGallerySubtypeLoading =
+    activeOfficialGallerySubtypeCacheEntry?.loading ?? false;
+  const activeOfficialGallerySubtypeError =
+    activeOfficialGallerySubtypeCacheEntry?.error ?? null;
+  const activeOfficialGallerySubtypeHasLoaded =
+    activeOfficialGallerySubtypeCacheEntry?.loaded ?? false;
+  const activeOfficialGalleryHasMore =
+    activeOfficialGallerySubtypeHasLoaded &&
+    activeOfficialGallerySubtypeCacheEntry?.nextOffset != null;
+  const activeOfficialGalleryTotalCount =
+    activeOfficialGallerySubtypeRecord?.assetCount ??
+    activeOfficialGallerySubtypeCacheEntry?.totalCount ??
+    0;
   const activeMyCreationItems = MY_CREATION_SAMPLE_ITEMS[activeMyCreationSource] ?? [];
 
   const closeAddModal = useCallback(() => {
@@ -1537,6 +1759,20 @@ useEffect(() => {
     },
     [officialGalleryLibrary],
   );
+
+  const handleLoadMoreOfficialGalleryItems = useCallback(() => {
+    if (!activeOfficialGallerySubtype || !activeOfficialGalleryHasMore) {
+      return;
+    }
+
+    void loadOfficialGallerySubtypeData(activeOfficialGallerySubtype, {
+      append: true,
+    });
+  }, [
+    activeOfficialGalleryHasMore,
+    activeOfficialGallerySubtype,
+    loadOfficialGallerySubtypeData,
+  ]);
 
   const handleScrollOfficialGalleryCategories = useCallback(
     (direction: "left" | "right") => {
@@ -2245,13 +2481,13 @@ const renderAddModal = () => {
                   <div>
                     <div className="text-sm font-semibold text-slate-900">官方图库</div>
                     <p className="mt-1 text-xs leading-5 text-slate-500">
-                      已切换为本地受控素材源，优先保证加载稳定、可维护和后续可继续沉淀。
+                      图片与分类均来自本地数据库和本地存储，不再依赖前端硬编码常量。
                     </p>
                   </div>
                   <button
                     type="button"
                     className="inline-flex h-10 items-center gap-2 rounded-[10px] border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition-colors hover:border-slate-300 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
-                    onClick={() => void loadOfficialGalleryData()}
+                    onClick={() => void loadOfficialGalleryData({ force: true })}
                     disabled={officialGalleryLoading}
                   >
                     <Sparkles className="h-4 w-4" />
@@ -2305,6 +2541,23 @@ const renderAddModal = () => {
                     <ChevronRight className="h-4 w-4" />
                   </button>
                 </div>
+                {activeOfficialGallerySubtypeRecord ? (
+                  <div className="flex flex-wrap items-center justify-between gap-3 rounded-[14px] border border-slate-200 bg-white px-4 py-3">
+                    <div>
+                      <div className="text-sm font-semibold text-slate-900">
+                        {activeOfficialGalleryCategoryRecord?.label ?? "官方图库"} /{" "}
+                        {activeOfficialGallerySubtypeRecord.label}
+                      </div>
+                      <p className="mt-1 text-xs leading-5 text-slate-500">
+                        当前子类已同步 {activeOfficialGalleryItems.length} /{" "}
+                        {activeOfficialGalleryTotalCount} 张图片，按分页逐步加载。
+                      </p>
+                    </div>
+                    <div className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-600">
+                      本地库存 {activeOfficialGalleryTotalCount} 张
+                    </div>
+                  </div>
+                ) : null}
                 <div className="flex flex-wrap gap-2">
                   {activeOfficialSubtypeOptions.map((subtype) => {
                     const selected = activeOfficialGallerySubtypeRecord?.id === subtype.id;
@@ -2320,12 +2573,17 @@ const renderAddModal = () => {
                         }`}
                         onClick={() => setActiveOfficialGallerySubtype(subtype.id)}
                       >
-                        {subtype.label}
+                        <span>{subtype.label}</span>
+                        <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-500">
+                          {subtype.assetCount}
+                        </span>
                       </button>
                     );
                   })}
                 </div>
-                {officialGalleryLoading && activeOfficialGalleryItems.length === 0 ? (
+                {((officialGalleryLoading && officialGalleryLibrary.length === 0) ||
+                  (activeOfficialGallerySubtypeLoading &&
+                    activeOfficialGalleryItems.length === 0)) ? (
                   <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-6">
                     {Array.from({ length: 6 }).map((_, index) => (
                       <div
@@ -2337,6 +2595,30 @@ const renderAddModal = () => {
                       </div>
                     ))}
                   </div>
+                ) : activeOfficialGallerySubtypeError &&
+                  activeOfficialGalleryItems.length === 0 ? (
+                  <div className="flex min-h-[300px] flex-col items-center justify-center rounded-[16px] border border-amber-200 bg-amber-50 px-8 text-center">
+                    <div className="flex h-14 w-14 items-center justify-center rounded-full bg-white text-amber-500 shadow-[0_12px_28px_rgba(15,23,42,0.06)]">
+                      <Sparkles className="h-6 w-6" />
+                    </div>
+                    <div className="mt-4 text-base font-semibold text-slate-900">
+                      当前子类加载失败
+                    </div>
+                    <p className="mt-2 max-w-[420px] text-sm leading-6 text-slate-600">
+                      {activeOfficialGallerySubtypeError}
+                    </p>
+                    <button
+                      type="button"
+                      className="mt-5 inline-flex h-10 items-center justify-center rounded-[10px] border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100"
+                      onClick={() =>
+                        void loadOfficialGallerySubtypeData(activeOfficialGallerySubtype, {
+                          force: true,
+                        })
+                      }
+                    >
+                      重试当前子类
+                    </button>
+                  </div>
                 ) : activeOfficialGalleryItems.length === 0 ? (
                   <div className="flex min-h-[300px] flex-col items-center justify-center rounded-[16px] border border-dashed border-slate-300 bg-slate-50 px-8 text-center">
                     <div className="flex h-14 w-14 items-center justify-center rounded-full bg-white text-slate-400 shadow-[0_12px_28px_rgba(15,23,42,0.06)]">
@@ -2346,37 +2628,60 @@ const renderAddModal = () => {
                       当前分类还没有可用图片
                     </div>
                     <p className="mt-2 max-w-[420px] text-sm leading-6 text-slate-500">
-                      先保留这个分类入口，后续可以继续往本地图库库表补真实图片，不需要再改弹窗结构。
+                      这个分类暂时还没有同步到本地图库，请稍后重试或重新执行图库同步。
                     </p>
                   </div>
                 ) : (
-                  <div
-                    data-testid="official-gallery-grid"
-                    className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-6"
-                  >
-                    {activeOfficialGalleryItems.map((item, index) => (
-                      <button
-                        key={item.id}
-                        type="button"
-                        aria-label={`插入官方图库图片 ${item.label}`}
-                        className="group overflow-hidden rounded-[14px] border border-slate-200 bg-white text-left shadow-[0_8px_20px_rgba(15,23,42,0.04)] transition-all hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-[0_18px_28px_rgba(15,23,42,0.08)]"
-                        onClick={() => handleInsertOfficialGalleryImage(item, index)}
-                      >
-                        <div className="aspect-[4/3] overflow-hidden bg-slate-100">
-                          <img
-                            src={item.url}
-                            alt={item.label}
-                            className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-[1.02]"
-                          />
+                  <div className="grid gap-4">
+                    <div
+                      data-testid="official-gallery-grid"
+                      className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-6"
+                    >
+                      {activeOfficialGalleryItems.map((item, index) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          aria-label={`插入官方图库图片 ${item.label}`}
+                          className="group overflow-hidden rounded-[14px] border border-slate-200 bg-white text-left shadow-[0_8px_20px_rgba(15,23,42,0.04)] transition-all hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-[0_18px_28px_rgba(15,23,42,0.08)]"
+                          onClick={() => handleInsertOfficialGalleryImage(item, index)}
+                        >
+                          <div className="aspect-[4/3] overflow-hidden bg-slate-100">
+                            <img
+                              src={item.url}
+                              alt={item.label}
+                              className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-[1.02]"
+                            />
+                          </div>
+                          <div className="border-t border-slate-100 px-3 py-2.5">
+                            <p className="truncate text-sm font-medium text-slate-800">
+                              {item.label}
+                            </p>
+                            <p className="mt-1 text-xs text-slate-500">点击后直接插入当前画板</p>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                    <div className="flex flex-wrap items-center justify-between gap-3 rounded-[14px] border border-slate-200 bg-slate-50/70 px-4 py-3">
+                      <div className="text-sm text-slate-500">
+                        已展示 {activeOfficialGalleryItems.length} / {activeOfficialGalleryTotalCount}{" "}
+                        张本地图库图片
+                      </div>
+                      {activeOfficialGalleryHasMore ? (
+                        <button
+                          type="button"
+                          aria-label="加载更多官方图库图片"
+                          className="inline-flex h-10 items-center justify-center rounded-[10px] border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+                          onClick={handleLoadMoreOfficialGalleryItems}
+                          disabled={activeOfficialGallerySubtypeLoading}
+                        >
+                          {activeOfficialGallerySubtypeLoading ? "加载中..." : "加载更多"}
+                        </button>
+                      ) : (
+                        <div className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-500">
+                          当前子类已全部加载
                         </div>
-                        <div className="border-t border-slate-100 px-3 py-2.5">
-                          <p className="truncate text-sm font-medium text-slate-800">
-                            {item.label}
-                          </p>
-                          <p className="mt-1 text-xs text-slate-500">点击后直接插入当前画板</p>
-                        </div>
-                      </button>
-                    ))}
+                      )}
+                    </div>
                   </div>
                 )}
               </div>

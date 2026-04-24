@@ -646,12 +646,22 @@ export type Database = {
       official_gallery_assets: {
         Row: {
           asset_url: string
+          byte_size: number | null
           category_id: string
           created_at: string
           height: number
           id: string
           is_active: boolean
+          mime_type: string | null
           sort_order: number
+          source_asset_id: string | null
+          source_asset_url: string | null
+          source_meta: Json
+          source_tag: string | null
+          source_thumb_url: string | null
+          source_type: string | null
+          storage_bucket: string
+          storage_object_path: string | null
           subtype_id: string
           title: string
           updated_at: string
@@ -659,12 +669,22 @@ export type Database = {
         }
         Insert: {
           asset_url: string
+          byte_size?: number | null
           category_id: string
           created_at?: string
           height: number
           id: string
           is_active?: boolean
+          mime_type?: string | null
           sort_order?: number
+          source_asset_id?: string | null
+          source_asset_url?: string | null
+          source_meta?: Json
+          source_tag?: string | null
+          source_thumb_url?: string | null
+          source_type?: string | null
+          storage_bucket?: string
+          storage_object_path?: string | null
           subtype_id: string
           title: string
           updated_at?: string
@@ -672,12 +692,22 @@ export type Database = {
         }
         Update: {
           asset_url?: string
+          byte_size?: number | null
           category_id?: string
           created_at?: string
           height?: number
           id?: string
           is_active?: boolean
+          mime_type?: string | null
           sort_order?: number
+          source_asset_id?: string | null
+          source_asset_url?: string | null
+          source_meta?: Json
+          source_tag?: string | null
+          source_thumb_url?: string | null
+          source_type?: string | null
+          storage_bucket?: string
+          storage_object_path?: string | null
           subtype_id?: string
           title?: string
           updated_at?: string
@@ -707,6 +737,7 @@ export type Database = {
           is_active: boolean
           label: string
           sort_order: number
+          source_meta: Json
           updated_at: string
         }
         Insert: {
@@ -715,6 +746,7 @@ export type Database = {
           is_active?: boolean
           label: string
           sort_order?: number
+          source_meta?: Json
           updated_at?: string
         }
         Update: {
@@ -723,6 +755,7 @@ export type Database = {
           is_active?: boolean
           label?: string
           sort_order?: number
+          source_meta?: Json
           updated_at?: string
         }
         Relationships: []
@@ -735,6 +768,9 @@ export type Database = {
           is_active: boolean
           label: string
           sort_order: number
+          source_meta: Json
+          source_tag: string | null
+          source_type: string | null
           updated_at: string
         }
         Insert: {
@@ -744,6 +780,9 @@ export type Database = {
           is_active?: boolean
           label: string
           sort_order?: number
+          source_meta?: Json
+          source_tag?: string | null
+          source_type?: string | null
           updated_at?: string
         }
         Update: {
@@ -753,6 +792,9 @@ export type Database = {
           is_active?: boolean
           label?: string
           sort_order?: number
+          source_meta?: Json
+          source_tag?: string | null
+          source_type?: string | null
           updated_at?: string
         }
         Relationships: [
