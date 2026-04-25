@@ -2447,6 +2447,7 @@ function CanvasPageContent() {
           />
         ) : null}
         <CanvasImageEditorModal
+          accessToken={accessToken}
           open={Boolean(imageEditorState)}
           image={imageEditorState}
           onClose={handleCloseImageEditor}

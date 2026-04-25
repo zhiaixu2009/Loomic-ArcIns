@@ -35,9 +35,17 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import { createPortal } from "react-dom";
+import type {
+  OfficialGalleryCategory,
+  OfficialGalleryItem,
+} from "@loomic/shared";
 
 import { fetchImageBlobWithFallback } from "../../lib/canvas-elements";
 import { readBlobAsDataUrl } from "../../lib/image-upload-preprocessing";
+import {
+  loadOfficialGalleryLibrary,
+  loadOfficialGallerySubtypeItemsPage,
+} from "../../lib/official-gallery-library";
 
 type ImageEditorToolId =
   | "hand"
@@ -153,6 +161,26 @@ type StickerItem = {
   width: number;
 };
 
+type StickerLibrarySubcategory = {
+  assetCount: number;
+  id: string;
+  items?: StickerItem[];
+  label: string;
+};
+
+type StickerLibraryCategoryView = {
+  id: string;
+  label: string;
+  subcategories: StickerLibrarySubcategory[];
+};
+
+type StickerItemsPageCacheEntry = {
+  error: string | null;
+  loadedPages: Record<number, StickerItem[]>;
+  loadingPageIndexes: number[];
+  totalCount: number;
+};
+
 type ExternalEditorActionRequest = {
   prompt: string;
   reason:
@@ -163,6 +191,7 @@ type ExternalEditorActionRequest = {
 };
 
 type CanvasImageEditorModalProps = {
+  accessToken: string;
   image: {
     alt: string;
     elementId: string;
@@ -884,6 +913,107 @@ const STICKER_LIBRARY: Record<StickerCategoryId, StickerCategory> = {
   },
 };
 
+function mapOfficialGalleryItemToStickerItem(
+  item: OfficialGalleryItem,
+): StickerItem {
+  return {
+    id: item.id,
+    label: item.label,
+    src: item.url,
+    width: item.width,
+    height: item.height,
+  };
+}
+
+function buildFallbackStickerLibrary(): StickerLibraryCategoryView[] {
+  return (Object.entries(STICKER_LIBRARY) as Array<[string, StickerCategory]>).map(
+    ([categoryId, category]) => ({
+      id: categoryId,
+      label: category.label,
+      subcategories: category.subcategories.map((subcategory) => ({
+        id: subcategory.id,
+        label: subcategory.label,
+        assetCount: subcategory.items.length,
+        items: subcategory.items,
+      })),
+    }),
+  );
+}
+
+function buildOfficialStickerLibrary(
+  categories: OfficialGalleryCategory[],
+): StickerLibraryCategoryView[] {
+  return categories.map((category) => ({
+    id: category.id,
+    label: category.label,
+    subcategories: category.subtypes.map((subtype) => ({
+      id: subtype.id,
+      label: subtype.label,
+      assetCount: subtype.assetCount,
+    })),
+  }));
+}
+
+function createEmptyStickerItemsPageCacheEntry(
+  totalCount = 0,
+): StickerItemsPageCacheEntry {
+  return {
+    error: null,
+    loadedPages: {},
+    loadingPageIndexes: [],
+    totalCount,
+  };
+}
+
+function clearStickerItemsPageLoading(
+  entries: Record<string, StickerItemsPageCacheEntry>,
+  subtypeId: string,
+  pageIndex: number,
+): Record<string, StickerItemsPageCacheEntry> {
+  const currentEntry = entries[subtypeId];
+  if (!currentEntry?.loadingPageIndexes.includes(pageIndex)) {
+    return entries;
+  }
+
+  return {
+    ...entries,
+    [subtypeId]: {
+      ...currentEntry,
+      loadingPageIndexes: currentEntry.loadingPageIndexes.filter(
+        (item) => item !== pageIndex,
+      ),
+    },
+  };
+}
+
+function findStickerCategoryByKeywords(
+  categories: StickerLibraryCategoryView[],
+  keywords: string[],
+): StickerLibraryCategoryView | null {
+  const normalizedKeywords = keywords.map((keyword) => keyword.toLowerCase());
+
+  return (
+    categories.find((category) => {
+      const haystack = `${category.id} ${category.label}`.toLowerCase();
+      return normalizedKeywords.some((keyword) => haystack.includes(keyword));
+    }) ?? null
+  );
+}
+
+function findStickerSubcategoryByKeywords(
+  subcategories: StickerLibrarySubcategory[],
+  keywords: string[],
+): StickerLibrarySubcategory | null {
+  const normalizedKeywords = keywords.map((keyword) => keyword.toLowerCase());
+
+  return (
+    subcategories.find((subcategory) => {
+      const haystack = `${subcategory.id} ${subcategory.label}`.toLowerCase();
+      return normalizedKeywords.some((keyword) => haystack.includes(keyword));
+    }) ?? null
+  );
+}
+
 function renderPopoverPreviewCard(args: {
   label: string;
   onClick: () => void;
@@ -929,6 +1059,7 @@ function buildRemovePrompt(reason: ExternalEditorActionRequest["reason"]) {
 }
 
 export function CanvasImageEditorModal({
+  accessToken,
   image,
   onClose,
   onRequestExternalAction,
@@ -941,9 +1072,19 @@ export function CanvasImageEditorModal({
   const [loadingBaseImage, setLoadingBaseImage] = useState(false);
   const [activeTool, setActiveTool] = useState<ImageEditorToolId>("selection");
   const [activeShapeKind, setActiveShapeKind] = useState<ShapeOverlayKind>("rectangle");
-  const [activeStickerCategory, setActiveStickerCategory] = useState<StickerCategoryId>("plants");
-  const [activeStickerSubcategoryId, setActiveStickerSubcategoryId] = useState<string>("green-tree");
+  const [activeStickerCategory, setActiveStickerCategory] = useState<string>("");
+  const [activeStickerSubcategoryId, setActiveStickerSubcategoryId] = useState<string>("");
   const [activeStickerPage, setActiveStickerPage] = useState(0);
+  const [officialStickerLibrary, setOfficialStickerLibrary] = useState<
+    OfficialGalleryCategory[]
+  >([]);
+  const [officialStickerLibraryLoading, setOfficialStickerLibraryLoading] =
+    useState(false);
+  const [officialStickerLibraryLoadError, setOfficialStickerLibraryLoadError] =
+    useState<string | null>(null);
+  const [officialStickerItemsBySubtype, setOfficialStickerItemsBySubtype] =
+    useState<Record<string, StickerItemsPageCacheEntry>>({});
+  const officialStickerItemsBySubtypeRef = useRef(officialStickerItemsBySubtype);
   const [cropPresetId, setCropPresetId] = useState("custom");
   const [cropDraftRect, setCropDraftRect] = useState<EditorRect | null>(null);
   const [filterPreset, setFilterPreset] = useState<FilterPreset>("original");
@@ -967,6 +1108,19 @@ export function CanvasImageEditorModal({
   const textInputRef = useRef<HTMLTextAreaElement | null>(null);
   const undoSnapshotRef = useRef<EditorSnapshot | null>(null);
   const markerId = useId().replace(/:/g, "");
+  const persistedStickerLibrary = useMemo(
+    () => buildOfficialStickerLibrary(officialStickerLibrary),
+    [officialStickerLibrary],
+  );
+  const stickerLibrary = useMemo(
+    () => persistedStickerLibrary,
+    [persistedStickerLibrary],
+  );
+  const usingPersistedStickerLibrary = persistedStickerLibrary.length > 0;
+
+  useEffect(() => {
+    officialStickerItemsBySubtypeRef.current = officialStickerItemsBySubtype;
+  }, [officialStickerItemsBySubtype]);
 
   const baseBounds = useMemo<EditorRect | null>(() => {
     if (!baseImage) {
@@ -1078,6 +1232,44 @@ export function CanvasImageEditorModal({
   }, [applySnapshot, currentSnapshot, futureSnapshots]);
 
   useEffect(() => {
+    if (!open || accessToken.trim().length === 0 || officialStickerLibrary.length > 0) {
+      return;
+    }
+
+    let cancelled = false;
+    setOfficialStickerLibraryLoading(true);
+    setOfficialStickerLibraryLoadError(null);
+
+    void loadOfficialGalleryLibrary(accessToken)
+      .then((categories) => {
+        if (cancelled) {
+          return;
+        }
+
+        setOfficialStickerLibrary(categories);
+      })
+      .catch((error) => {
+        if (cancelled) {
+          return;
+        }
+
+        console.error("[canvas-image-editor] failed to load persisted official sticker library", {
+          error,
+        });
+        setOfficialStickerLibraryLoadError("官方图库加载失败，请稍后重试。");
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setOfficialStickerLibraryLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [accessToken, officialStickerLibrary.length, open]);
+
+  useEffect(() => {
     if (!open || !image?.source) {
       return;
     }
@@ -1096,8 +1288,8 @@ export function CanvasImageEditorModal({
         setRenderImageUrl(loaded.dataUrl);
         setActiveTool("selection");
         setActiveShapeKind("rectangle");
-        setActiveStickerCategory("plants");
-        setActiveStickerSubcategoryId("green-tree");
+        setActiveStickerCategory("");
+        setActiveStickerSubcategoryId("");
         setActiveStickerPage(0);
         setCropPresetId("custom");
         setCropDraftRect({
@@ -1262,21 +1454,193 @@ export function CanvasImageEditorModal({
     selectedOverlayId,
   ]);
 
-  const stickerCategory = STICKER_LIBRARY[activeStickerCategory];
+  const stickerCategory =
+    stickerLibrary.find((category) => category.id === activeStickerCategory) ??
+    stickerLibrary[0] ??
+    null;
   const stickerSubcategories = stickerCategory?.subcategories ?? [];
   const activeStickerSubcategory =
     stickerSubcategories.find((subcategory) => subcategory.id === activeStickerSubcategoryId) ??
     stickerSubcategories[0] ??
     null;
+  const activeStickerSubtypeCacheEntry = activeStickerSubcategory
+    ? officialStickerItemsBySubtype[activeStickerSubcategory.id] ??
+      createEmptyStickerItemsPageCacheEntry(activeStickerSubcategory.assetCount)
+    : null;
   const pagedStickerItems = useMemo(() => {
-    const items = activeStickerSubcategory?.items ?? [];
-    const startIndex = activeStickerPage * STICKERS_PER_PAGE;
-    return items.slice(startIndex, startIndex + STICKERS_PER_PAGE);
-  }, [activeStickerPage, activeStickerSubcategory?.items]);
+    if (!activeStickerSubcategory) {
+      return [];
+    }
+
+    if (!usingPersistedStickerLibrary) {
+      const items = activeStickerSubcategory.items ?? [];
+      const startIndex = activeStickerPage * STICKERS_PER_PAGE;
+      return items.slice(startIndex, startIndex + STICKERS_PER_PAGE);
+    }
+
+    return activeStickerSubtypeCacheEntry?.loadedPages[activeStickerPage] ?? [];
+  }, [
+    activeStickerPage,
+    activeStickerSubcategory,
+    activeStickerSubtypeCacheEntry,
+    usingPersistedStickerLibrary,
+  ]);
+  const stickerTotalCount = useMemo(() => {
+    if (!activeStickerSubcategory) {
+      return 0;
+    }
+
+    if (!usingPersistedStickerLibrary) {
+      return activeStickerSubcategory.items?.length ?? 0;
+    }
+
+    return activeStickerSubtypeCacheEntry?.totalCount ?? activeStickerSubcategory.assetCount;
+  }, [
+    activeStickerSubcategory,
+    activeStickerSubtypeCacheEntry,
+    usingPersistedStickerLibrary,
+  ]);
   const stickerPageCount = useMemo(() => {
-    const count = activeStickerSubcategory?.items.length ?? 0;
-    return Math.max(1, Math.ceil(count / STICKERS_PER_PAGE));
-  }, [activeStickerSubcategory?.items.length]);
+    return Math.max(1, Math.ceil(stickerTotalCount / STICKERS_PER_PAGE));
+  }, [stickerTotalCount]);
+  const activeStickerPageLoading =
+    usingPersistedStickerLibrary &&
+    activeStickerSubtypeCacheEntry?.loadingPageIndexes.includes(activeStickerPage) ===
+      true;
+  const activeStickerPageError =
+    usingPersistedStickerLibrary && activeStickerSubtypeCacheEntry
+      ? activeStickerSubtypeCacheEntry.error
+      : null;
+
+  useEffect(() => {
+    const firstCategory = stickerLibrary[0] ?? null;
+    const firstSubcategoryId = firstCategory?.subcategories[0]?.id ?? null;
+    if (!firstCategory) {
+      return;
+    }
+
+    if (!stickerLibrary.some((category) => category.id === activeStickerCategory)) {
+      setActiveStickerCategory(firstCategory.id);
+      if (firstSubcategoryId) {
+        setActiveStickerSubcategoryId(firstSubcategoryId);
+      }
+      setActiveStickerPage(0);
+    }
+  }, [activeStickerCategory, stickerLibrary]);
+
+  useEffect(() => {
+    if (
+      !open ||
+      !accessToken ||
+      !usingPersistedStickerLibrary ||
+      !activeStickerSubcategory
+    ) {
+      return;
+    }
+
+    const subtypeId = activeStickerSubcategory.id;
+    const pageIndex = activeStickerPage;
+    const offset = pageIndex * STICKERS_PER_PAGE;
+    const existingEntry = officialStickerItemsBySubtypeRef.current[subtypeId];
+    if (
+      existingEntry?.loadedPages[pageIndex] ||
+      existingEntry?.loadingPageIndexes.includes(pageIndex)
+    ) {
+      return;
+    }
+
+    let cancelled = false;
+    setOfficialStickerItemsBySubtype((previous) => {
+      const currentEntry =
+        previous[subtypeId] ??
+        createEmptyStickerItemsPageCacheEntry(activeStickerSubcategory.assetCount);
+      if (currentEntry.loadingPageIndexes.includes(pageIndex)) {
+        return previous;
+      }
+
+      return {
+        ...previous,
+        [subtypeId]: {
+          ...currentEntry,
+          error: null,
+          loadingPageIndexes: [...currentEntry.loadingPageIndexes, pageIndex],
+        },
+      };
+    });
+
+    void loadOfficialGallerySubtypeItemsPage(accessToken, subtypeId, {
+      limit: STICKERS_PER_PAGE,
+      offset,
+    })
+      .then((page) => {
+        if (cancelled) {
+          return;
+        }
+
+        setOfficialStickerItemsBySubtype((previous) => {
+          const currentEntry =
+            previous[subtypeId] ??
+            createEmptyStickerItemsPageCacheEntry(activeStickerSubcategory.assetCount);
+          const nextLoadingPages = currentEntry.loadingPageIndexes.filter(
+            (item) => item !== pageIndex,
+          );
+
+          return {
+            ...previous,
+            [subtypeId]: {
+              ...currentEntry,
+              error: null,
+              loadedPages: {
+                ...currentEntry.loadedPages,
+                [pageIndex]: page.items.map(mapOfficialGalleryItemToStickerItem),
+              },
+              loadingPageIndexes: nextLoadingPages,
+              totalCount: page.totalCount,
+            },
+          };
+        });
+      })
+      .catch((error) => {
+        if (cancelled) {
+          return;
+        }
+
+        console.error("[canvas-image-editor] failed to load persisted official sticker items page", {
+          error,
+          offset,
+          subtypeId,
+        });
+        setOfficialStickerItemsBySubtype((previous) => {
+          const currentEntry =
+            previous[subtypeId] ??
+            createEmptyStickerItemsPageCacheEntry(activeStickerSubcategory.assetCount);
+
+          return {
+            ...previous,
+            [subtypeId]: {
+              ...currentEntry,
+              error: "官方图库图片加载失败，请稍后重试。",
+              loadingPageIndexes: currentEntry.loadingPageIndexes.filter(
+                (item) => item !== pageIndex,
+              ),
+            },
+          };
+        });
+      });
+
+    return () => {
+      cancelled = true;
+      setOfficialStickerItemsBySubtype((previous) =>
+        clearStickerItemsPageLoading(previous, subtypeId, pageIndex),
+      );
+    };
+  }, [
+    accessToken,
+    activeStickerPage,
+    activeStickerSubcategory,
+    open,
+    usingPersistedStickerLibrary,
+  ]);
 
   useEffect(() => {
     const firstSubcategoryId = stickerCategory?.subcategories[0]?.id ?? null;
@@ -1759,10 +2123,74 @@ export function CanvasImageEditorModal({
     setStatusMessage("已应用新的图片表达效果。");
   }, [commitUndoSnapshot, finalizeUndoSnapshot]);
 
+  const peopleStickerTarget = useMemo(() => {
+    const targetCategory =
+      findStickerCategoryByKeywords(stickerLibrary, [
+        "人物",
+        "people",
+        "person",
+        "人",
+      ]) ??
+      stickerLibrary[0] ??
+      null;
+    const targetSubcategory =
+      findStickerSubcategoryByKeywords(targetCategory?.subcategories ?? [], [
+        "人物",
+        "站",
+        "people",
+        "person",
+        "人",
+      ]) ??
+      targetCategory?.subcategories[0] ??
+      null;
+
+    return {
+      categoryId: targetCategory?.id ?? activeStickerCategory,
+      subcategoryId: targetSubcategory?.id ?? activeStickerSubcategoryId,
+    };
+  }, [
+    activeStickerCategory,
+    activeStickerSubcategoryId,
+    stickerLibrary,
+  ]);
+
+  const plantStickerTarget = useMemo(() => {
+    const targetCategory =
+      findStickerCategoryByKeywords(stickerLibrary, [
+        "植物",
+        "树",
+        "plant",
+        "tree",
+        "green",
+      ]) ??
+      stickerLibrary[0] ??
+      null;
+    const targetSubcategory =
+      findStickerSubcategoryByKeywords(targetCategory?.subcategories ?? [], [
+        "植物",
+        "树",
+        "plant",
+        "tree",
+        "green",
+      ]) ??
+      targetCategory?.subcategories[0] ??
+      null;
+
+    return {
+      categoryId: targetCategory?.id ?? activeStickerCategory,
+      subcategoryId: targetSubcategory?.id ?? activeStickerSubcategoryId,
+    };
+  }, [
+    activeStickerCategory,
+    activeStickerSubcategoryId,
+    stickerLibrary,
+  ]);
+
   const handleApplyAddOption = useCallback((optionId: (typeof AI_ADD_OPTIONS)[number]["id"]) => {
     if (optionId === "add-people") {
-      setActiveStickerCategory("people");
-      setActiveStickerSubcategoryId("standing-people");
+      setActiveStickerCategory(peopleStickerTarget.categoryId);
+      setActiveStickerSubcategoryId(peopleStickerTarget.subcategoryId);
+      setActiveStickerPage(0);
       setStatusMessage("已切换到人物贴图。");
       return;
     }
@@ -1775,10 +2203,18 @@ export function CanvasImageEditorModal({
       return;
     }
 
-    setActiveStickerCategory("plants");
-    setActiveStickerSubcategoryId("green-tree");
+    setActiveStickerCategory(plantStickerTarget.categoryId);
+    setActiveStickerSubcategoryId(plantStickerTarget.subcategoryId);
+    setActiveStickerPage(0);
     setStatusMessage("已切换到植物贴图。");
-  }, [commitUndoSnapshot, finalizeUndoSnapshot]);
+  }, [
+    commitUndoSnapshot,
+    finalizeUndoSnapshot,
+    peopleStickerTarget.categoryId,
+    peopleStickerTarget.subcategoryId,
+    plantStickerTarget.categoryId,
+    plantStickerTarget.subcategoryId,
+  ]);
 
   const handleApplyRemoveOption = useCallback((reason: ExternalEditorActionRequest["reason"]) => {
     setStatusMessage("已切换到智能消除流程。");
@@ -2778,20 +3214,18 @@ export function CanvasImageEditorModal({
 
             <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
               <div className="flex items-center gap-1 overflow-x-auto pb-2">
-                {(
-                  Object.entries(STICKER_LIBRARY) as Array<[StickerCategoryId, StickerCategory]>
-                ).map(([categoryId, category]) => (
+                {stickerLibrary.map((category) => (
                   <button
-                    key={categoryId}
+                    key={category.id}
                     type="button"
-                    aria-pressed={activeStickerCategory === categoryId}
+                    aria-pressed={activeStickerCategory === category.id}
                     className={`${MODAL_RADIUS_CLASS} shrink-0 border px-3 py-1.5 text-sm font-medium transition-colors ${
-                      activeStickerCategory === categoryId
+                      activeStickerCategory === category.id
                         ? "border-slate-900 bg-slate-100 text-slate-900"
                         : "border-transparent bg-transparent text-slate-500 hover:text-slate-900"
                     }`}
                     onClick={() => {
-                      setActiveStickerCategory(categoryId);
+                      setActiveStickerCategory(category.id);
                       setActiveStickerPage(0);
                     }}
                   >
@@ -2821,6 +3255,12 @@ export function CanvasImageEditorModal({
                 ))}
               </div>
 
+              {officialStickerLibraryLoadError && !usingPersistedStickerLibrary ? (
+                <div className={`${MODAL_RADIUS_CLASS} mb-4 border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800`}>
+                  {officialStickerLibraryLoadError}
+                </div>
+              ) : null}
+
               <div className="grid grid-cols-3 gap-2">
                 {pagedStickerItems.map((item) => (
                   <button
@@ -2840,6 +3280,27 @@ export function CanvasImageEditorModal({
                   </button>
                 ))}
               </div>
+
+              {activeStickerPageLoading ? (
+                <div className="flex items-center justify-center py-6 text-sm text-slate-500">
+                  <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
+                  <span>正在加载官方图库...</span>
+                </div>
+              ) : null}
+
+              {!activeStickerPageLoading &&
+              !activeStickerPageError &&
+              pagedStickerItems.length === 0 ? (
+                <div className="py-6 text-center text-sm text-slate-500">
+                  当前分类暂无可用贴图。
+                </div>
+              ) : null}
+
+              {activeStickerPageError ? (
+                <div className={`${MODAL_RADIUS_CLASS} mt-4 border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800`}>
+                  {activeStickerPageError}
+                </div>
+              ) : null}
             </div>
 
             <div className="flex items-center gap-2 border-t border-slate-200 px-4 py-4">

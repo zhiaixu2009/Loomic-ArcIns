@@ -27,6 +27,10 @@ import {
   type ProjectService,
 } from "./features/projects/project-service.js";
 import {
+  createAddGalleryService,
+  type AddGalleryService,
+} from "./features/add-gallery/add-gallery-service.js";
+import {
   createOfficialGalleryService,
   type OfficialGalleryService,
 } from "./features/official-gallery/official-gallery-service.js";
@@ -80,6 +84,7 @@ import { registerCreditRoutes } from "./http/credits.js";
 import { registerFontsRoutes } from "./http/fonts.js";
 import { registerJobRoutes } from "./http/jobs.js";
 import { registerBrandKitRoutes } from "./http/brand-kits.js";
+import { registerAddGalleryRoutes } from "./http/add-gallery.js";
 import { registerCanvasRoutes } from "./http/canvases.js";
 import { registerChatRoutes } from "./http/chat.js";
 import { registerGenerateRoutes } from "./http/generate.js";
@@ -108,6 +113,7 @@ import {
 } from "./supabase/user.js";
 
 export type BuildAppOptions = {
+  addGalleryService?: AddGalleryService;
   agentFactory?: LoomicAgentFactory;
   agentModel?: BaseLanguageModel | string;
   agentPersistenceService?: AgentPersistenceService;
@@ -172,6 +178,9 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   const projectService =
     options.projectService ??
     createProjectService({ createUserClient, getAdminClient, viewerService });
+  const addGalleryService =
+    options.addGalleryService ??
+    createAddGalleryService({ getAdminClient });
   const officialGalleryService =
     options.officialGalleryService ??
     createOfficialGalleryService({ getAdminClient });
@@ -303,6 +312,10 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   void registerProjectRoutes(app, {
     auth,
     projectService,
+  });
+  void registerAddGalleryRoutes(app, {
+    addGalleryService,
+    auth,
   });
   void registerOfficialGalleryRoutes(app, {
     auth,

@@ -48,9 +48,9 @@ import type {
   OfficialGalleryItem,
 } from "@loomic/shared";
 import {
-  loadOfficialGalleryLibrary,
-  loadOfficialGallerySubtypeItemsPage,
-} from "../lib/official-gallery-library";
+  loadAddGalleryLibrary,
+  loadAddGallerySubtypeItemsPage,
+} from "../lib/add-gallery-library";
 import {
   officialGallerySeedLibrary,
 } from "../lib/official-gallery-seeds";
@@ -1485,7 +1485,7 @@ useEffect(() => {
       });
 
       try {
-        const nextLibrary = await loadOfficialGalleryLibrary(accessToken);
+        const nextLibrary = await loadAddGalleryLibrary(accessToken);
 
         setOfficialGalleryLibrary(nextLibrary);
         setOfficialGalleryLoaded(true);
@@ -1565,7 +1565,7 @@ useEffect(() => {
       });
 
       try {
-        const page = await loadOfficialGallerySubtypeItemsPage(
+        const page = await loadAddGallerySubtypeItemsPage(
           accessToken,
           subtypeId,
           {

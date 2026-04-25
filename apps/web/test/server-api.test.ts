@@ -6,6 +6,8 @@ import {
   fetchViewer,
   fetchProjects,
   createProject,
+  fetchAddGallery,
+  fetchAddGallerySubtypeItems,
   fetchOfficialGallery,
   fetchOfficialGallerySubtypeItems,
   fetchArchitectureExportManifest,
@@ -178,6 +180,35 @@ describe("authenticated server API", () => {
     expect(result).toEqual(payload);
   });
 
+  it("fetchAddGallery sends bearer token and returns persisted add-gallery categories", async () => {
+    const payload = {
+      categories: [
+        {
+          id: "architecture-render",
+          label: "建筑效果图",
+          subtypes: [
+            {
+              id: "default",
+              label: "默认",
+              items: [],
+            },
+          ],
+        },
+      ],
+    };
+    mockFetch.mockResolvedValue({ ok: true, status: 200, json: async () => payload });
+
+    const result = await fetchAddGallery("token_add_gallery");
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      "http://localhost:3001/api/add-gallery",
+      expect.objectContaining({
+        headers: { Authorization: "Bearer token_add_gallery" },
+      }),
+    );
+    expect(result).toEqual(payload);
+  });
+
   it("fetchOfficialGallerySubtypeItems sends bearer token and returns paginated items", async () => {
     const payload = {
       subtypeId: "trees",
@@ -204,6 +235,41 @@ describe("authenticated server API", () => {
       "http://localhost:3001/api/official-gallery/subtypes/trees/items?limit=60&offset=0",
       expect.objectContaining({
         headers: { Authorization: "Bearer token_gallery" },
+      }),
+    );
+    expect(result).toEqual(payload);
+  });
+
+  it("fetchAddGallerySubtypeItems sends bearer token and returns paginated items", async () => {
+    const payload = {
+      subtypeId: "default",
+      items: [
+        {
+          id: "asset-1",
+          label: "建筑效果图 默认 1",
+          url: "http://127.0.0.1:54321/storage/v1/object/public/add-gallery-assets/architecture-render/default/asset-1.png",
+          width: 1600,
+          height: 900,
+        },
+      ],
+      nextOffset: 60,
+      totalCount: 240,
+    };
+    mockFetch.mockResolvedValue({ ok: true, status: 200, json: async () => payload });
+
+    const result = await fetchAddGallerySubtypeItems(
+      "token_add_gallery",
+      "default",
+      {
+        limit: 60,
+        offset: 0,
+      },
+    );
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      "http://localhost:3001/api/add-gallery/subtypes/default/items?limit=60&offset=0",
+      expect.objectContaining({
+        headers: { Authorization: "Bearer token_add_gallery" },
       }),
     );
     expect(result).toEqual(payload);

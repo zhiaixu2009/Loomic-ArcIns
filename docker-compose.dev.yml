@@ -1,21 +1,12 @@
 services:
   server:
-    network_mode: bridge
-    ports:
-      - "3001:3001"
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    environment:
-      SUPABASE_URL: ${SUPABASE_INTERNAL_URL:-http://host.docker.internal:54321}
-      SUPABASE_DB_URL: ${SUPABASE_INTERNAL_DB_URL:-postgresql://postgres:postgres@host.docker.internal:54322/postgres}
+    # Keep local dev services on the WSL host network by default. The Docker
+    # bridge/proxy layer is fragile after WSL daemon restores and can leave
+    # 3000/3001 published but unreachable.
+    network_mode: ${LOOMIC_DOCKER_NETWORK_MODE:-host}
 
   worker:
-    network_mode: bridge
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    environment:
-      SUPABASE_URL: ${SUPABASE_INTERNAL_URL:-http://host.docker.internal:54321}
-      SUPABASE_DB_URL: ${SUPABASE_INTERNAL_DB_URL:-postgresql://postgres:postgres@host.docker.internal:54322/postgres}
+    network_mode: ${LOOMIC_DOCKER_NETWORK_MODE:-host}
 
   web:
     build:
@@ -23,11 +14,7 @@ services:
       dockerfile: apps/web/Dockerfile.dev
       args:
         NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmmirror.com/}
-    network_mode: bridge
-    ports:
-      - "3000:3000"
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+    network_mode: ${LOOMIC_DOCKER_NETWORK_MODE:-host}
     environment:
       NODE_ENV: development
       HOST: 0.0.0.0

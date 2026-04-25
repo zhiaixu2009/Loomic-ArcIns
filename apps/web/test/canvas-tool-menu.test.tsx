@@ -6,11 +6,13 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 const {
   insertImageOnCanvasMock,
+  loadAddGalleryLibraryMock,
+  loadAddGallerySubtypeItemsPageMock,
   loadOfficialGalleryLibraryMock,
   loadOfficialGallerySubtypeItemsPageMock,
 } = vi.hoisted(() => ({
   insertImageOnCanvasMock: vi.fn(() => Promise.resolve()),
-  loadOfficialGalleryLibraryMock: vi.fn(() =>
+  loadAddGalleryLibraryMock: vi.fn(() =>
     Promise.resolve([
       {
         id: "architecture-render",
@@ -44,7 +46,7 @@ const {
       },
     ]),
   ),
-  loadOfficialGallerySubtypeItemsPageMock: vi.fn(
+  loadAddGallerySubtypeItemsPageMock: vi.fn(
     async (_accessToken: string, subtypeId: string, options?: { offset?: number }) => {
       const offset = options?.offset ?? 0;
 
@@ -124,6 +126,51 @@ const {
       };
     },
   ),
+  loadOfficialGalleryLibraryMock: vi.fn(() =>
+    Promise.resolve([
+      {
+        id: "editor-plants",
+        label: "Editor Plants",
+        subtypes: [
+          {
+            id: "editor-trees",
+            label: "Editor Trees",
+            assetCount: 1,
+            items: [],
+          },
+        ],
+      },
+    ]),
+  ),
+  loadOfficialGallerySubtypeItemsPageMock: vi.fn(
+    async (_accessToken: string, subtypeId: string, options?: { offset?: number }) => {
+      const offset = options?.offset ?? 0;
+
+      if (subtypeId === "editor-trees" && offset === 0) {
+        return {
+          subtypeId,
+          items: [
+            {
+              id: "editor-tree-1",
+              label: "Editor Tree 1",
+              url: "https://example.com/editor-tree-1.png",
+              width: 800,
+              height: 1200,
+            },
+          ],
+          nextOffset: null,
+          totalCount: 1,
+        };
+      }
+
+      return {
+        subtypeId,
+        items: [],
+        nextOffset: null,
+        totalCount: 0,
+      };
+    },
+  ),
 }));
 
 vi.mock("../src/lib/canvas-image-generator", () => ({
@@ -142,6 +189,14 @@ vi.mock("../src/lib/canvas-elements", () => ({
   insertImageOnCanvas: insertImageOnCanvasMock,
   isVideoUrl: vi.fn(() => false),
 }));
+
+vi.mock(
+  "../src/lib/add-gallery-library",
+  () => ({
+    loadAddGalleryLibrary: loadAddGalleryLibraryMock,
+    loadAddGallerySubtypeItemsPage: loadAddGallerySubtypeItemsPageMock,
+  }),
+);
 
 vi.mock("../src/lib/official-gallery-library", () => ({
   loadOfficialGalleryLibrary: loadOfficialGalleryLibraryMock,
@@ -165,6 +220,8 @@ import { CanvasToolMenu } from "../src/components/canvas-tool-menu";
 afterEach(() => {
   cleanup();
   insertImageOnCanvasMock.mockClear();
+  loadAddGalleryLibraryMock.mockClear();
+  loadAddGallerySubtypeItemsPageMock.mockClear();
   loadOfficialGalleryLibraryMock.mockClear();
   loadOfficialGallerySubtypeItemsPageMock.mockClear();
 });
@@ -298,7 +355,8 @@ describe("CanvasToolMenu", () => {
     await user.click(screen.getByRole("button", { name: "添加" }));
     await user.click(screen.getByRole("tab", { name: "官方图库" }));
 
-    expect(loadOfficialGalleryLibraryMock).toHaveBeenCalledWith("token-canvas");
+    expect(loadAddGalleryLibraryMock).toHaveBeenCalledWith("token-canvas");
+    expect(loadOfficialGalleryLibraryMock).not.toHaveBeenCalled();
     expect(await screen.findByRole("button", { name: "建筑效果图" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "室内效果图" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /默认/ })).toBeInTheDocument();
@@ -306,7 +364,7 @@ describe("CanvasToolMenu", () => {
     expect(
       await screen.findByRole("button", { name: "插入官方图库图片 建筑效果图 默认 1" }),
     ).toBeInTheDocument();
-    expect(loadOfficialGallerySubtypeItemsPageMock).toHaveBeenCalledWith(
+    expect(loadAddGallerySubtypeItemsPageMock).toHaveBeenCalledWith(
       "token-canvas",
       "default",
       {
@@ -317,7 +375,7 @@ describe("CanvasToolMenu", () => {
     expect(screen.getByRole("button", { name: "加载更多官方图库图片" })).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "加载更多官方图库图片" }));
-    expect(loadOfficialGallerySubtypeItemsPageMock).toHaveBeenCalledWith(
+    expect(loadAddGallerySubtypeItemsPageMock).toHaveBeenCalledWith(
       "token-canvas",
       "default",
       {
@@ -330,7 +388,7 @@ describe("CanvasToolMenu", () => {
     ).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /别墅/ }));
-    expect(loadOfficialGallerySubtypeItemsPageMock).toHaveBeenCalledWith(
+    expect(loadAddGallerySubtypeItemsPageMock).toHaveBeenCalledWith(
       "token-canvas",
       "villa",
       {

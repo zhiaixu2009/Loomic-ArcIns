@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
-import { cleanup, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, screen, waitFor, within } from "@testing-library/react";
 import * as matchers from "@testing-library/jest-dom/matchers";
 import userEvent from "@testing-library/user-event";
 import * as React from "react";
@@ -14,6 +14,8 @@ expect.extend(matchers);
 const {
   fetchCanvasMock,
   fetchImageBlobWithFallbackMock,
+  loadOfficialGalleryLibraryMock,
+  loadOfficialGallerySubtypeItemsPageMock,
   fetchProjectMock,
   replaceMock,
   setActiveToolMock,
@@ -24,6 +26,36 @@ const {
 } = vi.hoisted(() => ({
   fetchCanvasMock: vi.fn(),
   fetchImageBlobWithFallbackMock: vi.fn(),
+  loadOfficialGalleryLibraryMock: vi.fn(() =>
+    Promise.resolve([
+      {
+        id: "editor-official",
+        label: "Editor Official",
+        subtypes: [
+          {
+            id: "lounge",
+            label: "Lounge",
+            assetCount: 1,
+            items: [],
+          },
+        ],
+      },
+    ]),
+  ),
+  loadOfficialGallerySubtypeItemsPageMock: vi.fn(async () => ({
+    subtypeId: "lounge",
+    items: [
+      {
+        id: "editor-asset-1",
+        label: "Editor Asset 1",
+        url: "https://example.com/editor-asset-1.png",
+        width: 1200,
+        height: 900,
+      },
+    ],
+    nextOffset: null,
+    totalCount: 1,
+  })),
   fetchProjectMock: vi.fn(),
   replaceMock: vi.fn(),
   setActiveToolMock: vi.fn(),
@@ -85,6 +117,11 @@ vi.mock("../src/lib/canvas-elements", () => ({
   fetchImageBlobWithFallback: fetchImageBlobWithFallbackMock,
   insertImageOnCanvas: vi.fn(),
   insertVideoOnCanvas: vi.fn(),
+}));
+
+vi.mock("../src/lib/official-gallery-library", () => ({
+  loadOfficialGalleryLibrary: loadOfficialGalleryLibraryMock,
+  loadOfficialGallerySubtypeItemsPage: loadOfficialGallerySubtypeItemsPageMock,
 }));
 
 vi.mock("../src/lib/studio-routes", () => ({
@@ -475,6 +512,155 @@ describe("CanvasPage selection action bar", () => {
       "data-composer-type",
       "",
     );
+  });
+
+  it("loads the image-editor official gallery from the persisted official gallery source", async () => {
+    const user = userEvent.setup();
+
+    renderWithToast(<CanvasPage />);
+
+    await waitFor(() => {
+      expect(fetchCanvasMock).toHaveBeenCalledWith("token-canvas", "canvas-1");
+    });
+
+    await user.click(screen.getByTestId("mock-select-canvas-image"));
+    await user.click(screen.getByRole("button", { name: /编辑/ }));
+
+    await waitFor(() => {
+      expect(loadOfficialGalleryLibraryMock).toHaveBeenCalledWith("token-canvas");
+    });
+
+    expect(
+      await screen.findByRole("button", { name: "Editor Official" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Lounge" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("button", { name: "插入贴图 Editor Asset 1" }),
+    ).toBeInTheDocument();
+    expect(loadOfficialGallerySubtypeItemsPageMock).toHaveBeenCalledWith(
+      "token-canvas",
+      "lounge",
+      {
+        limit: 15,
+        offset: 0,
+      },
+    );
+  });
+
+  it("retries an image-editor official gallery page when the previous page request was cancelled by closing the modal", async () => {
+    const user = userEvent.setup();
+    let resolveFirstPage:
+      | ((page: Awaited<ReturnType<typeof loadOfficialGallerySubtypeItemsPageMock>>) => void)
+      | null = null;
+    let resolveSecondPage:
+      | ((page: Awaited<ReturnType<typeof loadOfficialGallerySubtypeItemsPageMock>>) => void)
+      | null = null;
+    const firstPagePromise = new Promise<
+      Awaited<ReturnType<typeof loadOfficialGallerySubtypeItemsPageMock>>
+    >((resolve) => {
+      resolveFirstPage = resolve;
+    });
+    const secondPagePromise = new Promise<
+      Awaited<ReturnType<typeof loadOfficialGallerySubtypeItemsPageMock>>
+    >((resolve) => {
+      resolveSecondPage = resolve;
+    });
+    loadOfficialGallerySubtypeItemsPageMock
+      .mockReturnValueOnce(firstPagePromise)
+      .mockReturnValueOnce(secondPagePromise);
+
+    renderWithToast(<CanvasPage />);
+
+    await waitFor(() => {
+      expect(fetchCanvasMock).toHaveBeenCalledWith("token-canvas", "canvas-1");
+    });
+
+    await user.click(screen.getByTestId("mock-select-canvas-image"));
+    await user.click(screen.getByRole("button", { name: /编辑/ }));
+
+    await waitFor(() => {
+      expect(loadOfficialGallerySubtypeItemsPageMock).toHaveBeenCalledTimes(1);
+    });
+    expect(screen.getByText("正在加载官方图库...")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "返回" }));
+
+    await act(async () => {
+      resolveFirstPage?.({
+        subtypeId: "lounge",
+        items: [
+          {
+            id: "editor-asset-stale",
+            label: "Stale Editor Asset",
+            url: "https://example.com/editor-asset-stale.png",
+            width: 1200,
+            height: 900,
+          },
+        ],
+        nextOffset: null,
+        totalCount: 1,
+      });
+      await Promise.resolve();
+    });
+
+    await user.click(screen.getByRole("button", { name: /编辑/ }));
+
+    await waitFor(() => {
+      expect(loadOfficialGallerySubtypeItemsPageMock).toHaveBeenCalledTimes(2);
+    });
+
+    await act(async () => {
+      resolveSecondPage?.({
+        subtypeId: "lounge",
+        items: [
+          {
+            id: "editor-asset-recovered",
+            label: "Recovered Editor Asset",
+            url: "https://example.com/editor-asset-recovered.png",
+            width: 1200,
+            height: 900,
+          },
+        ],
+        nextOffset: null,
+        totalCount: 1,
+      });
+      await Promise.resolve();
+    });
+
+    expect(
+      await screen.findByRole("button", { name: "插入贴图 Recovered Editor Asset" }),
+    ).toBeInTheDocument();
+  });
+
+  it("does not fall back to the seeded sticker library when the persisted official gallery fails to load", async () => {
+    const user = userEvent.setup();
+    loadOfficialGalleryLibraryMock.mockRejectedValueOnce(
+      new Error("official gallery unavailable"),
+    );
+
+    renderWithToast(<CanvasPage />);
+
+    await waitFor(() => {
+      expect(fetchCanvasMock).toHaveBeenCalledWith("token-canvas", "canvas-1");
+    });
+
+    await user.click(screen.getByTestId("mock-select-canvas-image"));
+    await user.click(screen.getByRole("button", { name: /编辑/ }));
+
+    await waitFor(() => {
+      expect(loadOfficialGalleryLibraryMock).toHaveBeenCalledWith("token-canvas");
+    });
+
+    expect(
+      await screen.findByText("官方图库加载失败，请稍后重试。"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "总平素材" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "植物配景" }),
+    ).not.toBeInTheDocument();
+    expect(loadOfficialGallerySubtypeItemsPageMock).not.toHaveBeenCalled();
   });
 
   it("reveals the audited AI conversion chips without the old helper-copy cards", async () => {

@@ -16,7 +16,14 @@ if [[ -f "$pid_file" ]]; then
   fi
 fi
 
-nohup bash -lc 'while :; do sleep 600; done' >"$log_file" 2>&1 </dev/null &
+# Use setsid so the keepalive process survives the transient WSL command
+# session. Without this, WSL can tear down the user session and stop Docker
+# shortly after the startup command exits.
+if command -v setsid >/dev/null 2>&1; then
+  setsid nohup bash -lc 'while :; do sleep 600; done' >"$log_file" 2>&1 </dev/null &
+else
+  nohup bash -lc 'while :; do sleep 600; done' >"$log_file" 2>&1 </dev/null &
+fi
 keepalive_pid=$!
 echo "$keepalive_pid" >"$pid_file"
 
