@@ -4,13 +4,16 @@ import {
   buildJzxzConfigRequest,
   buildOfficialGalleryRemoteDownloadUrlCandidates,
   buildJzxzQueryByTagRequest,
+  buildJzxzImageSearchRequest,
   buildOfficialGalleryStorageObjectPath,
   buildStsqImagesByTextRequest,
+  buildStsqWallpaperReferenceRequest,
   classifyOfficialGalleryBrowserSearchResult,
   collectSuccessfulOfficialGalleryResults,
   createOfficialGalleryAssetId,
   dedupeOfficialGalleryRemoteAssets,
   findOfficialGalleryStaleIds,
+  filterOfficialGalleryStsqAssetsByRelevance,
   filterOfficialGalleryCategoriesForSync,
   getRetryableOfficialGalleryRemoteErrorMessage,
   limitOfficialGalleryRemoteAssets,
@@ -36,7 +39,7 @@ describe("official-gallery-sync helpers", () => {
       timestamp: "1776966786116",
     });
     expect(request.body.toString()).toBe(
-      "product_id=51&version_code=21451&config_key=jzxz_draw_chartlet_category_config&sign=2A76B18A519C8E20159F84ADB973C132",
+      "product_id=51&version_code=21455&config_key=jzxz_draw_chartlet_category_config&sign=ED35E6338249647EF1532DAB63568E1C",
     );
   });
 
@@ -58,8 +61,46 @@ describe("official-gallery-sync helpers", () => {
       timestamp: "1776966702008",
     });
     expect(request.body.toString()).toBe(
-      "product_id=51&version_code=21451&page=0&page_size=2&tags=%E5%86%99%E5%AE%9E%E6%A4%8D%E7%89%A9-%E5%89%8D%E6%99%AF%E6%A0%91&sign=F6082E800C5EFBCFA1F5BD7EB7E6804C",
+      "product_id=51&version_code=21455&page=0&page_size=2&tags=%E5%86%99%E5%AE%9E%E6%A4%8D%E7%89%A9-%E5%89%8D%E6%99%AF%E6%A0%91&sign=01D23BEC2317C402BDC49D5B369C5475",
     );
+  });
+
+  it("builds the legacy JZXZ image-search request without using it for editor STSQ tabs", () => {
+    const request = buildJzxzImageSearchRequest({
+      nowMs: 1_777_398_958_264,
+      page: 0,
+      pageSize: 20,
+      searchWord: "免抠-汽车",
+    });
+
+    expect(request.url).toBe(
+      "https://api.jianzhuxuezhang.com/jzxz/api/image/search?product_id=51&version_code=21455&page=0&page_size=20&search_word=%E5%85%8D%E6%8A%A0-%E6%B1%BD%E8%BD%A6&sign=52FC46E3881C28F933EB18CDD0F8DE59",
+    );
+    expect(request.headers).toMatchObject({
+      "product-type": "JZXZ",
+      lang: "zh-CN",
+      timestamp: "1777398958264",
+    });
+  });
+
+  it("builds the official STSQ wallpaper-reference request used by editor sticker tabs", () => {
+    const request = buildStsqWallpaperReferenceRequest({
+      nowMs: 1_777_426_767_433,
+      page: 0,
+      pageSize: 80,
+      tag: "免抠-汽车",
+    });
+
+    expect(request.url).toBe(
+      "https://wallpaper.soutushenqi.com/api/wallpaper/reference?product_id=51&version_code=21455&tag=%E5%85%8D%E6%8A%A0-%E6%B1%BD%E8%BD%A6&pageSize=80&pageNum=0&sign=F3656C170A4882927B8F58E75863F6D7",
+    );
+    expect(request.url).not.toContain("/api/image/search");
+    expect(request.url).not.toContain("/cykj_community/tools/images_by_text");
+    expect(request.headers).toMatchObject({
+      "product-type": "JZXZ",
+      lang: "zh-CN",
+      timestamp: "1777426767433",
+    });
   });
 
   it("builds the STSQ images-by-text request with timestamp in the query string", () => {
@@ -72,7 +113,7 @@ describe("official-gallery-sync helpers", () => {
       "https://community-backend.soutushenqi.com/cykj_community/tools/images_by_text?",
     );
     expect(request.url).toContain("product_id=51");
-    expect(request.url).toContain("version_code=21451");
+    expect(request.url).toContain("version_code=21455");
     expect(request.url).toContain("ref=inSiteSearchGallery");
     expect(request.url).toContain("productType=JZXZ");
     expect(request.url).toContain("searchProductType=JZXZ");
@@ -80,7 +121,7 @@ describe("official-gallery-sync helpers", () => {
     expect(request.url).toContain("searchPlatformType=SELF_DEVELOPED");
     expect(request.url).toContain("timestamp=1776966709035");
     expect(request.url).toContain("text=%E5%85%8D%E6%8A%A0-%E7%BB%BF%E6%A0%91.");
-    expect(request.url).toMatch(/sign=[A-F0-9]{32}/);
+    expect(request.url).toContain("sign=59C3F7B21C02AFA1C407B56C81DC684E");
     expect(request.headers).toMatchObject({
       ref: "inSiteSearchGallery",
       productType: "JZXZ",
@@ -297,6 +338,111 @@ describe("official-gallery-sync helpers", () => {
     ]);
     expect(limitOfficialGalleryRemoteAssets(["a", "b", "c"], 1)).toEqual([
       "a",
+    ]);
+  });
+
+  it("filters polluted STSQ search results before persisting category assets", () => {
+    const result = filterOfficialGalleryStsqAssetsByRelevance({
+      assets: [
+        { id: "empty-title" },
+        { id: "bad-tree", title: "写实大型植物免抠" },
+        { id: "bad-chicken", title: "写实鸡免抠PNG" },
+        { id: "good-bike", title: "骑自行车运动人物组合" },
+      ],
+      categoryLabel: "交通配景",
+      searchWord: "免抠-自行车",
+      subtypeLabel: "自行车",
+    });
+
+    expect(result.accepted).toEqual([{ id: "good-bike", title: "骑自行车运动人物组合" }]);
+    expect(result.rejected.map((item) => item.id)).toEqual([
+      "empty-title",
+      "bad-tree",
+      "bad-chicken",
+    ]);
+  });
+
+  it("keeps broad people assets while rejecting obvious plant and animal leakage", () => {
+    const result = filterOfficialGalleryStsqAssetsByRelevance({
+      assets: [
+        { id: "bad-tree", title: "免抠透明树木PNG图片大全" },
+        { id: "bad-duck", title: "写实鸭鹅免抠PNG" },
+        { id: "good-person", title: "免抠时装时尚模特人物" },
+      ],
+      categoryLabel: "人物配景",
+      searchWord: "免抠-青年人",
+      subtypeLabel: "青年",
+    });
+
+    expect(result.accepted).toEqual([
+      { id: "good-person", title: "免抠时装时尚模特人物" },
+    ]);
+    expect(result.rejected.map((item) => item.id)).toEqual(["bad-tree", "bad-duck"]);
+  });
+
+  it("rejects child and elder people assets from the youth subtype even when they carry a people tag", () => {
+    const result = filterOfficialGalleryStsqAssetsByRelevance({
+      assets: [
+        {
+          detailInfo: "亚洲儿童免抠",
+          id: "bad-child",
+          tagList: ["亚洲人物-儿童", "免抠人物PS素材"],
+        },
+        {
+          detailInfo: "老人散步免抠素材",
+          id: "bad-elder",
+          tagList: ["场景人物-老人", "免抠人物PS素材"],
+        },
+        {
+          detailInfo: "免抠时装时尚模特人物",
+          id: "good-youth",
+          tagList: ["时尚人物", "免抠人物PS素材"],
+        },
+      ],
+      categoryLabel: "人物配景",
+      searchWord: "免抠-青年人",
+      subtypeLabel: "青年",
+    });
+
+    expect(result.accepted).toEqual([
+      {
+        detailInfo: "免抠时装时尚模特人物",
+        id: "good-youth",
+        tagList: ["时尚人物", "免抠人物PS素材"],
+      },
+    ]);
+    expect(result.rejected.map((item) => item.id)).toEqual([
+      "bad-child",
+      "bad-elder",
+    ]);
+  });
+
+  it("keeps bird-view people assets while rejecting bird-view tree leakage", () => {
+    const result = filterOfficialGalleryStsqAssetsByRelevance({
+      assets: [
+        {
+          id: "bad-birdview-tree",
+          largeUrl:
+            "http://image-assets.soutushenqi.com/jzxz_photo/bird_view_tree_cutout/demo.png",
+          tagList: ["免扣-鸟瞰树", "免抠配景PS素材"],
+        },
+        {
+          id: "good-birdview-people",
+          largeUrl:
+            "http://image-assets.soutushenqi.com/jzxz_photo/aerial_view_people_cutout/demo.png",
+          tagList: ["免抠-鸟瞰人", "免抠人物PS素材"],
+        },
+      ],
+      categoryLabel: "人物配景",
+      searchWord: "免抠-鸟瞰人",
+      subtypeLabel: "鸟瞰",
+    });
+
+    expect(result.accepted.map((item) => item.id)).toEqual([
+      "good-birdview-people",
+    ]);
+    expect(result.rejected.map((item) => item.id)).toEqual([
+      "bad-birdview-tree",
     ]);
   });
 

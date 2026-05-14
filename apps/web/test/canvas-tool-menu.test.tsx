@@ -1,6 +1,6 @@
 ﻿// @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
-import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -25,8 +25,14 @@ const {
             items: [],
           },
           {
-            id: "villa",
-            label: "别墅",
+            id: "office-park",
+            label: "办公园区",
+            assetCount: 1,
+            items: [],
+          },
+          {
+            id: "culture-building",
+            label: "文化建筑",
             assetCount: 1,
             items: [],
           },
@@ -50,14 +56,15 @@ const {
     async (_accessToken: string, subtypeId: string, options?: { offset?: number }) => {
       const offset = options?.offset ?? 0;
 
-      if (subtypeId === "default" && offset === 0) {
+      if (subtypeId === "office-park" && offset === 0) {
         return {
           subtypeId,
           items: [
             {
-              id: "architecture-default-1",
-              label: "建筑效果图 默认 1",
-              url: "/official-gallery/architecture-default-1.png",
+              id: "architecture-office-park-1",
+              label: "建筑效果图 办公园区 1",
+              url: "/official-gallery/architecture-office-park-1.png",
+              thumbnailUrl: "/official-gallery/thumbs/architecture-office-park-1.webp",
               width: 1600,
               height: 900,
             },
@@ -67,14 +74,15 @@ const {
         };
       }
 
-      if (subtypeId === "default" && offset === 1) {
+      if (subtypeId === "office-park" && offset === 1) {
         return {
           subtypeId,
           items: [
             {
-              id: "architecture-default-2",
-              label: "建筑效果图 默认 2",
-              url: "/official-gallery/architecture-default-2.png",
+              id: "architecture-office-park-2",
+              label: "建筑效果图 办公园区 2",
+              url: "/official-gallery/architecture-office-park-2.png",
+              thumbnailUrl: "/official-gallery/thumbs/architecture-office-park-2.webp",
               width: 1600,
               height: 900,
             },
@@ -84,14 +92,15 @@ const {
         };
       }
 
-      if (subtypeId === "villa") {
+      if (subtypeId === "culture-building") {
         return {
           subtypeId,
           items: [
             {
-              id: "architecture-villa-1",
-              label: "建筑效果图 别墅 1",
-              url: "/official-gallery/architecture-villa-1.png",
+              id: "architecture-culture-building-1",
+              label: "建筑效果图 文化建筑 1",
+              url: "/official-gallery/architecture-culture-building-1.png",
+              thumbnailUrl: "/official-gallery/thumbs/architecture-culture-building-1.webp",
               width: 1600,
               height: 900,
             },
@@ -109,6 +118,7 @@ const {
               id: "interior-default-1",
               label: "室内效果图 默认 1",
               url: "/official-gallery/interior-default-1.png",
+              thumbnailUrl: "/official-gallery/thumbs/interior-default-1.webp",
               width: 1600,
               height: 900,
             },
@@ -338,7 +348,7 @@ describe("CanvasToolMenu", () => {
     expect(screen.queryByRole("dialog", { name: "添加素材" })).toBeNull();
   });
 
-  it("loads official gallery items from paginated subtype queries and inserts a selected image onto the canvas", async () => {
+  it("matches the Jianzhuxuezhang add-gallery layout, hides default subtypes, and inserts a selected image", async () => {
     const user = userEvent.setup();
     const excalidrawApi = createMockExcalidrawApi();
 
@@ -357,51 +367,108 @@ describe("CanvasToolMenu", () => {
 
     expect(loadAddGalleryLibraryMock).toHaveBeenCalledWith("token-canvas");
     expect(loadOfficialGalleryLibraryMock).not.toHaveBeenCalled();
+    expect(screen.queryByText("从本地文件快速插入参考图")).toBeNull();
+    expect(screen.queryByText("从本地受控图库挑选稳定素材")).toBeNull();
+    expect(screen.getByRole("tab", { name: "官方图库" })).toHaveClass("h-10");
+    expect(screen.queryByText("图片与分类均来自本地数据库和本地存储，不再依赖前端硬编码常量。")).toBeNull();
+    expect(screen.queryByRole("button", { name: "刷新图库" })).toBeNull();
+    expect(screen.queryByLabelText("向左滚动官方图库分类")).toBeNull();
+    expect(screen.queryByLabelText("向右滚动官方图库分类")).toBeNull();
+    expect(await screen.findByTestId("official-gallery-category-strip")).not.toHaveClass(
+      "overflow-x-auto",
+    );
     expect(await screen.findByRole("button", { name: "建筑效果图" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "室内效果图" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /默认/ })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /别墅/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "默认" })).toBeNull();
+    expect(screen.getByRole("button", { name: "办公园区" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "文化建筑" })).toBeInTheDocument();
+    expect(screen.queryByText(/建筑效果图 \//)).toBeNull();
+    expect(screen.queryByText(/本地库存/)).toBeNull();
+    expect(screen.queryByText("贴图")).toBeNull();
     expect(
-      await screen.findByRole("button", { name: "插入官方图库图片 建筑效果图 默认 1" }),
+      await screen.findByRole("button", { name: "插入官方图库图片 建筑效果图 办公园区 1" }),
     ).toBeInTheDocument();
+    expect(screen.queryByText("建筑效果图 办公园区 1")).toBeNull();
+    const firstGalleryImage = screen.getByRole("img", {
+      name: "建筑效果图 办公园区 1",
+    });
+    expect(firstGalleryImage).toHaveAttribute("loading", "lazy");
+    expect(firstGalleryImage).toHaveAttribute("decoding", "async");
+    expect(firstGalleryImage).not.toHaveAttribute("fetchpriority");
+    expect(firstGalleryImage).toHaveAttribute("sizes");
+    expect(firstGalleryImage).toHaveAttribute(
+      "src",
+      "/official-gallery/thumbs/architecture-office-park-1.webp",
+    );
+    expect(screen.getByTestId("official-gallery-pagination-status")).toHaveTextContent(
+      "已展示 1 / 2 张本地图库图片",
+    );
+    expect(screen.getByTestId("architecture-add-dialog-body")).toHaveClass(
+      "scrollbar-hover-gutter",
+    );
     expect(loadAddGallerySubtypeItemsPageMock).toHaveBeenCalledWith(
       "token-canvas",
-      "default",
+      "office-park",
       {
-        limit: 60,
+        limit: 30,
         offset: 0,
       },
     );
-    expect(screen.getByRole("button", { name: "加载更多官方图库图片" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "加载更多官方图库图片" })).toBeNull();
 
-    await user.click(screen.getByRole("button", { name: "加载更多官方图库图片" }));
-    expect(loadAddGallerySubtypeItemsPageMock).toHaveBeenCalledWith(
-      "token-canvas",
-      "default",
-      {
-        limit: 60,
-        offset: 1,
-      },
-    );
+    const addDialogBody = screen.getByTestId("architecture-add-dialog-body");
+    Object.defineProperties(addDialogBody, {
+      clientHeight: { configurable: true, value: 320 },
+      scrollHeight: { configurable: true, value: 820 },
+      scrollTop: { configurable: true, value: 470 },
+    });
+    fireEvent.scroll(addDialogBody);
+    await waitFor(() => {
+      expect(loadAddGallerySubtypeItemsPageMock).toHaveBeenCalledWith(
+        "token-canvas",
+        "office-park",
+        {
+          limit: 30,
+          offset: 1,
+        },
+      );
+    });
     expect(
-      await screen.findByRole("button", { name: "插入官方图库图片 建筑效果图 默认 2" }),
+      await screen.findByRole("button", { name: "插入官方图库图片 建筑效果图 办公园区 2" }),
     ).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: /别墅/ }));
+    await user.click(screen.getByRole("button", { name: "文化建筑" }));
     expect(loadAddGallerySubtypeItemsPageMock).toHaveBeenCalledWith(
       "token-canvas",
-      "villa",
+      "culture-building",
       {
-        limit: 60,
+        limit: 30,
         offset: 0,
       },
     );
     expect(
-      await screen.findByRole("button", { name: "插入官方图库图片 建筑效果图 别墅 1" }),
+      await screen.findByRole("button", { name: "插入官方图库图片 建筑效果图 文化建筑 1" }),
     ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "室内效果图" }));
+    expect(screen.queryByRole("button", { name: "默认" })).toBeNull();
+    expect(loadAddGallerySubtypeItemsPageMock).toHaveBeenCalledWith(
+      "token-canvas",
+      "interior-default",
+      {
+        limit: 30,
+        offset: 0,
+      },
+    );
+    expect(
+      await screen.findByRole("button", { name: "插入官方图库图片 室内效果图 默认 1" }),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "建筑效果图" }));
+    await user.click(screen.getByRole("button", { name: "文化建筑" }));
 
     await user.click(
-      screen.getByRole("button", { name: "插入官方图库图片 建筑效果图 别墅 1" }),
+      screen.getByRole("button", { name: "插入官方图库图片 建筑效果图 文化建筑 1" }),
     );
 
     expect(insertImageOnCanvasMock).toHaveBeenCalledWith(
@@ -409,7 +476,8 @@ describe("CanvasToolMenu", () => {
       expect.objectContaining({
         type: "image",
         mimeType: "image/png",
-        title: "建筑效果图 别墅 1",
+        title: "建筑效果图 文化建筑 1",
+        url: "/official-gallery/architecture-culture-building-1.png",
       }),
     );
     expect(screen.queryByRole("dialog", { name: "添加素材" })).toBeNull();
@@ -563,7 +631,7 @@ describe("CanvasToolMenu", () => {
             id: "shape-1",
             type: "rectangle",
             x: 40,
-            y: 24,
+            y: 160,
             width: 180,
             height: 120,
             isDeleted: false,
@@ -595,13 +663,17 @@ describe("CanvasToolMenu", () => {
       "data-anchor",
       "canvas-selection",
     );
+    const anchoredToolbar = screen.getByTestId("architecture-canvas-shape-toolbar");
     expect(screen.getByLabelText("描边颜色")).toHaveAttribute("type", "color");
     expect(screen.getByLabelText("填充颜色")).toHaveAttribute("type", "color");
     expect(screen.getByRole("button", { name: "清除填充" })).toBeInTheDocument();
-    expect(screen.getByRole("spinbutton", { name: "形状宽度" })).toHaveValue(180);
-    expect(screen.getByRole("spinbutton", { name: "形状高度" })).toHaveValue(120);
+    expect(
+      within(anchoredToolbar).queryByRole("spinbutton", { name: "形状宽度" }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(anchoredToolbar).queryByRole("spinbutton", { name: "形状高度" }),
+    ).not.toBeInTheDocument();
 
-    const anchoredToolbar = screen.getByTestId("architecture-canvas-shape-toolbar");
     const firstLeft = anchoredToolbar.style.left;
     const firstTop = anchoredToolbar.style.top;
 
@@ -618,7 +690,7 @@ describe("CanvasToolMenu", () => {
             id: "shape-1",
             type: "rectangle",
             x: 120,
-            y: 80,
+            y: 260,
             width: 180,
             height: 120,
             isDeleted: false,
@@ -760,6 +832,56 @@ describe("CanvasToolMenu", () => {
     expect(toolbar.className).not.toContain("w-[min(760px,calc(100vw-4rem))]");
   });
 
+  it("keeps the selected-shape toolbar above a near-top shape instead of falling below it", async () => {
+    const excalidrawApi = createMockExcalidrawApi();
+
+    render(
+      <CanvasToolMenu
+        {...({
+          accessToken: "token-canvas",
+          excalidrawApi,
+          immersiveArchitecture: true,
+        } as const)}
+      />,
+    );
+
+    const onChange = getRegisteredOnChange(excalidrawApi);
+
+    act(() => {
+      onChange(
+        [
+          {
+            id: "shape-near-top",
+            type: "rectangle",
+            x: 280,
+            y: 32,
+            width: 160,
+            height: 120,
+            isDeleted: false,
+            strokeColor: "#0f172a",
+            backgroundColor: "transparent",
+            strokeWidth: 2,
+          },
+        ],
+        {
+          activeTool: { type: "selection" },
+          scrollX: 0,
+          scrollY: 0,
+          zoom: { value: 1 },
+          selectedElementIds: {
+            "shape-near-top": true,
+          },
+          currentItemStrokeColor: "#0f172a",
+          currentItemBackgroundColor: "transparent",
+          currentItemStrokeWidth: 2,
+        },
+      );
+    });
+
+    const toolbar = screen.getByTestId("architecture-canvas-shape-toolbar");
+    expect(Number.parseFloat(toolbar.style.top)).toBeLessThan(32);
+  });
+
   it("shows an anchored doodle selection toolbar when an existing freedraw element is selected", async () => {
     const excalidrawApi = createMockExcalidrawApi();
 
@@ -810,6 +932,12 @@ describe("CanvasToolMenu", () => {
     expect(screen.getByLabelText("涂鸦颜色")).toHaveAttribute("type", "color");
     expect(screen.getByRole("slider", { name: "涂鸦粗细" })).toHaveValue("6");
     expect(screen.queryByLabelText("填充颜色")).not.toBeInTheDocument();
+    expect(
+      within(toolbar).queryByRole("spinbutton", { name: "形状宽度" }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(toolbar).queryByRole("spinbutton", { name: "形状高度" }),
+    ).not.toBeInTheDocument();
   });
 
   it("shows an anchored text selection toolbar when an existing text element is selected", async () => {

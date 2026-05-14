@@ -31,6 +31,50 @@ const MODE_LABELS: Record<CanvasContextMenuMode, string> = {
   "multi-image": "多图菜单",
 };
 
+const ACTION_GROUP_BY_ID: Record<string, string> = {
+  "copy-selection": "clipboard",
+  "paste-selection": "clipboard",
+  "move-forward": "layer",
+  "move-backward": "layer",
+  "move-front": "layer",
+  "move-back": "layer",
+  "attach-selection": "conversation",
+  "group-selection": "composition",
+  "ungroup-selection": "composition",
+  "merge-selection": "composition",
+  "toggle-visibility": "state",
+  "lock-selection": "state",
+  "unlock-selection": "state",
+  "show-all-elements": "view",
+  "export-canvas": "file",
+  "import-canvas": "file",
+  "export-selection": "file",
+  "delete-selection": "destructive",
+};
+
+function getActionGroup(action: CanvasContextMenuAction) {
+  if (action.danger) {
+    return "destructive";
+  }
+
+  return ACTION_GROUP_BY_ID[action.id] ?? `action:${action.id}`;
+}
+
+function shouldRenderActionSeparator(
+  action: CanvasContextMenuAction,
+  previousAction?: CanvasContextMenuAction,
+) {
+  if (!previousAction) {
+    return false;
+  }
+
+  if (action.dividerBefore) {
+    return true;
+  }
+
+  return getActionGroup(action) !== getActionGroup(previousAction);
+}
+
 export function CanvasContextMenu({
   open,
   mode,
@@ -111,15 +155,18 @@ export function CanvasContextMenu({
         ref={menuRef}
         role="menu"
         aria-label={MODE_LABELS[mode]}
-        className="max-h-[min(520px,calc(100vh-2rem))] min-w-[220px] -translate-x-1/2 overflow-y-auto rounded-[10px] border border-slate-200 bg-white/97 p-1.5 shadow-[0_20px_48px_rgba(15,23,42,0.12)] backdrop-blur-xl"
+        className="min-w-[220px] -translate-x-1/2 overflow-hidden rounded-[10px] border border-slate-200 bg-white/97 p-1.5 shadow-[0_20px_48px_rgba(15,23,42,0.12)] backdrop-blur-xl"
         onContextMenu={(event) => event.preventDefault()}
         onMouseDown={(event) => event.stopPropagation()}
       >
         <div className="flex flex-col">
           {actions.map((action, index) => (
             <Fragment key={action.id}>
-              {action.dividerBefore || index > 0 && action.id === "delete-selection" ? (
-                <div className="mx-2 my-1 h-px bg-slate-200" />
+              {shouldRenderActionSeparator(action, actions[index - 1]) ? (
+                <div
+                  data-testid="canvas-context-menu-separator"
+                  className="mx-2 my-1 h-px bg-slate-200"
+                />
               ) : null}
               <button
                 type="button"

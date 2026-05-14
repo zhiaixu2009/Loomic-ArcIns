@@ -558,6 +558,12 @@ function CanvasPageContent() {
     syncArchitectureContext(insertion.elements);
   }, [syncArchitectureContext]);
 
+  const clearCanvasSelectionUiState = useCallback(() => {
+    setContextMenuState(null);
+    setSelectionActionOrigin("suppressed");
+    setSelectedCanvasElements([]);
+  }, []);
+
   const handleGroupSelectedImages = useCallback(() => {
     const api = excalidrawApiRef.current;
     if (!api) {
@@ -567,8 +573,17 @@ function CanvasPageContent() {
 
     const result = groupSelectedCanvasElements(api);
     console.log("[canvas-page] grouped selected canvas elements", result);
+    if (result.groupedCount > 0 || selectedCanvasElements.length > 1) {
+      clearCanvasSelectionUiState();
+    } else {
+      setContextMenuState(null);
+    }
     syncArchitectureContext(api.getSceneElements() as ArchitectureSceneElement[]);
-  }, [syncArchitectureContext]);
+  }, [
+    clearCanvasSelectionUiState,
+    selectedCanvasElements.length,
+    syncArchitectureContext,
+  ]);
 
   const handleDispatchComposerCommand = useCallback(
     (command: CanvasComposerCommandRequest) => {
@@ -791,7 +806,9 @@ function CanvasPageContent() {
     [selectedCanvasElements],
   );
   const showMultiImageSelectionActionBar =
-    selectionActionOrigin === "left" && multiSelectedCanvasImages.length > 1;
+    selectionActionOrigin === "left" &&
+    selectedCanvasElements.length > 1 &&
+    multiSelectedCanvasImages.length > 0;
 
   const handleCanvasSelectionIntent = useCallback((intent: "left" | "right") => {
     setSelectionActionOrigin(intent === "left" ? "left" : "suppressed");
@@ -1490,77 +1507,60 @@ function CanvasPageContent() {
       return;
     }
 
-    const selectedIds = Object.entries(api.getAppState().selectedElementIds ?? {})
+    const selectedIdsFromAppState = Object.entries(api.getAppState().selectedElementIds ?? {})
       .filter(([, selected]: [string, unknown]) => Boolean(selected))
       .map(([id]: [string, unknown]) => id);
+    const selectedIds =
+      selectedIdsFromAppState.length > 0
+        ? selectedIdsFromAppState
+        : selectedCanvasElements.map((element) => element.id);
     const selectedIdSet = new Set(selectedIds);
     const sceneElements = api.getSceneElements() as Record<string, any>[];
-    const selectedImages = sceneElements.filter(
-      (element) =>
-        !element.isDeleted &&
-        selectedIdSet.has(String(element.id)) &&
-        element.type === "image" &&
-        element.fileId,
+    const selectedSceneElements = sceneElements.filter(
+      (element) => !element.isDeleted && selectedIdSet.has(String(element.id)),
     );
 
-    if (selectedImages.length < 2) {
-      console.log("[canvas-page] merge ignored because fewer than two images are selected");
+    if (selectedSceneElements.length < 2) {
+      console.log("[canvas-page] merge ignored because fewer than two elements are selected");
       setContextMenuState(null);
       return;
     }
 
     try {
       const files = api.getFiles?.() ?? {};
-      const loadedImages = await Promise.all(
-        selectedImages.map(async (element) => {
-          const file = element.fileId ? files[element.fileId] : null;
-          const source =
-            file?.dataURL ??
-            element.customData?.storageUrl ??
-            element.link ??
-            null;
-          if (!source) {
-            throw new Error(`Missing image source for ${element.id}`);
-          }
-
-          return {
-            element,
-            image: await loadImageFromUrl(source),
-          };
-        }),
-      );
-
-      const minX = Math.min(...selectedImages.map((element) => element.x ?? 0));
-      const minY = Math.min(...selectedImages.map((element) => element.y ?? 0));
+      const minX = Math.min(...selectedSceneElements.map((element) => element.x ?? 0));
+      const minY = Math.min(...selectedSceneElements.map((element) => element.y ?? 0));
       const maxX = Math.max(
-        ...selectedImages.map((element) => (element.x ?? 0) + (element.width ?? 0)),
+        ...selectedSceneElements.map(
+          (element) => (element.x ?? 0) + (element.width ?? 0),
+        ),
       );
       const maxY = Math.max(
-        ...selectedImages.map((element) => (element.y ?? 0) + (element.height ?? 0)),
+        ...selectedSceneElements.map(
+          (element) => (element.y ?? 0) + (element.height ?? 0),
+        ),
       );
 
       const width = Math.max(1, Math.round(maxX - minX));
       const height = Math.max(1, Math.round(maxY - minY));
-      const canvas = document.createElement("canvas");
-      canvas.width = width;
-      canvas.height = height;
-      const context = canvas.getContext("2d");
-      if (!context) {
-        throw new Error("Cannot create merge canvas context");
-      }
-
-      loadedImages.forEach(({ element, image }) => {
-        context.drawImage(
-          image,
-          (element.x ?? 0) - minX,
-          (element.y ?? 0) - minY,
-          element.width ?? image.naturalWidth,
-          element.height ?? image.naturalHeight,
-        );
+      const { exportToBlob } = await import("@excalidraw/excalidraw");
+      const mergedBlob = await exportToBlob({
+        elements: selectedSceneElements,
+        appState: {
+          ...api.getAppState(),
+          selectedElementIds: {},
+          exportBackground: false,
+          exportPadding: 0,
+          exportScale: 1,
+        },
+        files,
+        maxWidthOrHeight: Math.max(width, height),
+        mimeType: "image/png",
+        quality: 1,
       });
 
       const mergedFileId = createSceneCloneId();
-      const mergedDataUrl = canvas.toDataURL("image/png");
+      const mergedDataUrl = await readBlobAsDataUrl(mergedBlob);
       api.addFiles?.([
         {
           id: mergedFileId,
@@ -1599,22 +1599,23 @@ function CanvasPageContent() {
         elements: [...nextElements, mergedElement],
         appState: {
           ...api.getAppState(),
-          selectedElementIds: { [mergedElement.id as string]: true },
+          selectedElementIds: {},
         },
         captureUpdate: "IMMEDIATELY",
       });
 
-      console.log("[canvas-page] merged selected image layers", {
-        mergedCount: selectedImages.length,
+      console.log("[canvas-page] merged selected canvas layers", {
+        mergedCount: selectedSceneElements.length,
         mergedElementId: mergedElement.id,
       });
+      clearCanvasSelectionUiState();
     } catch (mergeError) {
-      console.error("[canvas-page] failed to merge selected images", mergeError);
+      console.error("[canvas-page] failed to merge selected canvas layers", mergeError);
     } finally {
       setContextMenuState(null);
       syncArchitectureContext(api.getSceneElements() as ArchitectureSceneElement[]);
     }
-  }, [syncArchitectureContext]);
+  }, [clearCanvasSelectionUiState, selectedCanvasElements, syncArchitectureContext]);
 
   const handleExportSelectedCanvasImage = useCallback(() => {
     if (!selectedCanvasImageAsset?.source) {

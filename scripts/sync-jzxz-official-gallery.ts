@@ -1,5 +1,5 @@
+import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { spawn } from "node:child_process";
 
 import { createClient } from "@supabase/supabase-js";
 
@@ -10,13 +10,17 @@ import {
   collectSuccessfulOfficialGalleryResults,
   OFFICIAL_GALLERY_STORAGE_BUCKET,
   buildJzxzConfigRequest,
+  buildJzxzImageSearchRequest,
+  buildJzxzQueryByTagRequest,
   buildOfficialGalleryStorageObjectPath,
+  buildStsqWallpaperReferenceRequest,
   createOfficialGalleryAssetId,
   createOfficialGalleryCategoryId,
   createOfficialGallerySubtypeId,
   dedupeOfficialGalleryRemoteAssets,
   findOfficialGalleryStaleIds,
   filterOfficialGalleryCategoriesForSync,
+  filterOfficialGalleryStsqAssetsByRelevance,
   getRetryableOfficialGalleryRemoteErrorMessage,
   limitOfficialGalleryRemoteAssets,
   parseOfficialGalleryConfigValue,
@@ -35,6 +39,8 @@ type SyncCliOptions = {
   session: string;
   skipCleanup: boolean;
   stsqDelayMs: number;
+  stsqPageSize: number;
+  stsqResponseDir: string | null;
   subtypeLabels: string[];
 };
 
@@ -75,7 +81,7 @@ type StsqRemoteAsset = {
   detailInfo?: string | null;
   heat?: number | null;
   height: number;
-  id: number | string;
+  id?: number | string | null;
   isLargeScale?: number | null;
   largeUrl: string;
   likeCount?: number | null;
@@ -108,13 +114,20 @@ type SyncRunProgress = {
 type SupabaseAdminClient = ReturnType<typeof createAdminClient>;
 
 const JZXZ_HOME_URL = "https://www.jianzhuxuezhang.com/canvas/home";
-const PLAYWRIGHT_WRAPPER_PATH =
-  "/mnt/c/Users/admin/.codex/skills/playwright/scripts/playwright_cli.sh";
-const JZXZ_QUERY_RUN_TIMEOUT_MS = 120_000;
 const OFFICIAL_BROWSER_PAGE_LIMIT = 200;
 const STSQ_HYBRID_PAGE_SIZE = 20;
+const STSQ_WALLPAPER_PAGE_SIZE = 120;
 const REMOTE_ASSET_DOWNLOAD_RETRY_ATTEMPTS = 3;
 const REMOTE_ASSET_DOWNLOAD_RETRY_DELAY_MS = 500;
+const STSQ_WALLPAPER_FIXTURE_SLUG_BY_TAG: Record<string, string> = {
+  "免抠-汽车": "car",
+  "免抠-自行车": "bicycle",
+  "免抠-摩托车": "motorcycle",
+  "免抠-轮船": "ship",
+  "免抠-直升机": "helicopter",
+  "免抠-飞机": "airplane",
+  "免抠-鸟瞰人": "birdview-people",
+};
 
 function parseCliArgs(argv: string[]): SyncCliOptions {
   const options: SyncCliOptions = {
@@ -127,6 +140,8 @@ function parseCliArgs(argv: string[]): SyncCliOptions {
     session: "official-gallery-sync",
     skipCleanup: false,
     stsqDelayMs: 850,
+    stsqPageSize: STSQ_WALLPAPER_PAGE_SIZE,
+    stsqResponseDir: null,
     subtypeLabels: [],
   };
 
@@ -190,6 +205,23 @@ function parseCliArgs(argv: string[]): SyncCliOptions {
       continue;
     }
 
+    if (token === "--stsq-page-size") {
+      const value = consumeNumber();
+      if (value && value > 0) {
+        options.stsqPageSize = value;
+      }
+      continue;
+    }
+
+    if (token === "--stsq-response-dir") {
+      const value = argv[index + 1]?.trim();
+      if (value) {
+        options.stsqResponseDir = value;
+      }
+      index += 1;
+      continue;
+    }
+
     if (token === "--download-concurrency") {
       const value = consumeNumber();
       if (value && value > 0) {
@@ -237,266 +269,35 @@ function createAdminClient() {
   });
 }
 
-function toWslPath(inputPath: string) {
-  const normalized = path.resolve(inputPath).replace(/\\/g, "/");
-  const match = normalized.match(/^([A-Za-z]):\/(.*)$/);
-
-  if (!match) {
-    return normalized;
-  }
-
-  const [, drive, tail] = match;
-  return `/mnt/${drive.toLowerCase()}/${tail}`;
-}
-
-function runCommand(
-  command: string,
-  args: string[],
-  options: {
-    cwd?: string;
-    stream?: boolean;
-    timeoutMs?: number;
-  } = {},
-) {
-  return new Promise<{
-    code: number;
-    stderr: string;
-    stdout: string;
-  }>((resolve, reject) => {
-    const child = spawn(command, args, {
-      cwd: options.cwd ?? process.cwd(),
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-
-    let stdout = "";
-    let stderr = "";
-    let timeoutHandle: NodeJS.Timeout | undefined;
-
-    if (options.timeoutMs) {
-      timeoutHandle = setTimeout(() => {
-        child.kill("SIGTERM");
-        reject(new Error(`Command timed out after ${options.timeoutMs}ms`));
-      }, options.timeoutMs);
-    }
-
-    child.stdout.on("data", (chunk) => {
-      const text = chunk.toString();
-      stdout += text;
-      if (options.stream) {
-        process.stdout.write(text);
-      }
-    });
-
-    child.stderr.on("data", (chunk) => {
-      const text = chunk.toString();
-      stderr += text;
-      if (options.stream) {
-        process.stderr.write(text);
-      }
-    });
-
-    child.on("error", (error) => {
-      if (timeoutHandle) {
-        clearTimeout(timeoutHandle);
-      }
-      reject(error);
-    });
-
-    child.on("close", (code) => {
-      if (timeoutHandle) {
-        clearTimeout(timeoutHandle);
-      }
-
-      if (code === 0) {
-        resolve({ code: 0, stderr, stdout });
-        return;
-      }
-
-      const error = new Error(`Command failed with exit code ${code}`);
-      Object.assign(error, { code, stderr, stdout });
-      reject(error);
-    });
-  });
-}
-
-async function runPlaywrightCli(
-  session: string,
-  args: string[],
-  options: {
-    stream?: boolean;
-    timeoutMs?: number;
-  } = {},
-) {
-  return runCommand(
-    "wsl",
-    [
-      "--cd",
-      toWslPath(process.cwd()),
-      "bash",
-      PLAYWRIGHT_WRAPPER_PATH,
-      `-s=${session}`,
-      ...args,
-    ],
-    {
-      cwd: process.cwd(),
-      stream: options.stream,
-      timeoutMs: options.timeoutMs,
-    },
-  );
-}
-
-function parsePlaywrightResult(stdout: string) {
-  const match = stdout.match(/### Result\r?\n([\s\S]*?)\r?\n### Ran Playwright code/);
-  if (!match?.[1]) {
-    const errorMatch = stdout.match(/### Error\r?\n([\s\S]*)$/);
-    if (errorMatch?.[1]) {
-      throw new Error(
-        `Playwright run-code failed: ${errorMatch[1].trim().slice(0, 1200)}`,
-      );
-    }
-
-    throw new Error(
-      `Failed to parse Playwright result payload. Output preview: ${stdout.slice(0, 1200)}`,
-    );
-  }
-
-  return JSON.parse(match[1]);
-}
-
-function buildJzxzQueryRunCode(tag: string, page: number, pageSize: number) {
-  return [
-    "async (page) => {",
-    "  return page.evaluate(async ({ pageIndex, pageSize, tag }) => {",
-    "    const mod = await import(\"https://web-assets.soutushenqi.com/jzxz/v2.14.51/assets/index.js\");",
-    "    const client = mod._;",
-    "    client.addCommonHeaders({",
-    "      \"Product-Type\": \"JZXZ\",",
-    "      lang: \"zh-CN\",",
-    "    });",
-    "    return client.postRequestForm(",
-    "      \"https://api.jianzhuxuezhang.com/jzxz/api/image/queryByTag\",",
-    "      {",
-    "        page: pageIndex,",
-    "        page_size: pageSize,",
-    "        tags: tag,",
-    "      },",
-    "    );",
-    `  }, { pageIndex: ${page}, pageSize: ${pageSize}, tag: ${JSON.stringify(tag)} });`,
-    "}",
-  ].join("\n");
-}
-
-function buildOfficialBrowserSearchRunCode(options: {
-  page: number;
-  pageSize?: number;
-  requestType: 504 | 505;
-  searchWord: string;
-}) {
-  const requestParams =
-    options.requestType === 504
-      ? {
-          page: options.page,
-          searchWord: options.searchWord,
-        }
-      : {
-          page: options.page,
-          pageSize: options.pageSize ?? STSQ_HYBRID_PAGE_SIZE,
-          searchWord: options.searchWord,
-          sizeType: "NO_LIMIT",
-        };
-
-  return [
-    "async (page) => {",
-    "  return page.evaluate(async (payload) => {",
-    "    const mod = await import(\"https://web-assets.soutushenqi.com/jzxz/v2.14.51/assets/utils2.js\");",
-    "    const runRequest = mod.b;",
-    "    return runRequest(payload);",
-    `  }, ${JSON.stringify({
-      requestParams,
-      requestType: options.requestType,
-    })});`,
-    "}",
-  ].join("\n");
-}
-
-function buildOfficialBrowserHybridSearchRunCode(options: {
-  maxAssets?: number | null;
-  pageLimit: number;
-  pageSize: number;
-  searchWord: string;
-}) {
-  return [
-    "async (page) => {",
-    "  return page.evaluate(async ({ maxAssets, pageLimit, pageSize, searchWord }) => {",
-    "    const mod = await import(\"https://web-assets.soutushenqi.com/jzxz/v2.14.51/assets/utils2.js\");",
-    "    const runRequest = mod.b;",
-    "    const merged = [];",
-    "    for (let pageIndex = 0; pageIndex < pageLimit; pageIndex += 1) {",
-    "      const result = await runRequest({",
-    "        requestType: 505,",
-    "        requestParams: {",
-    "          searchWord,",
-    "          page: pageIndex,",
-    "          pageSize,",
-    "          sizeType: \"NO_LIMIT\",",
-    "        },",
-    "      });",
-    "      if (!Array.isArray(result?.list) || result.list.length === 0) {",
-    "        return {",
-    "          list: maxAssets && maxAssets > 0 ? merged.slice(0, maxAssets) : merged,",
-    "          stopPage: pageIndex,",
-    "          truncated: false,",
-    "          type: result?.type ?? \"noMore\",",
-    "        };",
-    "      }",
-    "      merged.push(...result.list);",
-    "      if (maxAssets && maxAssets > 0 && merged.length >= maxAssets) {",
-    "        return {",
-    "          list: merged.slice(0, maxAssets),",
-    "          stopPage: pageIndex + 1,",
-    "          truncated: false,",
-    "          type: \"done\",",
-    "        };",
-    "      }",
-    "    }",
-    "    return {",
-    "      list: maxAssets && maxAssets > 0 ? merged.slice(0, maxAssets) : merged,",
-    "      stopPage: pageLimit,",
-    "      truncated: true,",
-    "      type: \"done\",",
-    "    };",
-    `  }, ${JSON.stringify(options)});`,
-    "}",
-  ].join("\n");
-}
-
-async function ensureJzxzBrowserSession(session: string) {
-  console.info("[official-gallery-sync] opening JZXZ browser session", {
-    session,
-    url: JZXZ_HOME_URL,
-  });
-
-  await runPlaywrightCli(session, ["open", JZXZ_HOME_URL], {
-    stream: true,
-    timeoutMs: JZXZ_QUERY_RUN_TIMEOUT_MS,
-  });
-}
-
 async function queryJzxzImagesViaBrowser(
-  session: string,
+  _session: string,
   tag: string,
   page: number,
   pageSize: number,
 ) {
-  const { stdout } = await runPlaywrightCli(
-    session,
-    ["run-code", buildJzxzQueryRunCode(tag, page, pageSize)],
-    {
-      timeoutMs: JZXZ_QUERY_RUN_TIMEOUT_MS,
-    },
-  );
+  const request = buildJzxzQueryByTagRequest({
+    nowMs: Date.now(),
+    page,
+    pageSize,
+    tag,
+  });
+  const payload = await fetchJsonOrThrow<{
+    code: number;
+    data?: JzxzRemoteAsset[];
+    error_msg?: string | null;
+  }>(request.url, {
+    method: "POST",
+    headers: request.headers,
+    body: request.body,
+  });
 
-  return parsePlaywrightResult(stdout) as JzxzRemoteAsset[];
+  if (payload.code !== 200 || !Array.isArray(payload.data)) {
+    throw new Error(
+      `Unexpected JZXZ queryByTag response: ${JSON.stringify(payload).slice(0, 600)}`,
+    );
+  }
+
+  return payload.data;
 }
 
 async function queryOfficialGalleryBrowserSearchViaBrowser(options: {
@@ -506,23 +307,185 @@ async function queryOfficialGalleryBrowserSearchViaBrowser(options: {
   searchWord: string;
   session: string;
 }) {
-  const { stdout } = await runPlaywrightCli(
-    options.session,
-    [
-      "run-code",
-      buildOfficialBrowserSearchRunCode({
-        page: options.page,
-        pageSize: options.pageSize,
-        requestType: options.requestType,
-        searchWord: options.searchWord,
-      }),
-    ],
-    {
-      timeoutMs: JZXZ_QUERY_RUN_TIMEOUT_MS,
-    },
-  );
+  const request = buildJzxzImageSearchRequest({
+    nowMs: Date.now(),
+    page: options.page,
+    pageSize: options.pageSize ?? STSQ_HYBRID_PAGE_SIZE,
+    searchWord: options.searchWord,
+  });
+  const payload = await fetchJsonOrThrow<{
+    code: number;
+    data?: StsqRemoteAsset[];
+    error_msg?: string | null;
+  }>(request.url, {
+    headers: request.headers,
+  });
 
-  return parsePlaywrightResult(stdout);
+  if (payload.code !== 200 || !Array.isArray(payload.data)) {
+    return {
+      error: `Unexpected JZXZ image search response: ${JSON.stringify(payload).slice(0, 600)}`,
+      type: "error",
+    };
+  }
+
+  return {
+    list: payload.data,
+    type: payload.data.length > 0 ? "done" : "noMore",
+  };
+}
+
+function getStsqWallpaperFixtureCandidates(options: {
+  page: number;
+  pageSize: number;
+  responseDir: string;
+  searchWord: string;
+}) {
+  const slug =
+    STSQ_WALLPAPER_FIXTURE_SLUG_BY_TAG[options.searchWord] ??
+    encodeURIComponent(options.searchWord).replace(/%/g, "").toLowerCase();
+  const pagePart = options.page === 0 ? "" : `-page${options.page}`;
+  return [
+    path.resolve(
+      options.responseDir,
+      `official-wallpaper-${slug}${pagePart}-${options.pageSize}.network-response`,
+    ),
+    path.resolve(
+      options.responseDir,
+      `official-wallpaper-${slug}${pagePart}.network-response`,
+    ),
+  ];
+}
+
+function isStsqRemoteAsset(value: unknown): value is StsqRemoteAsset {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const candidate = value as Partial<StsqRemoteAsset>;
+  return (
+    typeof candidate.largeUrl === "string" &&
+    candidate.largeUrl.trim().length > 0 &&
+    typeof candidate.width === "number" &&
+    Number.isFinite(candidate.width) &&
+    typeof candidate.height === "number" &&
+    Number.isFinite(candidate.height)
+  );
+}
+
+function normalizeStsqWallpaperResponse(payload: unknown) {
+  const data =
+    payload && typeof payload === "object" && "data" in payload
+      ? (payload as { data?: unknown }).data
+      : payload;
+
+  if (!Array.isArray(data)) {
+    throw new Error(
+      `Unexpected STSQ wallpaper/reference payload: ${JSON.stringify(payload).slice(0, 600)}`,
+    );
+  }
+
+  return data.filter(isStsqRemoteAsset);
+}
+
+async function readStsqWallpaperFixture(options: {
+  page: number;
+  pageSize: number;
+  responseDir: string;
+  searchWord: string;
+}) {
+  for (const candidatePath of getStsqWallpaperFixtureCandidates(options)) {
+    try {
+      const raw = await readFile(candidatePath, "utf8");
+      const payload = JSON.parse(raw) as unknown;
+      const data = normalizeStsqWallpaperResponse(payload);
+      console.info("[official-gallery-sync] loaded STSQ wallpaper fixture", {
+        count: data.length,
+        page: options.page,
+        path: candidatePath,
+        searchWord: options.searchWord,
+      });
+      return data;
+    } catch (error) {
+      if (
+        error &&
+        typeof error === "object" &&
+        "code" in error &&
+        (error as { code?: unknown }).code === "ENOENT"
+      ) {
+        continue;
+      }
+
+      throw error;
+    }
+  }
+
+  return null;
+}
+
+async function queryStsqWallpaperReference(options: {
+  page: number;
+  pageSize: number;
+  responseDir: string | null;
+  searchWord: string;
+}) {
+  if (options.responseDir) {
+    const fixtureAssets = await readStsqWallpaperFixture({
+      page: options.page,
+      pageSize: options.pageSize,
+      responseDir: options.responseDir,
+      searchWord: options.searchWord,
+    });
+    if (fixtureAssets) {
+      return {
+        items: fixtureAssets,
+        kind: fixtureAssets.length > 0 ? ("done" as const) : ("no_more" as const),
+      };
+    }
+
+    if (options.page > 0) {
+      return {
+        items: [],
+        kind: "no_more" as const,
+      };
+    }
+  }
+
+  const request = buildStsqWallpaperReferenceRequest({
+    authToken: process.env.JZXZ_STSQ_AUTH_TOKEN ?? null,
+    nowMs: Date.now(),
+    page: options.page,
+    pageSize: options.pageSize,
+    tag: options.searchWord,
+  });
+
+  try {
+    const payload = await fetchJsonOrThrow<{
+      code: number;
+      data?: StsqRemoteAsset[];
+      error_msg?: string | null;
+    }>(request.url, {
+      headers: request.headers,
+    });
+
+    if (payload.code !== 200 || !Array.isArray(payload.data)) {
+      return {
+        error: `Unexpected STSQ wallpaper/reference response: ${JSON.stringify(payload).slice(0, 600)}`,
+        items: [],
+        kind: "error" as const,
+      };
+    }
+
+    return {
+      items: normalizeStsqWallpaperResponse(payload.data),
+      kind: payload.data.length > 0 ? ("done" as const) : ("no_more" as const),
+    };
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : String(error),
+      items: [],
+      kind: "error" as const,
+    };
+  }
 }
 
 async function queryOfficialGalleryHybridSearchViaBrowser(options: {
@@ -532,23 +495,52 @@ async function queryOfficialGalleryHybridSearchViaBrowser(options: {
   searchWord: string;
   session: string;
 }) {
-  const { stdout } = await runPlaywrightCli(
-    options.session,
-    [
-      "run-code",
-      buildOfficialBrowserHybridSearchRunCode({
-        maxAssets: options.maxAssets,
-        pageLimit: options.pageLimit,
-        pageSize: options.pageSize,
-        searchWord: options.searchWord,
-      }),
-    ],
-    {
-      timeoutMs: JZXZ_QUERY_RUN_TIMEOUT_MS,
-    },
-  );
+  const merged: StsqRemoteAsset[] = [];
 
-  return parsePlaywrightResult(stdout);
+  for (let pageIndex = 0; pageIndex < options.pageLimit; pageIndex += 1) {
+    const payload = await queryOfficialGalleryBrowserSearchViaBrowser({
+      page: pageIndex,
+      pageSize: options.pageSize,
+      requestType: 505,
+      searchWord: options.searchWord,
+      session: options.session,
+    });
+    const classified =
+      classifyOfficialGalleryBrowserSearchResult<StsqRemoteAsset>(payload);
+    if (classified.kind !== "done" || classified.items.length === 0) {
+      return {
+        list:
+          options.maxAssets && options.maxAssets > 0
+            ? merged.slice(0, options.maxAssets)
+            : merged,
+        stopPage: pageIndex,
+        truncated: false,
+        type: classified.kind === "error" ? "error" : "noMore",
+      };
+    }
+
+    merged.push(...classified.items);
+    if (options.maxAssets && options.maxAssets > 0 && merged.length >= options.maxAssets) {
+      return {
+        list: merged.slice(0, options.maxAssets),
+        stopPage: pageIndex + 1,
+        truncated: false,
+        type: "done",
+      };
+    }
+
+    await sleep(options.pageSize >= 20 ? 250 : 100);
+  }
+
+  return {
+    list:
+      options.maxAssets && options.maxAssets > 0
+        ? merged.slice(0, options.maxAssets)
+        : merged,
+    stopPage: options.pageLimit,
+    truncated: true,
+    type: "done",
+  };
 }
 
 async function fetchJsonOrThrow<T>(input: RequestInfo | URL, init?: RequestInit) {
@@ -723,45 +715,100 @@ async function fetchAllOfficialBrowserAssetsByRequest(options: {
 }
 
 async function fetchAllStsqAssetsForSubtype(options: {
+  categoryLabel: string;
   delayMs: number;
   maxAssetsPerSubtype: number | null;
+  pageSize: number;
+  responseDir: string | null;
   searchWord: string;
   session: string;
+  subtypeLabel: string;
 }) {
-  const textSearchResult = await fetchAllOfficialBrowserAssetsByRequest({
-    delayMs: options.delayMs,
-    maxAssetsPerSubtype: options.maxAssetsPerSubtype,
-    requestLabel: "STSQ requestType 504",
-    requestType: 504,
-    searchWord: options.searchWord,
-    session: options.session,
-  });
+  const assets: StsqRemoteAsset[] = [];
+  for (let page = 0; page < OFFICIAL_BROWSER_PAGE_LIMIT; page += 1) {
+    const result = await queryStsqWallpaperReference({
+      page,
+      pageSize: options.pageSize,
+      responseDir: options.responseDir,
+      searchWord: options.searchWord,
+    });
 
-  if (textSearchResult.kind === "done" || textSearchResult.kind === "no_more") {
-    return textSearchResult.items;
+    if (result.kind === "error") {
+      throw new Error(
+        `STSQ wallpaper/reference failed for "${options.searchWord}" on page ${page}: ${result.error}`,
+      );
+    }
+
+    if (result.kind === "no_more" || result.items.length === 0) {
+      break;
+    }
+
+    assets.push(...result.items);
+
+    if (
+      options.maxAssetsPerSubtype &&
+      options.maxAssetsPerSubtype > 0 &&
+      assets.length >= options.maxAssetsPerSubtype
+    ) {
+      break;
+    }
+
+    if (result.items.length < options.pageSize) {
+      break;
+    }
+
+    if (options.delayMs > 0) {
+      await sleep(options.delayMs);
+    }
   }
 
-  console.warn("[official-gallery-sync] STSQ text search hit official limit, falling back to hybrid search", {
+  return filterStsqAssetsForSubtypeOrThrow({
+    assets: limitOfficialGalleryRemoteAssets(
+      dedupeOfficialGalleryRemoteAssets(assets),
+      options.maxAssetsPerSubtype,
+    ),
+    categoryLabel: options.categoryLabel,
+    requestLabel: "STSQ wallpaper/reference",
     searchWord: options.searchWord,
+    subtypeLabel: options.subtypeLabel,
+  });
+}
+
+function filterStsqAssetsForSubtypeOrThrow(options: {
+  assets: StsqRemoteAsset[];
+  categoryLabel: string;
+  requestLabel: string;
+  searchWord: string;
+  subtypeLabel: string;
+}) {
+  const relevance = filterOfficialGalleryStsqAssetsByRelevance({
+    assets: options.assets,
+    categoryLabel: options.categoryLabel,
+    searchWord: options.searchWord,
+    subtypeLabel: options.subtypeLabel,
   });
 
-  const hybridSearchResult = await fetchAllOfficialBrowserAssetsByRequest({
-    delayMs: options.delayMs,
-    maxAssetsPerSubtype: options.maxAssetsPerSubtype,
-    pageSize: STSQ_HYBRID_PAGE_SIZE,
-    requestLabel: "STSQ requestType 505",
-    requestType: 505,
-    searchWord: options.searchWord,
-    session: options.session,
-  });
+  if (relevance.rejected.length > 0) {
+    console.warn("[official-gallery-sync] rejected suspicious STSQ assets", {
+      category: options.categoryLabel,
+      rejectedCount: relevance.rejected.length,
+      requestLabel: options.requestLabel,
+      samples: relevance.rejected.slice(0, 5).map((asset) => ({
+        id: asset.id ?? null,
+        title: asset.title ?? asset.detailInfo ?? null,
+      })),
+      searchWord: options.searchWord,
+      subtype: options.subtypeLabel,
+    });
+  }
 
-  if (hybridSearchResult.kind === "limit") {
+  if (options.assets.length > 0 && relevance.accepted.length === 0) {
     throw new Error(
-      `STSQ hybrid search is also rate limited for "${options.searchWord}".`,
+      `STSQ quality gate rejected all ${options.assets.length} assets for ${options.categoryLabel}/${options.subtypeLabel} (${options.searchWord}).`,
     );
   }
 
-  return hybridSearchResult.items;
+  return relevance.accepted;
 }
 
 function chunk<T>(items: T[], size: number) {
@@ -939,6 +986,8 @@ async function prepareSyncPayload(options: {
   limitCategories: number | null;
   limitSubtypes: number | null;
   maxAssetsPerSubtype: number | null;
+  stsqPageSize: number;
+  stsqResponseDir: string | null;
   stsqDelayMs: number;
   subtypeLabels: string[];
 }) {
@@ -1039,10 +1088,14 @@ async function prepareSyncPayload(options: {
               tag: subtype.tag,
             })
           : await fetchAllStsqAssetsForSubtype({
+              categoryLabel: category.name,
               delayMs: options.stsqDelayMs,
               maxAssetsPerSubtype: options.maxAssetsPerSubtype,
+              pageSize: options.stsqPageSize,
+              responseDir: options.stsqResponseDir,
               searchWord: subtype.tag,
               session: options.browserSession,
+              subtypeLabel: subtype.name,
             });
 
       const remoteAssetsWithIdentity = limitOfficialGalleryRemoteAssets(
@@ -1050,7 +1103,8 @@ async function prepareSyncPayload(options: {
         options.maxAssetsPerSubtype,
       ).map((remoteAsset, assetIndex) => {
         const sourceAssetUrl = remoteAsset.largeUrl;
-        const sourceAssetId = String(remoteAsset.id);
+        const sourceAssetId =
+          remoteAsset.id != null ? String(remoteAsset.id) : null;
         const assetId = createOfficialGalleryAssetId({
           categoryId,
           sourceAssetId,
@@ -1338,6 +1392,52 @@ async function fetchActiveIds(
   return (result.data ?? []).map((row) => String((row as Record<string, unknown>)[column]));
 }
 
+async function fetchActiveSubtypeIdsInCategories(
+  client: SupabaseAdminClient,
+  categoryIds: string[],
+) {
+  if (categoryIds.length === 0) {
+    return [];
+  }
+
+  const result = await client
+    .from("official_gallery_subtypes")
+    .select("id")
+    .eq("is_active", true)
+    .in("category_id", categoryIds as never[]);
+
+  if (result.error) {
+    throw new Error(
+      `Failed to query scoped official_gallery_subtypes: ${result.error.message}`,
+    );
+  }
+
+  return (result.data ?? []).map((row) => String((row as Record<string, unknown>).id));
+}
+
+async function fetchActiveAssetIdsInSubtypes(
+  client: SupabaseAdminClient,
+  subtypeIds: string[],
+) {
+  if (subtypeIds.length === 0) {
+    return [];
+  }
+
+  const result = await client
+    .from("official_gallery_assets")
+    .select("id")
+    .eq("is_active", true)
+    .in("subtype_id", subtypeIds as never[]);
+
+  if (result.error) {
+    throw new Error(
+      `Failed to query scoped official_gallery_assets: ${result.error.message}`,
+    );
+  }
+
+  return (result.data ?? []).map((row) => String((row as Record<string, unknown>).id));
+}
+
 async function deactivateRowsByIds(
   client: SupabaseAdminClient,
   table:
@@ -1364,12 +1464,25 @@ async function deactivateRowsByIds(
 async function applySyncPayload(
   client: SupabaseAdminClient,
   progress: SyncRunProgress,
+  options: {
+    cleanupMode: "full" | "scoped";
+    subtypeLabels: string[];
+  },
 ) {
-  const [activeCategoryIds, activeSubtypeIds, activeAssetIds] = await Promise.all([
-    fetchActiveIds(client, "official_gallery_categories"),
-    fetchActiveIds(client, "official_gallery_subtypes"),
-    fetchActiveIds(client, "official_gallery_assets"),
-  ]);
+  const activeCategoryIds =
+    options.cleanupMode === "full"
+      ? await fetchActiveIds(client, "official_gallery_categories")
+      : progress.currentCategoryIds;
+  const activeSubtypeIds =
+    options.cleanupMode === "full"
+      ? await fetchActiveIds(client, "official_gallery_subtypes")
+      : options.subtypeLabels.length > 0
+        ? progress.currentSubtypeIds
+        : await fetchActiveSubtypeIdsInCategories(client, progress.currentCategoryIds);
+  const activeAssetIds =
+    options.cleanupMode === "full"
+      ? await fetchActiveIds(client, "official_gallery_assets")
+      : await fetchActiveAssetIdsInSubtypes(client, progress.currentSubtypeIds);
 
   const staleCategoryIds = findOfficialGalleryStaleIds({
     activeIds: activeCategoryIds,
@@ -1420,7 +1533,10 @@ async function main() {
 
   const categories = await fetchRemoteConfig();
   await ensureBucketExists(client);
-  await ensureJzxzBrowserSession(options.session);
+  console.info("[official-gallery-sync] using direct JZXZ official gallery requests", {
+    referenceUrl: JZXZ_HOME_URL,
+    session: options.session,
+  });
 
   const progress = await prepareSyncPayload({
     browserSession: options.session,
@@ -1432,6 +1548,8 @@ async function main() {
     limitCategories: options.limitCategories,
     limitSubtypes: options.limitSubtypes,
     maxAssetsPerSubtype: options.maxAssetsPerSubtype,
+    stsqPageSize: options.stsqPageSize,
+    stsqResponseDir: options.stsqResponseDir,
     stsqDelayMs: options.stsqDelayMs,
     subtypeLabels: options.subtypeLabels,
   });
@@ -1448,7 +1566,22 @@ async function main() {
       subtypeLabels: options.subtypeLabels,
     });
   } else {
-    await applySyncPayload(client, progress);
+    const cleanupMode =
+      options.categoryLabels.length === 0 &&
+      options.subtypeLabels.length === 0 &&
+      options.limitCategories === null &&
+      options.limitSubtypes === null
+        ? "full"
+        : "scoped";
+    console.info("[official-gallery-sync] applying cleanup", {
+      cleanupMode,
+      categoryLabels: options.categoryLabels,
+      subtypeLabels: options.subtypeLabels,
+    });
+    await applySyncPayload(client, progress, {
+      cleanupMode,
+      subtypeLabels: options.subtypeLabels,
+    });
   }
 
   console.info("[official-gallery-sync] sync completed", {

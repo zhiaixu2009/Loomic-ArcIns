@@ -4,15 +4,19 @@ export const OFFICIAL_GALLERY_STORAGE_BUCKET = "official-gallery-assets";
 export const JZXZ_PRODUCT_TYPE = "JZXZ";
 export const JZXZ_COMMON_PARAMS = {
   product_id: "51",
-  version_code: "21451",
+  version_code: "21455",
 } as const;
 export const JZXZ_GALLERY_CONFIG_KEY = "jzxz_draw_chartlet_category_config";
 export const JZXZ_CONFIG_URL =
   "https://api.jianzhuxuezhang.com/jzxz/v1/config/queryConfig";
 export const JZXZ_QUERY_BY_TAG_URL =
   "https://api.jianzhuxuezhang.com/jzxz/api/image/queryByTag";
+export const JZXZ_IMAGE_SEARCH_URL =
+  "https://api.jianzhuxuezhang.com/jzxz/api/image/search";
 export const STSQ_IMAGES_BY_TEXT_URL =
   "https://community-backend.soutushenqi.com/cykj_community/tools/images_by_text";
+export const STSQ_WALLPAPER_REFERENCE_URL =
+  "https://wallpaper.soutushenqi.com/api/wallpaper/reference";
 
 export type OfficialGalleryRemoteSourceType = "JZXZ" | "STSQ";
 
@@ -258,6 +262,30 @@ export function buildJzxzQueryByTagRequest(options: {
   };
 }
 
+export function buildJzxzImageSearchRequest(options: {
+  nowMs: number;
+  page: number;
+  pageSize: number;
+  searchWord: string;
+}) {
+  const params = {
+    ...JZXZ_COMMON_PARAMS,
+    page: String(options.page),
+    page_size: String(options.pageSize),
+    search_word: options.searchWord,
+  };
+  const search = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    search.set(key, String(value));
+  }
+  search.set("sign", buildRequestSign(params));
+
+  return {
+    url: `${JZXZ_IMAGE_SEARCH_URL}?${search.toString()}`,
+    headers: buildJzxzHeaders(options.nowMs),
+  };
+}
+
 export function buildStsqImagesByTextRequest(options: {
   nowMs: number;
   text: string;
@@ -288,6 +316,244 @@ export function buildStsqImagesByTextRequest(options: {
       timestamp,
     } as const,
   };
+}
+
+export function buildStsqWallpaperReferenceRequest(options: {
+  authToken?: string | null;
+  nowMs: number;
+  page: number;
+  pageSize: number;
+  tag: string;
+}) {
+  const params = {
+    ...JZXZ_COMMON_PARAMS,
+    tag: options.tag,
+    pageSize: String(options.pageSize),
+    pageNum: String(options.page),
+  };
+  const search = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    search.set(key, String(value));
+  }
+  search.set("sign", buildRequestSign(params));
+
+  return {
+    url: `${STSQ_WALLPAPER_REFERENCE_URL}?${search.toString()}`,
+    headers: {
+      ...buildJzxzHeaders(options.nowMs),
+      ...(options.authToken
+        ? { authorization: `Bearer ${options.authToken.trim().replace(/^Bearer\s+/i, "")}` }
+        : {}),
+    },
+  };
+}
+
+export type OfficialGalleryStsqQualityAsset = {
+  description?: string | null;
+  detailInfo?: string | null;
+  id?: number | string | null;
+  largeUrl?: string | null;
+  sourceAssetUrl?: string | null;
+  tagList?: string[] | string | null;
+  thumbUrl?: string | null;
+  title?: string | null;
+};
+
+const STSQ_ALWAYS_IRRELEVANT_KEYWORDS = [
+  "树",
+  "树木",
+  "植物",
+  "绿树",
+  "大树",
+  "椰树",
+  "草丛",
+  "鸡",
+  "鸭",
+  "鹅",
+  "月亮",
+  "星球",
+  "中秋",
+  "乌云",
+  "家具",
+  "沙发",
+  "保鲜膜",
+  "bird_view_tree_cutout",
+  "tree_cutout",
+] as const;
+
+const STSQ_PEOPLE_KEYWORDS = [
+  "人物",
+  "人像",
+  "行人",
+  "模特",
+  "青年",
+  "年轻",
+  "老人",
+  "小孩",
+  "儿童",
+  "人群",
+  "运动",
+  "跑步",
+] as const;
+
+const STSQ_PEOPLE_KEYWORDS_BY_SUBTYPE: Record<string, readonly string[]> = {
+  青年: [
+    "青年",
+    "青年人",
+    "年轻",
+    "时尚人物",
+    "运动人物",
+    "旅行人物",
+    "学习人物",
+    "商务人物",
+    "模特",
+  ],
+  老人: ["老人", "老年"],
+  小孩: ["小孩", "儿童", "孩子", "亚洲人物-儿童", "欧洲复古人物-小孩"],
+  躺卧: ["躺卧"],
+  运动: ["运动", "跑步", "运动人物"],
+  鸟瞰: ["鸟瞰", "鸟瞰人", "aerial_view_people_cutout"],
+  人群: [
+    "人群",
+    "多人",
+    "场景人物",
+    "旅行人物",
+    "学习人物",
+    "商务人物",
+    "音乐人物",
+  ],
+};
+
+const STSQ_PEOPLE_REJECT_KEYWORDS_BY_SUBTYPE: Record<string, readonly string[]> = {
+  青年: ["小孩", "儿童", "孩子", "老人", "老年", "亚洲人物-儿童", "欧洲复古人物-小孩"],
+  老人: ["小孩", "儿童", "孩子", "青年", "青年人", "年轻"],
+  小孩: ["老人", "老年", "青年", "青年人", "年轻"],
+};
+
+const STSQ_TRAFFIC_KEYWORDS_BY_SUBTYPE: Record<string, readonly string[]> = {
+  汽车: ["汽车", "轿车", "小车", "车辆", "car", "car_cutout"],
+  自行车: ["自行车", "单车", "骑行", "bike", "bicycle", "bicycle_cutout"],
+  摩托车: ["摩托", "机车", "motor", "motorcycle_cutout"],
+  轮船: ["轮船", "船", "游艇", "ship_cutout"],
+  直升机: ["直升机", "helicopter", "helicopter_cutout"],
+  飞机: ["飞机", "航空", "airplane", "plane", "airplane_cutout"],
+};
+
+function normalizeStsqQualityText(input: string | null | undefined) {
+  return (input ?? "")
+    .replace(/<[^>]+>/g, "")
+    .replace(/[\u0000-\u001f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+function getStsqAssetQualityText(asset: OfficialGalleryStsqQualityAsset) {
+  const tagList = Array.isArray(asset.tagList)
+    ? asset.tagList.join(" ")
+    : asset.tagList;
+  return [
+    normalizeStsqQualityText(asset.title),
+    normalizeStsqQualityText(asset.detailInfo),
+    normalizeStsqQualityText(asset.description),
+    normalizeStsqQualityText(tagList),
+    normalizeStsqQualityText(asset.largeUrl),
+    normalizeStsqQualityText(asset.sourceAssetUrl),
+    normalizeStsqQualityText(asset.thumbUrl),
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
+function getStsqSearchKeywordCandidates(searchWord: string) {
+  const normalized = normalizeStsqQualityText(searchWord)
+    .replace(/免抠/g, "")
+    .replace(/png|jpg|jpeg|webp|素材/g, "")
+    .replace(/[.\-_/\\\s]+/g, "");
+
+  return normalized.length > 0 ? [normalized] : [];
+}
+
+export function isOfficialGalleryStsqAssetRelevant(options: {
+  asset: OfficialGalleryStsqQualityAsset;
+  categoryLabel: string;
+  searchWord: string;
+  subtypeLabel: string;
+}) {
+  const text = getStsqAssetQualityText(options.asset);
+  if (!text) {
+    return false;
+  }
+
+  const categoryLabel = options.categoryLabel.trim();
+  const subtypeLabel = options.subtypeLabel.trim();
+  const searchKeywords = getStsqSearchKeywordCandidates(options.searchWord);
+
+  if (categoryLabel === "交通配景") {
+    const positiveKeywords = [
+      ...(STSQ_TRAFFIC_KEYWORDS_BY_SUBTYPE[subtypeLabel] ?? [subtypeLabel]),
+      ...searchKeywords,
+    ].filter(Boolean);
+    if (positiveKeywords.some((keyword) => text.includes(keyword.toLowerCase()))) {
+      return true;
+    }
+
+    return false;
+  }
+
+  if (categoryLabel === "人物配景") {
+    const subtypePositiveKeywords = STSQ_PEOPLE_KEYWORDS_BY_SUBTYPE[subtypeLabel] ?? [
+      subtypeLabel,
+      ...STSQ_PEOPLE_KEYWORDS,
+    ];
+    const positiveKeywords = [
+      ...subtypePositiveKeywords,
+      ...searchKeywords,
+    ].filter(Boolean);
+    const hasPeopleSignal = positiveKeywords.some((keyword) =>
+      text.includes(keyword.toLowerCase()),
+    );
+    if (!hasPeopleSignal) {
+      return false;
+    }
+
+    const rejectKeywords = [
+      ...STSQ_ALWAYS_IRRELEVANT_KEYWORDS,
+      ...(STSQ_PEOPLE_REJECT_KEYWORDS_BY_SUBTYPE[subtypeLabel] ?? []),
+    ];
+
+    return !rejectKeywords.some((keyword) => text.includes(keyword.toLowerCase()));
+  }
+
+  return true;
+}
+
+export function filterOfficialGalleryStsqAssetsByRelevance<
+  TAsset extends OfficialGalleryStsqQualityAsset,
+>(options: {
+  assets: TAsset[];
+  categoryLabel: string;
+  searchWord: string;
+  subtypeLabel: string;
+}) {
+  const accepted: TAsset[] = [];
+  const rejected: TAsset[] = [];
+
+  for (const asset of options.assets) {
+    if (
+      isOfficialGalleryStsqAssetRelevant({
+        asset,
+        categoryLabel: options.categoryLabel,
+        searchWord: options.searchWord,
+        subtypeLabel: options.subtypeLabel,
+      })
+    ) {
+      accepted.push(asset);
+    } else {
+      rejected.push(asset);
+    }
+  }
+
+  return { accepted, rejected };
 }
 
 export function createOfficialGalleryCategoryId(label: string) {

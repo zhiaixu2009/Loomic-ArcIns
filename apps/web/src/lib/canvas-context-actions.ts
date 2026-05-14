@@ -137,6 +137,10 @@ export function groupSelectedCanvasElements(api: ExcalidrawGroupApi): {
 
   api.updateScene({
     elements: nextElements as Record<string, any>[],
+    appState: {
+      ...api.getAppState(),
+      selectedElementIds: {},
+    },
     captureUpdate: "IMMEDIATELY",
   });
 

@@ -3,6 +3,8 @@
 import {
   ArrowLeft,
   ArrowRight,
+  ChevronLeft,
+  ChevronRight,
   Circle,
   Eraser,
   FlipHorizontal2,
@@ -33,6 +35,7 @@ import {
   useRef,
   useState,
   type PointerEvent as ReactPointerEvent,
+  type WheelEvent as ReactWheelEvent,
 } from "react";
 import { createPortal } from "react-dom";
 import type {
@@ -157,6 +160,7 @@ type StickerItem = {
   height: number;
   id: string;
   label: string;
+  originalSrc?: string;
   src: string;
   width: number;
 };
@@ -225,7 +229,18 @@ type BaseImageState = {
 type DragOverlayInteraction = {
   kind: "drag-overlay";
   overlayId: string;
-  origin: EditorPoint;
+  originOverlay: EditorOverlay;
+  startPoint: EditorPoint;
+};
+
+type ResizeOverlayHandle = "resize-ne" | "resize-nw" | "resize-se" | "resize-sw";
+
+type ResizeOverlayInteraction = {
+  handle: ResizeOverlayHandle;
+  kind: "resize-overlay";
+  originOverlay: EditorOverlay;
+  originRect: EditorRect;
+  overlayId: string;
   startPoint: EditorPoint;
 };
 
@@ -258,11 +273,33 @@ type CropInteraction = {
   startPoint: EditorPoint;
 };
 
+type TextPointerDownSnapshot = {
+  overlayId: string;
+  point: EditorPoint;
+  time: number;
+};
+
+type PreviewPanInteraction = {
+  baseRect: EditorRect;
+  kind: "preview-pan";
+  startCenter: EditorPoint;
+  startClient: EditorPoint;
+  startVisibleRect: EditorRect;
+  viewScale: number;
+};
+
 type EditorInteraction =
   | CropInteraction
   | DoodleInteraction
   | DragOverlayInteraction
-  | DrawShapeInteraction;
+  | DrawShapeInteraction
+  | PreviewPanInteraction
+  | ResizeOverlayInteraction;
+
+type CropResizeHandle = Exclude<CropInteraction["handle"], "create" | "move">;
+type HandledWheelEvent = WheelEvent & {
+  __loomicImageEditorWheelHandled?: boolean;
+};
 
 function isShapeOverlay(overlay: EditorOverlay | null | undefined): overlay is ShapeOverlay {
   return Boolean(
@@ -276,20 +313,47 @@ function isShapeOverlay(overlay: EditorOverlay | null | undefined): overlay is S
 
 const MODAL_RADIUS_CLASS = "rounded-[10px]";
 const STICKERS_PER_PAGE = 15;
+const PREVIEW_ZOOM_MIN = 0.25;
+const PREVIEW_ZOOM_MAX = 5;
+const PREVIEW_ZOOM_IN_FACTOR = 1.18;
+const PREVIEW_ZOOM_OUT_FACTOR = 0.84;
+const CROP_HANDLE_VISUAL_SIZE_PX = 12;
+const CROP_HANDLE_HIT_SIZE_PX = 24;
+const CROP_RESIZE_HANDLES: CropResizeHandle[] = [
+  "resize-nw",
+  "resize-n",
+  "resize-ne",
+  "resize-e",
+  "resize-se",
+  "resize-s",
+  "resize-sw",
+  "resize-w",
+];
+const OVERLAY_RESIZE_HANDLES: ResizeOverlayHandle[] = [
+  "resize-nw",
+  "resize-ne",
+  "resize-se",
+  "resize-sw",
+];
+const OVERLAY_HANDLE_VISUAL_SIZE_PX = 12;
+const OVERLAY_MIN_SIZE_PX = 24;
 const TOOL_RAIL_BUTTON_HEIGHT = 44;
 const TOOL_RAIL_BUTTON_GAP = 4;
 const TOOL_RAIL_PADDING_TOP = 12;
 const POPOVER_PREVIEW_CARD_WIDTH = 76;
 const POPOVER_PREVIEW_CARD_HEIGHT = 84;
 const DEFAULT_TEXT = "双击编辑文字";
-const DEFAULT_SHAPE_COLOR = "#111827";
+const DEFAULT_EDITOR_DRAW_COLOR = "#ff0000";
+const DEFAULT_SHAPE_COLOR = DEFAULT_EDITOR_DRAW_COLOR;
 const DEFAULT_FILL_COLOR = "rgba(17,24,39,0)";
 const DEFAULT_STROKE_WIDTH = 5;
-const DEFAULT_TEXT_COLOR = "#111827";
+const DEFAULT_TEXT_COLOR = DEFAULT_EDITOR_DRAW_COLOR;
 const DEFAULT_TEXT_SIZE = 34;
 const SHAPE_STROKE_WIDTH_OPTIONS = [1, 2, 3, 5, 8, 12, 16];
-const TEXT_SIZE_OPTIONS = [18, 24, 32, 40, 48, 60, 72];
+const TEXT_SIZE_OPTIONS = [18, 24, 32, 34, 40, 48, 60, 72];
 const STAGE_PADDING = 24;
+const EDITOR_STICKER_THUMBNAIL_SIZE = 86;
+const EDITOR_STICKER_HOVER_PREVIEW_SIZE = EDITOR_STICKER_THUMBNAIL_SIZE * 4;
 const BLUE_SKY_GRADIENT = {
   bottom: "rgba(255,255,255,0)",
   top: "rgba(126,182,255,0.42)",
@@ -406,7 +470,6 @@ const SHAPE_OPTIONS: Array<{
 }> = [
   { id: "rectangle", label: "矩形", icon: Square },
   { id: "ellipse", label: "圆形", icon: Circle },
-  { id: "arrow", label: "箭头", icon: MoveRight },
   { id: "line", label: "直线", icon: Minus },
 ];
 
@@ -433,6 +496,58 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
 }
 
+function clampPreviewCenterForRect(
+  baseRect: EditorRect,
+  center: EditorPoint,
+  rectSize: Pick<EditorRect, "height" | "width">,
+) {
+  const halfWidth = rectSize.width / 2;
+  const halfHeight = rectSize.height / 2;
+  const centerX =
+    rectSize.width >= baseRect.width
+      ? clamp(center.x, baseRect.x, baseRect.x + baseRect.width)
+      : clamp(center.x, baseRect.x + halfWidth, baseRect.x + baseRect.width - halfWidth);
+  const centerY =
+    rectSize.height >= baseRect.height
+      ? clamp(center.y, baseRect.y, baseRect.y + baseRect.height)
+      : clamp(center.y, baseRect.y + halfHeight, baseRect.y + baseRect.height - halfHeight);
+
+  return { x: centerX, y: centerY };
+}
+
+function getPreviewVisibleRect(args: {
+  baseRect: EditorRect;
+  center: EditorPoint | null;
+  constrainToBaseBounds?: boolean;
+  zoom: number;
+}) {
+  const zoom = clamp(args.zoom, PREVIEW_ZOOM_MIN, PREVIEW_ZOOM_MAX);
+  const rawWidth = args.baseRect.width / zoom;
+  const rawHeight = args.baseRect.height / zoom;
+  const width = args.constrainToBaseBounds
+    ? Math.min(rawWidth, args.baseRect.width)
+    : rawWidth;
+  const height = args.constrainToBaseBounds
+    ? Math.min(rawHeight, args.baseRect.height)
+    : rawHeight;
+  const center =
+    args.center ?? {
+      x: args.baseRect.x + args.baseRect.width / 2,
+      y: args.baseRect.y + args.baseRect.height / 2,
+    };
+  const boundedCenter = clampPreviewCenterForRect(args.baseRect, center, {
+    width,
+    height,
+  });
+
+  return {
+    x: boundedCenter.x - width / 2,
+    y: boundedCenter.y - height / 2,
+    width,
+    height,
+  };
+}
+
 function normalizeRect(rect: EditorRect): EditorRect {
   const width = Math.max(1, Math.abs(rect.width));
   const height = Math.max(1, Math.abs(rect.height));
@@ -442,6 +557,54 @@ function normalizeRect(rect: EditorRect): EditorRect {
     width,
     height,
   };
+}
+
+function normalizeSingleLineText(value: string) {
+  return value.replace(/[\r\n]+/g, " ").replace(/\s{2,}/g, " ");
+}
+
+function getCropHandleCenter(handle: CropResizeHandle, rect: EditorRect): EditorPoint {
+  const centerX = rect.x + rect.width / 2;
+  const centerY = rect.y + rect.height / 2;
+  const right = rect.x + rect.width;
+  const bottom = rect.y + rect.height;
+
+  switch (handle) {
+    case "resize-nw":
+      return { x: rect.x, y: rect.y };
+    case "resize-n":
+      return { x: centerX, y: rect.y };
+    case "resize-ne":
+      return { x: right, y: rect.y };
+    case "resize-e":
+      return { x: right, y: centerY };
+    case "resize-se":
+      return { x: right, y: bottom };
+    case "resize-s":
+      return { x: centerX, y: bottom };
+    case "resize-sw":
+      return { x: rect.x, y: bottom };
+    case "resize-w":
+      return { x: rect.x, y: centerY };
+  }
+}
+
+function safelySetPointerCapture(target: SVGSVGElement, pointerId: number) {
+  try {
+    target.setPointerCapture(pointerId);
+  } catch {
+    // Synthetic and cancelled pointer sequences can lack an active pointer.
+  }
+}
+
+function safelyReleasePointerCapture(target: SVGSVGElement, pointerId: number) {
+  try {
+    if (target.hasPointerCapture(pointerId)) {
+      target.releasePointerCapture(pointerId);
+    }
+  } catch {
+    // Release is best-effort; drawing state is still cleared by the caller.
+  }
 }
 
 function deepCloneSnapshot(snapshot: EditorSnapshot): EditorSnapshot {
@@ -600,6 +763,10 @@ function getOverlayBounds(overlay: EditorOverlay): EditorRect {
     };
   }
 
+  if (overlay.kind === "arrow" || overlay.kind === "line") {
+    return normalizeRect(overlay);
+  }
+
   return {
     x: overlay.x,
     y: overlay.y,
@@ -626,6 +793,163 @@ function translateOverlay(overlay: EditorOverlay, delta: EditorPoint): EditorOve
   };
 }
 
+function overlaySupportsResize(overlay: EditorOverlay) {
+  return overlay.kind !== "text";
+}
+
+function scalePointToRect(point: EditorPoint, fromRect: EditorRect, toRect: EditorRect) {
+  const relativeX = (point.x - fromRect.x) / Math.max(fromRect.width, 1);
+  const relativeY = (point.y - fromRect.y) / Math.max(fromRect.height, 1);
+  return {
+    x: toRect.x + relativeX * toRect.width,
+    y: toRect.y + relativeY * toRect.height,
+  };
+}
+
+function resizeOverlayToRect(
+  overlay: EditorOverlay,
+  originRect: EditorRect,
+  nextRect: EditorRect,
+): EditorOverlay {
+  if (overlay.kind === "doodle") {
+    return {
+      ...overlay,
+      points: overlay.points.map((point) =>
+        scalePointToRect(point, originRect, nextRect),
+      ),
+    };
+  }
+
+  if (overlay.kind === "arrow" || overlay.kind === "line") {
+    const start = scalePointToRect(
+      { x: overlay.x, y: overlay.y },
+      originRect,
+      nextRect,
+    );
+    const end = scalePointToRect(
+      { x: overlay.x + overlay.width, y: overlay.y + overlay.height },
+      originRect,
+      nextRect,
+    );
+    return {
+      ...overlay,
+      x: start.x,
+      y: start.y,
+      width: end.x - start.x,
+      height: end.y - start.y,
+    };
+  }
+
+  if (overlay.kind === "rectangle" || overlay.kind === "ellipse" || overlay.kind === "sticker") {
+    return {
+      ...overlay,
+      ...nextRect,
+    };
+  }
+
+  return overlay;
+}
+
+function getOverlayResizeHandleCenter(handle: ResizeOverlayHandle, rect: EditorRect): EditorPoint {
+  const right = rect.x + rect.width;
+  const bottom = rect.y + rect.height;
+
+  switch (handle) {
+    case "resize-nw":
+      return { x: rect.x, y: rect.y };
+    case "resize-ne":
+      return { x: right, y: rect.y };
+    case "resize-se":
+      return { x: right, y: bottom };
+    case "resize-sw":
+      return { x: rect.x, y: bottom };
+  }
+}
+
+function getOverlayResizeCursor(handle: ResizeOverlayHandle) {
+  return handle === "resize-nw" || handle === "resize-se"
+    ? "nwse-resize"
+    : "nesw-resize";
+}
+
+function getCropResizeCursor(handle: CropResizeHandle) {
+  if (handle === "resize-n" || handle === "resize-s") {
+    return "ns-resize";
+  }
+  if (handle === "resize-e" || handle === "resize-w") {
+    return "ew-resize";
+  }
+  return handle === "resize-nw" || handle === "resize-se"
+    ? "nwse-resize"
+    : "nesw-resize";
+}
+
+function resizeRectFromHandle(args: {
+  handle: ResizeOverlayHandle;
+  minSize: number;
+  originRect: EditorRect;
+  point: EditorPoint;
+}) {
+  switch (args.handle) {
+    case "resize-nw": {
+      const anchor = {
+        x: args.originRect.x + args.originRect.width,
+        y: args.originRect.y + args.originRect.height,
+      };
+      const width = Math.max(args.minSize, anchor.x - args.point.x);
+      const height = Math.max(args.minSize, anchor.y - args.point.y);
+      return {
+        x: anchor.x - width,
+        y: anchor.y - height,
+        width,
+        height,
+      };
+    }
+    case "resize-ne": {
+      const anchor = {
+        x: args.originRect.x,
+        y: args.originRect.y + args.originRect.height,
+      };
+      const width = Math.max(args.minSize, args.point.x - anchor.x);
+      const height = Math.max(args.minSize, anchor.y - args.point.y);
+      return {
+        x: anchor.x,
+        y: anchor.y - height,
+        width,
+        height,
+      };
+    }
+    case "resize-se": {
+      const anchor = {
+        x: args.originRect.x,
+        y: args.originRect.y,
+      };
+      const width = Math.max(args.minSize, args.point.x - anchor.x);
+      const height = Math.max(args.minSize, args.point.y - anchor.y);
+      return {
+        x: anchor.x,
+        y: anchor.y,
+        width,
+        height,
+      };
+    }
+    case "resize-sw": {
+      const anchor = {
+        x: args.originRect.x + args.originRect.width,
+        y: args.originRect.y,
+      };
+      const width = Math.max(args.minSize, anchor.x - args.point.x);
+      const height = Math.max(args.minSize, args.point.y - anchor.y);
+      return {
+        x: anchor.x - width,
+        y: anchor.y,
+        width,
+        height,
+      };
+    }
+  }
+}
+
 function pointInsideRect(point: EditorPoint, rect: EditorRect) {
   return (
     point.x >= rect.x &&
@@ -635,25 +959,21 @@ function pointInsideRect(point: EditorPoint, rect: EditorRect) {
   );
 }
 
-function getCropHandle(point: EditorPoint, rect: EditorRect) {
-  const handleSize = 16;
-  const left = rect.x;
-  const right = rect.x + rect.width;
-  const top = rect.y;
-  const bottom = rect.y + rect.height;
-  const centerX = rect.x + rect.width / 2;
-  const centerY = rect.y + rect.height / 2;
-
-  const checks: Array<[CropInteraction["handle"], EditorRect]> = [
-    ["resize-nw", { x: left - handleSize / 2, y: top - handleSize / 2, width: handleSize, height: handleSize }],
-    ["resize-ne", { x: right - handleSize / 2, y: top - handleSize / 2, width: handleSize, height: handleSize }],
-    ["resize-sw", { x: left - handleSize / 2, y: bottom - handleSize / 2, width: handleSize, height: handleSize }],
-    ["resize-se", { x: right - handleSize / 2, y: bottom - handleSize / 2, width: handleSize, height: handleSize }],
-    ["resize-n", { x: centerX - handleSize / 2, y: top - handleSize / 2, width: handleSize, height: handleSize }],
-    ["resize-s", { x: centerX - handleSize / 2, y: bottom - handleSize / 2, width: handleSize, height: handleSize }],
-    ["resize-w", { x: left - handleSize / 2, y: centerY - handleSize / 2, width: handleSize, height: handleSize }],
-    ["resize-e", { x: right - handleSize / 2, y: centerY - handleSize / 2, width: handleSize, height: handleSize }],
-  ];
+function getCropHandle(point: EditorPoint, rect: EditorRect, scale = 1) {
+  const handleSize = CROP_HANDLE_HIT_SIZE_PX / Math.max(scale, 0.01);
+  const checks: Array<[CropInteraction["handle"], EditorRect]> =
+    CROP_RESIZE_HANDLES.map((handle) => {
+      const center = getCropHandleCenter(handle, rect);
+      return [
+        handle,
+        {
+          x: center.x - handleSize / 2,
+          y: center.y - handleSize / 2,
+          width: handleSize,
+          height: handleSize,
+        },
+      ];
+    });
 
   const matched = checks.find(([, handleRect]) => pointInsideRect(point, handleRect));
   if (matched) {
@@ -665,6 +985,24 @@ function getCropHandle(point: EditorPoint, rect: EditorRect) {
   }
 
   return null;
+}
+
+function getOpenArrowHeadPath(overlay: ShapeOverlay) {
+  const endX = overlay.x + overlay.width;
+  const endY = overlay.y + overlay.height;
+  const angle = Math.atan2(overlay.height, overlay.width);
+  const lineLength = Math.max(1, Math.hypot(overlay.width, overlay.height));
+  const headLength = Math.min(
+    Math.max(overlay.strokeWidth * 4, 16),
+    Math.max(12, lineLength * 0.35),
+  );
+  const spread = Math.PI / 7;
+  const leftX = endX - headLength * Math.cos(angle - spread);
+  const leftY = endY - headLength * Math.sin(angle - spread);
+  const rightX = endX - headLength * Math.cos(angle + spread);
+  const rightY = endY - headLength * Math.sin(angle + spread);
+
+  return `M ${leftX} ${leftY} L ${endX} ${endY} L ${rightX} ${rightY}`;
 }
 
 function clampRectToBounds(rect: EditorRect, bounds: EditorRect) {
@@ -919,7 +1257,8 @@ function mapOfficialGalleryItemToStickerItem(
   return {
     id: item.id,
     label: item.label,
-    src: item.url,
+    originalSrc: item.url,
+    src: item.thumbnailUrl ?? item.url,
     width: item.width,
     height: item.height,
   };
@@ -1095,17 +1434,37 @@ export function CanvasImageEditorModal({
   const [textColor, setTextColor] = useState(DEFAULT_TEXT_COLOR);
   const [textSize, setTextSize] = useState(DEFAULT_TEXT_SIZE);
   const [selectedOverlayId, setSelectedOverlayId] = useState<string | null>(null);
+  const [selectionHiddenOverlayId, setSelectionHiddenOverlayId] = useState<string | null>(null);
+  const [activeOverlayResizeHandle, setActiveOverlayResizeHandle] =
+    useState<ResizeOverlayHandle | null>(null);
+  const [activeCropResizeHandle, setActiveCropResizeHandle] =
+    useState<CropResizeHandle | null>(null);
+  const [isPreviewPanning, setIsPreviewPanning] = useState(false);
   const [editingTextId, setEditingTextId] = useState<string | null>(null);
   const [overlays, setOverlays] = useState<EditorOverlay[]>([]);
+  const [hoveredStickerPreview, setHoveredStickerPreview] = useState<{
+    alt: string;
+    left: number;
+    originalSrc: string | undefined;
+    src: string;
+    top: number;
+  } | null>(null);
   const [pastSnapshots, setPastSnapshots] = useState<EditorSnapshot[]>([]);
   const [futureSnapshots, setFutureSnapshots] = useState<EditorSnapshot[]>([]);
   const [savingMode, setSavingMode] = useState<"copy" | "replace" | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [viewportSize, setViewportSize] = useState({ width: 960, height: 560 });
+  const [previewZoom, setPreviewZoom] = useState(1);
+  const [previewCenter, setPreviewCenter] = useState<EditorPoint | null>(null);
   const interactionRef = useRef<EditorInteraction | null>(null);
   const stageViewportRef = useRef<HTMLDivElement | null>(null);
+  const stageSvgRef = useRef<SVGSVGElement | null>(null);
+  const stickerCategoryStripRef = useRef<HTMLDivElement | null>(null);
+  const stickerSubcategoryStripRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const textInputRef = useRef<HTMLTextAreaElement | null>(null);
+  const pendingTextFocusPointerIdRef = useRef<number | null>(null);
+  const lastTextPointerDownRef = useRef<TextPointerDownSnapshot | null>(null);
   const undoSnapshotRef = useRef<EditorSnapshot | null>(null);
   const markerId = useId().replace(/:/g, "");
   const persistedStickerLibrary = useMemo(
@@ -1300,11 +1659,19 @@ export function CanvasImageEditorModal({
         });
         setFilterPreset("original");
         setSkyStrength(0);
+        setShapeStrokeColor(DEFAULT_SHAPE_COLOR);
+        setShapeFillColor(DEFAULT_FILL_COLOR);
+        setShapeStrokeWidth(DEFAULT_STROKE_WIDTH);
+        setTextColor(DEFAULT_TEXT_COLOR);
+        setTextSize(DEFAULT_TEXT_SIZE);
         setOverlays([]);
         setPastSnapshots([]);
         setFutureSnapshots([]);
         setSelectedOverlayId(null);
         setEditingTextId(null);
+        setHoveredStickerPreview(null);
+        setPreviewZoom(1);
+        setPreviewCenter(null);
       })
       .catch((error) => {
         if (cancelled) {
@@ -1388,14 +1755,26 @@ export function CanvasImageEditorModal({
     return () => observer.disconnect();
   }, [open]);
 
+  const focusEditingTextInput = useCallback(() => {
+    const input = textInputRef.current;
+    if (!input) {
+      return;
+    }
+
+    input.focus();
+    input.select();
+  }, []);
+
   useEffect(() => {
     if (!editingTextId) {
       return;
     }
+    if (pendingTextFocusPointerIdRef.current !== null) {
+      return;
+    }
 
-    textInputRef.current?.focus();
-    textInputRef.current?.select();
-  }, [editingTextId]);
+    focusEditingTextInput();
+  }, [editingTextId, focusEditingTextInput]);
 
   useEffect(() => {
     if (!open) {
@@ -1514,7 +1893,10 @@ export function CanvasImageEditorModal({
 
   useEffect(() => {
     const firstCategory = stickerLibrary[0] ?? null;
-    const firstSubcategoryId = firstCategory?.subcategories[0]?.id ?? null;
+    const firstSubcategoryId =
+      firstCategory?.subcategories.find((subcategory) => subcategory.assetCount > 0)?.id ??
+      firstCategory?.subcategories[0]?.id ??
+      null;
     if (!firstCategory) {
       return;
     }
@@ -1643,7 +2025,10 @@ export function CanvasImageEditorModal({
   ]);
 
   useEffect(() => {
-    const firstSubcategoryId = stickerCategory?.subcategories[0]?.id ?? null;
+    const firstSubcategoryId =
+      stickerCategory?.subcategories.find((subcategory) => subcategory.assetCount > 0)?.id ??
+      stickerCategory?.subcategories[0]?.id ??
+      null;
     if (!firstSubcategoryId) {
       return;
     }
@@ -1654,22 +2039,48 @@ export function CanvasImageEditorModal({
     }
   }, [activeStickerCategory, activeStickerSubcategoryId, stickerCategory, stickerSubcategories]);
 
-  const visibleRect = useMemo(() => {
+  const previewBaseRect = useMemo(() => {
     if (!baseImage || !cropRect) {
       return null;
     }
 
-    if (activeTool === "crop") {
-      return {
+    return activeTool === "crop"
+      ? {
         x: 0,
         y: 0,
         width: baseImage.width,
         height: baseImage.height,
-      };
+        }
+      : cropRect;
+  }, [activeTool, baseImage, cropRect]);
+
+  const hasAppliedCrop = useMemo(() => {
+    if (!baseImage || !cropRect) {
+      return false;
     }
 
-    return cropRect;
-  }, [activeTool, baseImage, cropRect]);
+    return (
+      Math.abs(cropRect.x) > 0.5 ||
+      Math.abs(cropRect.y) > 0.5 ||
+      Math.abs(cropRect.width - baseImage.width) > 0.5 ||
+      Math.abs(cropRect.height - baseImage.height) > 0.5
+    );
+  }, [baseImage, cropRect]);
+
+  const constrainPreviewToBaseBounds = activeTool !== "crop" && hasAppliedCrop;
+
+  const visibleRect = useMemo(() => {
+    if (!previewBaseRect) {
+      return null;
+    }
+
+    return getPreviewVisibleRect({
+      baseRect: previewBaseRect,
+      center: previewCenter,
+      constrainToBaseBounds: constrainPreviewToBaseBounds,
+      zoom: previewZoom,
+    });
+  }, [constrainPreviewToBaseBounds, previewBaseRect, previewCenter, previewZoom]);
 
   const stageMetrics = useMemo(() => {
     if (!visibleRect) {
@@ -1690,8 +2101,16 @@ export function CanvasImageEditorModal({
     };
   }, [viewportSize, visibleRect]);
 
-  const getPointFromEvent = useCallback(
-    (event: ReactPointerEvent<SVGSVGElement>): EditorPoint | null => {
+  const screenPxToImageUnits = useCallback((value: number) => {
+    return value / Math.max(stageMetrics?.scale ?? 1, 0.01);
+  }, [stageMetrics?.scale]);
+
+  const imageUnitsToScreenPx = useCallback((value: number) => {
+    return value * Math.max(stageMetrics?.scale ?? 1, 0.01);
+  }, [stageMetrics?.scale]);
+
+  const getPointFromClientPosition = useCallback(
+    (clientX: number, clientY: number): EditorPoint | null => {
       const metrics = stageMetrics;
       const viewport = stageViewportRef.current;
       if (!metrics || !viewport) {
@@ -1701,12 +2120,130 @@ export function CanvasImageEditorModal({
       const bounds = viewport.getBoundingClientRect();
       const offsetX = bounds.left + (viewport.clientWidth - metrics.width) / 2;
       const offsetY = bounds.top + (viewport.clientHeight - metrics.height) / 2;
-      const x = clamp((event.clientX - offsetX) / metrics.scale + metrics.visibleRect.x, metrics.visibleRect.x, metrics.visibleRect.x + metrics.visibleRect.width);
-      const y = clamp((event.clientY - offsetY) / metrics.scale + metrics.visibleRect.y, metrics.visibleRect.y, metrics.visibleRect.y + metrics.visibleRect.height);
+      const x = clamp((clientX - offsetX) / metrics.scale + metrics.visibleRect.x, metrics.visibleRect.x, metrics.visibleRect.x + metrics.visibleRect.width);
+      const y = clamp((clientY - offsetY) / metrics.scale + metrics.visibleRect.y, metrics.visibleRect.y, metrics.visibleRect.y + metrics.visibleRect.height);
 
       return { x, y };
     },
     [stageMetrics],
+  );
+
+  const getPointFromEvent = useCallback(
+    (event: ReactPointerEvent<SVGSVGElement>): EditorPoint | null =>
+      getPointFromClientPosition(event.clientX, event.clientY),
+    [getPointFromClientPosition],
+  );
+
+  const applyStageWheel = useCallback((clientX: number, clientY: number, deltaY: number) => {
+    const metrics = stageMetrics;
+    const baseRect = previewBaseRect;
+    const viewport = stageViewportRef.current;
+    if (!metrics || !baseRect || !viewport) {
+      return false;
+    }
+
+    const bounds = viewport.getBoundingClientRect();
+    const offsetX = bounds.left + (viewport.clientWidth - metrics.width) / 2;
+    const offsetY = bounds.top + (viewport.clientHeight - metrics.height) / 2;
+    const pointerRatioX = clamp((clientX - offsetX) / metrics.width, 0, 1);
+    const pointerRatioY = clamp((clientY - offsetY) / metrics.height, 0, 1);
+    const pointerImagePoint = {
+      x: metrics.visibleRect.x + pointerRatioX * metrics.visibleRect.width,
+      y: metrics.visibleRect.y + pointerRatioY * metrics.visibleRect.height,
+    };
+    const factor = deltaY < 0 ? PREVIEW_ZOOM_IN_FACTOR : PREVIEW_ZOOM_OUT_FACTOR;
+    const nextZoom = clamp(
+      previewZoom * factor,
+      PREVIEW_ZOOM_MIN,
+      PREVIEW_ZOOM_MAX,
+    );
+    const rawNextWidth = baseRect.width / nextZoom;
+    const rawNextHeight = baseRect.height / nextZoom;
+    const nextWidth = constrainPreviewToBaseBounds
+      ? Math.min(rawNextWidth, baseRect.width)
+      : rawNextWidth;
+    const nextHeight = constrainPreviewToBaseBounds
+      ? Math.min(rawNextHeight, baseRect.height)
+      : rawNextHeight;
+    const nextCenter = clampPreviewCenterForRect(
+      baseRect,
+      {
+        x: pointerImagePoint.x + (0.5 - pointerRatioX) * nextWidth,
+        y: pointerImagePoint.y + (0.5 - pointerRatioY) * nextHeight,
+      },
+      { width: nextWidth, height: nextHeight },
+    );
+
+    setPreviewZoom(nextZoom);
+    setPreviewCenter(nextCenter);
+    return true;
+  }, [constrainPreviewToBaseBounds, previewBaseRect, previewZoom, stageMetrics]);
+
+  const handleStageWheel = useCallback((event: ReactWheelEvent<SVGSVGElement>) => {
+    const nativeEvent = event.nativeEvent as HandledWheelEvent;
+    if (event.defaultPrevented || nativeEvent.__loomicImageEditorWheelHandled) {
+      return;
+    }
+
+    applyStageWheel(event.clientX, event.clientY, event.deltaY);
+  }, [applyStageWheel]);
+
+  useEffect(() => {
+    const stage = stageSvgRef.current;
+    if (!stage) {
+      return;
+    }
+
+    const handleNativeWheel = (event: HandledWheelEvent) => {
+      if (!applyStageWheel(event.clientX, event.clientY, event.deltaY)) {
+        return;
+      }
+
+      event.__loomicImageEditorWheelHandled = true;
+      event.preventDefault();
+    };
+
+    stage.addEventListener("wheel", handleNativeWheel, { passive: false });
+    return () => {
+      stage.removeEventListener("wheel", handleNativeWheel);
+    };
+  }, [applyStageWheel]);
+
+  const scrollStickerStrip = useCallback(
+    (target: "category" | "subcategory", direction: -1 | 1) => {
+      const strip =
+        target === "category"
+          ? stickerCategoryStripRef.current
+          : stickerSubcategoryStripRef.current;
+      if (!strip) {
+        return;
+      }
+
+      const items = Array.from(strip.children).filter(
+        (item): item is HTMLElement => item instanceof HTMLElement,
+      );
+      if (items.length === 0) {
+        return;
+      }
+
+      const firstItemOffsetLeft = items[0]?.offsetLeft ?? 0;
+      const offsets = items.map((item) => Math.max(0, item.offsetLeft - firstItemOffsetLeft));
+      const currentLeft = strip.scrollLeft;
+      const visibleIndex = offsets.findIndex((offset) => offset >= currentLeft - 1);
+      const currentIndex = visibleIndex >= 0 ? visibleIndex : offsets.length - 1;
+      const targetIndex = clamp(currentIndex + direction, 0, offsets.length - 1);
+      const contentRight = Math.max(
+        strip.scrollWidth,
+        ...items.map((item, index) => (offsets[index] ?? 0) + item.offsetWidth),
+      );
+      const maxLeft = Math.max(0, contentRight - strip.clientWidth);
+
+      strip.scrollTo({
+        behavior: "smooth",
+        left: clamp(offsets[targetIndex] ?? 0, 0, maxLeft),
+      });
+    },
+    [],
   );
 
   const setShapeTool = useCallback((shapeKind: ShapeOverlayKind) => {
@@ -1715,13 +2252,14 @@ export function CanvasImageEditorModal({
   }, []);
 
   const beginTextOverlay = useCallback((point: EditorPoint) => {
-    const measured = measureTextOverlay(DEFAULT_TEXT, textSize);
+    const imageFontSize = screenPxToImageUnits(textSize);
+    const measured = measureTextOverlay(DEFAULT_TEXT, imageFontSize);
     const nextOverlay: TextOverlay = {
       id: createId("text"),
       kind: "text",
       text: DEFAULT_TEXT,
       color: textColor,
-      fontSize: textSize,
+      fontSize: imageFontSize,
       x: point.x,
       y: point.y,
       width: measured.width,
@@ -1732,10 +2270,44 @@ export function CanvasImageEditorModal({
     setOverlays((items) => [...items, nextOverlay]);
     setSelectedOverlayId(nextOverlay.id);
     setEditingTextId(nextOverlay.id);
+    setActiveTool("selection");
     finalizeUndoSnapshot();
-  }, [commitUndoSnapshot, finalizeUndoSnapshot, textColor, textSize]);
+  }, [commitUndoSnapshot, finalizeUndoSnapshot, screenPxToImageUnits, textColor, textSize]);
 
   const handleStagePointerDown = useCallback((event: ReactPointerEvent<SVGSVGElement>) => {
+    const wantsPreviewPan =
+      event.button === 1 ||
+      (event.buttons & 4) === 4 ||
+      (activeTool === "hand" && event.button === 0);
+
+    if (wantsPreviewPan) {
+      if (!stageMetrics || !previewBaseRect || !visibleRect) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+      setSelectedOverlayId(null);
+      setEditingTextId(null);
+      setIsPreviewPanning(true);
+      interactionRef.current = {
+        kind: "preview-pan",
+        baseRect: previewBaseRect,
+        startClient: {
+          x: event.clientX,
+          y: event.clientY,
+        },
+        startCenter: {
+          x: visibleRect.x + visibleRect.width / 2,
+          y: visibleRect.y + visibleRect.height / 2,
+        },
+        startVisibleRect: visibleRect,
+        viewScale: stageMetrics.scale,
+      };
+      safelySetPointerCapture(event.currentTarget, event.pointerId);
+      return;
+    }
+
     if (event.button !== 0) {
       return;
     }
@@ -1756,7 +2328,9 @@ export function CanvasImageEditorModal({
     }
 
     if (activeTool === "text") {
+      pendingTextFocusPointerIdRef.current = event.pointerId;
       beginTextOverlay(point);
+      safelySetPointerCapture(event.currentTarget, event.pointerId);
       return;
     }
 
@@ -1767,22 +2341,26 @@ export function CanvasImageEditorModal({
         kind: "doodle",
         points: [point],
         strokeColor: shapeStrokeColor,
-        strokeWidth: shapeStrokeWidth,
+        strokeWidth: screenPxToImageUnits(shapeStrokeWidth),
       };
       commitUndoSnapshot();
       setOverlays((items) => [...items, overlay]);
       setSelectedOverlayId(overlayId);
+      setSelectionHiddenOverlayId(overlayId);
       interactionRef.current = {
         kind: "doodle",
         overlayId,
       };
-      event.currentTarget.setPointerCapture(event.pointerId);
+      safelySetPointerCapture(event.currentTarget, event.pointerId);
       return;
     }
 
     if (activeTool === "crop") {
-      const handle = getCropHandle(point, cropRect);
+      const handle = getCropHandle(point, cropRect, stageMetrics?.scale ?? 1);
       commitUndoSnapshot();
+      setActiveCropResizeHandle(
+        handle && handle !== "move" && handle !== "create" ? handle : null,
+      );
       interactionRef.current = {
         kind: "crop",
         handle: handle ?? "create",
@@ -1798,7 +2376,7 @@ export function CanvasImageEditorModal({
         };
         setCropDraftRect(nextRect);
       }
-      event.currentTarget.setPointerCapture(event.pointerId);
+      safelySetPointerCapture(event.currentTarget, event.pointerId);
       return;
     }
 
@@ -1814,18 +2392,19 @@ export function CanvasImageEditorModal({
         height: 1,
         strokeColor: shapeStrokeColor,
         fillColor: shapeKind === "line" || shapeKind === "arrow" ? "transparent" : shapeFillColor,
-        strokeWidth: shapeStrokeWidth,
+        strokeWidth: screenPxToImageUnits(shapeStrokeWidth),
       };
       commitUndoSnapshot();
       setOverlays((items) => [...items, overlay]);
       setSelectedOverlayId(overlayId);
+      setSelectionHiddenOverlayId(overlayId);
       interactionRef.current = {
         kind: "draw-shape",
         overlayId,
         shapeKind,
         startPoint: point,
       };
-      event.currentTarget.setPointerCapture(event.pointerId);
+      safelySetPointerCapture(event.currentTarget, event.pointerId);
     }
   }, [
     activeShapeKind,
@@ -1835,15 +2414,43 @@ export function CanvasImageEditorModal({
     commitUndoSnapshot,
     cropRect,
     getPointFromEvent,
+    previewBaseRect,
+    screenPxToImageUnits,
     shapeFillColor,
     shapeStrokeColor,
     shapeStrokeWidth,
+    stageMetrics,
+    visibleRect,
   ]);
 
   const handleStagePointerMove = useCallback((event: ReactPointerEvent<SVGSVGElement>) => {
     const interaction = interactionRef.current;
+    if (!interaction) {
+      return;
+    }
+
+    if (interaction.kind === "preview-pan") {
+      event.preventDefault();
+      const deltaX = (event.clientX - interaction.startClient.x) / interaction.viewScale;
+      const deltaY = (event.clientY - interaction.startClient.y) / interaction.viewScale;
+      setPreviewCenter(
+        clampPreviewCenterForRect(
+          interaction.baseRect,
+          {
+            x: interaction.startCenter.x - deltaX,
+            y: interaction.startCenter.y - deltaY,
+          },
+          {
+            width: interaction.startVisibleRect.width,
+            height: interaction.startVisibleRect.height,
+          },
+        ),
+      );
+      return;
+    }
+
     const point = getPointFromEvent(event);
-    if (!interaction || !point || !baseBounds) {
+    if (!point || !baseBounds) {
       return;
     }
 
@@ -1862,12 +2469,16 @@ export function CanvasImageEditorModal({
     }
 
     if (interaction.kind === "draw-shape") {
-      const rect = normalizeRect({
+      const draftRect = {
         x: interaction.startPoint.x,
         y: interaction.startPoint.y,
         width: point.x - interaction.startPoint.x,
         height: point.y - interaction.startPoint.y,
-      });
+      };
+      const rect =
+        interaction.shapeKind === "arrow" || interaction.shapeKind === "line"
+          ? draftRect
+          : normalizeRect(draftRect);
 
       setOverlays((items) =>
         items.map((overlay) =>
@@ -1893,10 +2504,25 @@ export function CanvasImageEditorModal({
       setOverlays((items) =>
         items.map((overlay) =>
           overlay.id === interaction.overlayId
-            ? translateOverlay(overlay, {
-                x: delta.x - (overlay.kind === "doodle" ? 0 : overlay.x - interaction.origin.x),
-                y: delta.y - (overlay.kind === "doodle" ? 0 : overlay.y - interaction.origin.y),
-              })
+            ? translateOverlay(interaction.originOverlay, delta)
+            : overlay,
+        ),
+      );
+      return;
+    }
+
+    if (interaction.kind === "resize-overlay") {
+      const minSize = OVERLAY_MIN_SIZE_PX / Math.max(stageMetrics?.scale ?? 1, 0.01);
+      const nextRect = resizeRectFromHandle({
+        handle: interaction.handle,
+        minSize,
+        originRect: interaction.originRect,
+        point,
+      });
+      setOverlays((items) =>
+        items.map((overlay) =>
+          overlay.id === interaction.overlayId
+            ? resizeOverlayToRect(interaction.originOverlay, interaction.originRect, nextRect)
             : overlay,
         ),
       );
@@ -1925,18 +2551,19 @@ export function CanvasImageEditorModal({
         });
       } else {
         const rect = { ...sourceRect };
-        if (interaction.handle.includes("n")) {
+        const direction = interaction.handle.replace("resize-", "").split("-")[0] ?? "";
+        if (direction.includes("n")) {
           rect.height += rect.y - point.y;
           rect.y = point.y;
         }
-        if (interaction.handle.includes("s")) {
+        if (direction.includes("s")) {
           rect.height = point.y - rect.y;
         }
-        if (interaction.handle.includes("w")) {
+        if (direction.includes("w")) {
           rect.width += rect.x - point.x;
           rect.x = point.x;
         }
-        if (interaction.handle.includes("e")) {
+        if (direction.includes("e")) {
           rect.width = point.x - rect.x;
         }
         nextRect = normalizeRect(rect);
@@ -1944,17 +2571,29 @@ export function CanvasImageEditorModal({
 
       setCropDraftRect(clampRectToBounds(nextRect, baseBounds));
     }
-  }, [baseBounds, getPointFromEvent]);
+  }, [baseBounds, getPointFromEvent, stageMetrics?.scale]);
 
   const handleStagePointerUp = useCallback((event: ReactPointerEvent<SVGSVGElement>) => {
-    if (interactionRef.current) {
+    const interaction = interactionRef.current;
+    const pendingTextFocusPointerId = pendingTextFocusPointerIdRef.current;
+    if (interaction && interaction.kind !== "preview-pan") {
       finalizeUndoSnapshot();
     }
     interactionRef.current = null;
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId);
+    setActiveOverlayResizeHandle(null);
+    setActiveCropResizeHandle(null);
+    setIsPreviewPanning(false);
+    if (interaction?.kind === "draw-shape" || interaction?.kind === "doodle") {
+      setSelectedOverlayId(null);
     }
-  }, [finalizeUndoSnapshot]);
+    setSelectionHiddenOverlayId(null);
+    safelyReleasePointerCapture(event.currentTarget, event.pointerId);
+
+    if (pendingTextFocusPointerId === event.pointerId) {
+      pendingTextFocusPointerIdRef.current = null;
+      window.setTimeout(focusEditingTextInput, 0);
+    }
+  }, [finalizeUndoSnapshot, focusEditingTextInput]);
 
   const handleOverlayPointerDown = useCallback((
     overlayId: string,
@@ -1970,34 +2609,100 @@ export function CanvasImageEditorModal({
       return;
     }
 
+    if (overlay.kind === "text" && event.detail >= 2) {
+      event.preventDefault();
+      event.stopPropagation();
+      setSelectedOverlayId(overlayId);
+      setEditingTextId(overlayId);
+      return;
+    }
+
+    if (overlay.kind === "text") {
+      const now = window.performance.now();
+      const previous = lastTextPointerDownRef.current;
+      const doubleClickDistance = screenPxToImageUnits(10);
+      const isSecondTextPointerDown =
+        previous?.overlayId === overlayId &&
+        now - previous.time <= 450 &&
+        Math.hypot(point.x - previous.point.x, point.y - previous.point.y) <=
+          doubleClickDistance;
+      lastTextPointerDownRef.current = {
+        overlayId,
+        point,
+        time: now,
+      };
+
+      if (isSecondTextPointerDown) {
+        event.preventDefault();
+        event.stopPropagation();
+        setSelectedOverlayId(overlayId);
+        setEditingTextId(overlayId);
+        return;
+      }
+    }
+
     event.stopPropagation();
     commitUndoSnapshot();
     setSelectedOverlayId(overlayId);
     setEditingTextId(null);
 
-    const bounds = getOverlayBounds(overlay);
     interactionRef.current = {
       kind: "drag-overlay",
       overlayId,
+      originOverlay: overlay,
       startPoint: point,
-      origin: {
-        x: bounds.x,
-        y: bounds.y,
-      },
     };
-  }, [activeTool, commitUndoSnapshot, getPointFromEvent, overlays]);
+    if (stageSvgRef.current) {
+      safelySetPointerCapture(stageSvgRef.current, event.pointerId);
+    }
+  }, [activeTool, commitUndoSnapshot, getPointFromEvent, overlays, screenPxToImageUnits]);
+
+  const handleOverlayResizePointerDown = useCallback((
+    overlayId: string,
+    handle: ResizeOverlayHandle,
+    event: ReactPointerEvent<SVGRectElement>,
+  ) => {
+    if (activeTool !== "selection" && selectedOverlayId !== overlayId) {
+      return;
+    }
+
+    const point = getPointFromEvent(event as unknown as ReactPointerEvent<SVGSVGElement>);
+    const overlay = overlays.find((item) => item.id === overlayId) ?? null;
+    if (!point || !overlay || !overlaySupportsResize(overlay)) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    commitUndoSnapshot();
+    setSelectedOverlayId(overlayId);
+    setActiveOverlayResizeHandle(handle);
+    setEditingTextId(null);
+    interactionRef.current = {
+      kind: "resize-overlay",
+      handle,
+      overlayId,
+      originOverlay: overlay,
+      originRect: getOverlayBounds(overlay),
+      startPoint: point,
+    };
+    if (stageSvgRef.current) {
+      safelySetPointerCapture(stageSvgRef.current, event.pointerId);
+    }
+  }, [activeTool, commitUndoSnapshot, getPointFromEvent, overlays, selectedOverlayId]);
 
   const updateSelectedText = useCallback((value: string) => {
+    const normalizedValue = normalizeSingleLineText(value);
     setOverlays((items) =>
       items.map((overlay) => {
         if (overlay.id !== editingTextId || overlay.kind !== "text") {
           return overlay;
         }
 
-        const measured = measureTextOverlay(value, overlay.fontSize);
+        const measured = measureTextOverlay(normalizedValue, overlay.fontSize);
         return {
           ...overlay,
-          text: value,
+          text: normalizedValue,
           width: measured.width,
           height: measured.height,
         };
@@ -2007,6 +2712,32 @@ export function CanvasImageEditorModal({
 
   const selectedOverlay = overlays.find((overlay) => overlay.id === selectedOverlayId) ?? null;
   const selectedOverlayBounds = selectedOverlay ? getOverlayBounds(selectedOverlay) : null;
+  const stageCursor = useMemo(() => {
+    if (activeOverlayResizeHandle) {
+      return getOverlayResizeCursor(activeOverlayResizeHandle);
+    }
+    if (activeCropResizeHandle) {
+      return getCropResizeCursor(activeCropResizeHandle);
+    }
+    if (isPreviewPanning) {
+      return "grabbing";
+    }
+    if (activeTool === "hand") {
+      return "grab";
+    }
+    if (activeTool === "text") {
+      return "text";
+    }
+    if (
+      activeTool === "crop" ||
+      activeTool === "shape" ||
+      activeTool === "arrow" ||
+      activeTool === "freedraw"
+    ) {
+      return "crosshair";
+    }
+    return "default";
+  }, [activeCropResizeHandle, activeOverlayResizeHandle, activeTool, isPreviewPanning]);
 
   useEffect(() => {
     if (!selectedOverlay || selectedOverlay.kind !== "text") {
@@ -2014,18 +2745,28 @@ export function CanvasImageEditorModal({
     }
 
     setTextColor(selectedOverlay.color);
-    setTextSize(selectedOverlay.fontSize);
-  }, [selectedOverlay]);
+    setTextSize(clamp(Math.round(imageUnitsToScreenPx(selectedOverlay.fontSize)), 18, 72));
+  }, [imageUnitsToScreenPx, selectedOverlay]);
 
   useEffect(() => {
+    if (selectedOverlay?.kind === "doodle") {
+      setShapeStrokeColor(selectedOverlay.strokeColor);
+      setShapeStrokeWidth(
+        clamp(Math.round(imageUnitsToScreenPx(selectedOverlay.strokeWidth)), 1, 16),
+      );
+      return;
+    }
+
     if (!isShapeOverlay(selectedOverlay)) {
       return;
     }
 
     setShapeStrokeColor(selectedOverlay.strokeColor);
     setShapeFillColor(selectedOverlay.fillColor);
-    setShapeStrokeWidth(selectedOverlay.strokeWidth);
-  }, [selectedOverlay]);
+    setShapeStrokeWidth(
+      clamp(Math.round(imageUnitsToScreenPx(selectedOverlay.strokeWidth)), 1, 16),
+    );
+  }, [imageUnitsToScreenPx, selectedOverlay]);
 
   const handleShapeStyleChange = useCallback((updates: Partial<Pick<ShapeOverlay, "fillColor" | "strokeColor" | "strokeWidth">>) => {
     setOverlays((items) =>
@@ -2033,13 +2774,26 @@ export function CanvasImageEditorModal({
         if (overlay.id !== selectedOverlayId) {
           return overlay;
         }
-        if (overlay.kind === "text" || overlay.kind === "sticker" || overlay.kind === "doodle") {
+        const strokeUpdates = {
+          ...(updates.strokeColor ? { strokeColor: updates.strokeColor } : {}),
+          ...(updates.strokeWidth !== undefined
+            ? { strokeWidth: screenPxToImageUnits(updates.strokeWidth) }
+            : {}),
+        };
+        if (overlay.kind === "doodle") {
+          return { ...overlay, ...strokeUpdates };
+        }
+        if (overlay.kind === "text" || overlay.kind === "sticker") {
           return overlay;
         }
-        return { ...overlay, ...updates };
+        return {
+          ...overlay,
+          ...(updates.fillColor !== undefined ? { fillColor: updates.fillColor } : {}),
+          ...strokeUpdates,
+        };
       }),
     );
-  }, [selectedOverlayId]);
+  }, [screenPxToImageUnits, selectedOverlayId]);
 
   const handleTextStyleChange = useCallback((updates: Partial<Pick<TextOverlay, "color" | "fontSize">>) => {
     setOverlays((items) =>
@@ -2047,18 +2801,22 @@ export function CanvasImageEditorModal({
         if (overlay.id !== selectedOverlayId || overlay.kind !== "text") {
           return overlay;
         }
-        const nextFontSize = updates.fontSize ?? overlay.fontSize;
+        const nextFontSize =
+          updates.fontSize !== undefined
+            ? screenPxToImageUnits(updates.fontSize)
+            : overlay.fontSize;
         const nextText = overlay.text;
         const measured = measureTextOverlay(nextText, nextFontSize);
         return {
           ...overlay,
-          ...updates,
+          ...(updates.color !== undefined ? { color: updates.color } : {}),
+          fontSize: nextFontSize,
           width: measured.width,
           height: measured.height,
         };
       }),
     );
-  }, [selectedOverlayId]);
+  }, [screenPxToImageUnits, selectedOverlayId]);
 
   const insertSticker = useCallback((item: StickerItem) => {
     if (!cropRect) {
@@ -2073,7 +2831,7 @@ export function CanvasImageEditorModal({
       id: createId("sticker"),
       kind: "sticker",
       label: item.label,
-      src: item.src,
+      src: item.originalSrc ?? item.src,
       x: cropRect.x + cropRect.width / 2 - width / 2,
       y: cropRect.y + cropRect.height / 2 - height / 2,
       width,
@@ -2083,6 +2841,7 @@ export function CanvasImageEditorModal({
     commitUndoSnapshot();
     setOverlays((items) => [...items, nextSticker]);
     setSelectedOverlayId(nextSticker.id);
+    setActiveTool("selection");
     finalizeUndoSnapshot();
   }, [commitUndoSnapshot, cropRect, finalizeUndoSnapshot]);
 
@@ -2229,13 +2988,17 @@ export function CanvasImageEditorModal({
       return;
     }
 
-    commitUndoSnapshot();
-    setCropDraftRect(clampRectToBounds(cropDraftRect, {
+    const boundedCropRect = clampRectToBounds(cropDraftRect, {
       x: 0,
       y: 0,
       width: baseImage.width,
       height: baseImage.height,
-    }));
+    });
+
+    commitUndoSnapshot();
+    setCropDraftRect(boundedCropRect);
+    setPreviewZoom(1);
+    setPreviewCenter(null);
     finalizeUndoSnapshot();
     setActiveTool("selection");
     setCropPresetId("custom");
@@ -2285,6 +3048,7 @@ export function CanvasImageEditorModal({
     if (overlay.kind === "line") {
       return (
         <line
+          data-testid="image-editor-line-overlay"
           x1={overlay.x}
           y1={overlay.y}
           x2={overlay.x + overlay.width}
@@ -2298,22 +3062,34 @@ export function CanvasImageEditorModal({
 
     if (overlay.kind === "arrow") {
       return (
-        <line
-          x1={overlay.x}
-          y1={overlay.y}
-          x2={overlay.x + overlay.width}
-          y2={overlay.y + overlay.height}
-          stroke={overlay.strokeColor}
-          strokeWidth={overlay.strokeWidth}
-          strokeLinecap="round"
-          markerEnd={`url(#${markerId})`}
-        />
+        <g>
+          <line
+            data-testid="image-editor-arrow-shaft"
+            x1={overlay.x}
+            y1={overlay.y}
+            x2={overlay.x + overlay.width}
+            y2={overlay.y + overlay.height}
+            stroke={overlay.strokeColor}
+            strokeWidth={overlay.strokeWidth}
+            strokeLinecap="round"
+          />
+          <path
+            data-testid="image-editor-arrow-head"
+            d={getOpenArrowHeadPath(overlay)}
+            fill="none"
+            stroke={overlay.strokeColor}
+            strokeWidth={overlay.strokeWidth}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </g>
       );
     }
 
     if (overlay.kind === "doodle") {
       return (
         <polyline
+          data-testid="image-editor-doodle-overlay"
           points={overlay.points.map((point) => `${point.x},${point.y}`).join(" ")}
           fill="none"
           stroke={overlay.strokeColor}
@@ -2327,6 +3103,7 @@ export function CanvasImageEditorModal({
     if (overlay.kind === "sticker") {
       return (
         <image
+          data-testid="image-editor-sticker-overlay"
           href={overlay.src}
           x={overlay.x}
           y={overlay.y}
@@ -2353,7 +3130,7 @@ export function CanvasImageEditorModal({
     }
 
     return null;
-  }, [markerId]);
+  }, []);
 
   const selectedOverlayScreenRect = useMemo(() => {
     if (!selectedOverlayBounds || !stageMetrics) {
@@ -2505,22 +3282,26 @@ export function CanvasImageEditorModal({
           context.stroke();
           if (overlay.kind === "arrow") {
             const angle = Math.atan2(overlay.height, overlay.width);
-            const arrowLength = Math.max(14, overlay.strokeWidth * 3.4);
+            const lineLength = Math.max(1, Math.hypot(overlay.width, overlay.height));
+            const arrowLength = Math.min(
+              Math.max(overlay.strokeWidth * 4, 16),
+              Math.max(12, lineLength * 0.35),
+            );
+            const spread = Math.PI / 7;
             const endX = overlay.x - cropRect.x + overlay.width;
             const endY = overlay.y - cropRect.y + overlay.height;
             context.beginPath();
             context.moveTo(endX, endY);
             context.lineTo(
-              endX - arrowLength * Math.cos(angle - Math.PI / 6),
-              endY - arrowLength * Math.sin(angle - Math.PI / 6),
+              endX - arrowLength * Math.cos(angle - spread),
+              endY - arrowLength * Math.sin(angle - spread),
             );
+            context.moveTo(endX, endY);
             context.lineTo(
-              endX - arrowLength * Math.cos(angle + Math.PI / 6),
-              endY - arrowLength * Math.sin(angle + Math.PI / 6),
+              endX - arrowLength * Math.cos(angle + spread),
+              endY - arrowLength * Math.sin(angle + spread),
             );
-            context.closePath();
-            context.fillStyle = overlay.strokeColor;
-            context.fill();
+            context.stroke();
           }
         } else if (overlay.kind === "doodle") {
           context.lineWidth = overlay.strokeWidth;
@@ -2642,38 +3423,11 @@ export function CanvasImageEditorModal({
           </button>
         </div>
       </div>
-    ) : activeTool === "shape" || activeTool === "arrow" || (selectedOverlay && !["text", "doodle", "sticker"].includes(selectedOverlay.kind)) ? (
+    ) : activeTool === "shape" ||
+      activeTool === "arrow" ||
+      activeTool === "freedraw" ||
+      (selectedOverlay && !["text", "sticker"].includes(selectedOverlay.kind)) ? (
       <div className={`${MODAL_RADIUS_CLASS} flex items-center gap-2 border border-slate-200 bg-white/96 px-3 py-2 shadow-sm backdrop-blur`}>
-        <div className={`${MODAL_RADIUS_CLASS} flex items-center gap-1 bg-slate-900 p-1`}>
-          <button
-            type="button"
-            aria-label="描边模式"
-            className={`${MODAL_RADIUS_CLASS} inline-flex h-8 w-8 items-center justify-center transition-colors ${
-              shapeFillColor === "transparent" ? "bg-white text-slate-900" : "bg-slate-900 text-white/80 hover:bg-slate-800"
-            }`}
-            onClick={() => {
-              setShapeFillColor("transparent");
-              handleShapeStyleChange({ fillColor: "transparent" });
-            }}
-          >
-            <span className="h-4 w-4 rounded-[4px] border-2 border-current" />
-          </button>
-          <button
-            type="button"
-            aria-label="切换填充"
-            className={`${MODAL_RADIUS_CLASS} inline-flex h-8 w-8 items-center justify-center transition-colors ${
-              shapeFillColor === "transparent" ? "bg-slate-900 text-white/80 hover:bg-slate-800" : "bg-white text-slate-900"
-            }`}
-            onClick={() => {
-              const nextFillColor =
-                shapeFillColor === "transparent" ? "rgba(17,24,39,0.18)" : "transparent";
-              setShapeFillColor(nextFillColor);
-              handleShapeStyleChange({ fillColor: nextFillColor });
-            }}
-          >
-            <span className="h-4 w-4 rounded-[4px] bg-current" />
-          </button>
-        </div>
         <label className={`${MODAL_RADIUS_CLASS} relative inline-flex h-8 w-9 cursor-pointer items-center justify-center overflow-hidden border border-slate-200 bg-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.6)]`}>
           <input
             aria-label="描边颜色"
@@ -2996,26 +3750,20 @@ export function CanvasImageEditorModal({
                     }}
                   >
                     <svg
-                      className={`block overflow-visible bg-white shadow-[0_18px_36px_rgba(15,23,42,0.08)] ${MODAL_RADIUS_CLASS}`}
+                      ref={stageSvgRef}
+                      data-testid="image-editor-stage"
+                      className="block overflow-visible"
                       viewBox={`${stageMetrics.visibleRect.x} ${stageMetrics.visibleRect.y} ${stageMetrics.visibleRect.width} ${stageMetrics.visibleRect.height}`}
                       width={stageMetrics.width}
                       height={stageMetrics.height}
+                      style={{ cursor: stageCursor }}
                       onPointerDown={handleStagePointerDown}
                       onPointerMove={handleStagePointerMove}
                       onPointerUp={handleStagePointerUp}
-                      onPointerLeave={handleStagePointerUp}
+                      onPointerCancel={handleStagePointerUp}
+                      onWheel={handleStageWheel}
                     >
                       <defs>
-                        <marker
-                          id={markerId}
-                          markerWidth="12"
-                          markerHeight="12"
-                          refX="9"
-                          refY="6"
-                          orient="auto-start-reverse"
-                        >
-                          <path d="M0 0L12 6L0 12z" fill="currentColor" />
-                        </marker>
                         <linearGradient id={`sky-${markerId}`} x1="0" x2="0" y1="0" y2="1">
                           <stop offset="0%" stopColor={BLUE_SKY_GRADIENT.top} />
                           <stop offset="100%" stopColor={BLUE_SKY_GRADIENT.bottom} />
@@ -3049,10 +3797,12 @@ export function CanvasImageEditorModal({
                       {overlays.map((overlay) => {
                         const bounds = getOverlayBounds(overlay);
                         const selected = overlay.id === selectedOverlayId;
+                        const showSelection = selected && selectionHiddenOverlayId !== overlay.id;
                         return (
                           <g key={`${overlay.id}-hitbox`}>
-                            {selected ? (
+                            {showSelection ? (
                               <rect
+                                data-testid="image-editor-selection-outline"
                                 x={bounds.x - 4}
                                 y={bounds.y - 4}
                                 width={bounds.width + 8}
@@ -3065,11 +3815,20 @@ export function CanvasImageEditorModal({
                               />
                             ) : null}
                             <rect
+                              data-testid={`image-editor-overlay-hitbox-${overlay.kind}`}
                               x={bounds.x - 10}
                               y={bounds.y - 10}
                               width={bounds.width + 20}
                               height={bounds.height + 20}
                               fill="transparent"
+                              onClick={(event) => {
+                                if (overlay.kind === "text" && event.detail >= 2) {
+                                  event.preventDefault();
+                                  event.stopPropagation();
+                                  setSelectedOverlayId(overlay.id);
+                                  setEditingTextId(overlay.id);
+                                }
+                              }}
                               onDoubleClick={() => {
                                 if (overlay.kind === "text") {
                                   setSelectedOverlayId(overlay.id);
@@ -3078,20 +3837,57 @@ export function CanvasImageEditorModal({
                               }}
                               onPointerDown={(event) => handleOverlayPointerDown(overlay.id, event)}
                             />
+                            {showSelection && overlaySupportsResize(overlay)
+                              ? OVERLAY_RESIZE_HANDLES.map((handle) => {
+                                  const center = getOverlayResizeHandleCenter(handle, bounds);
+                                  const handleSize =
+                                    OVERLAY_HANDLE_VISUAL_SIZE_PX /
+                                    Math.max(stageMetrics.scale, 0.01);
+                                  return (
+                                    <g
+                                      key={`${overlay.id}-${handle}`}
+                                      data-testid="image-editor-overlay-resize-handle"
+                                      data-handle={handle}
+                                    >
+                                      <rect
+                                        data-testid={`image-editor-overlay-resize-handle-${handle.replace("resize-", "")}`}
+                                        x={center.x - handleSize / 2}
+                                        y={center.y - handleSize / 2}
+                                        width={handleSize}
+                                        height={handleSize}
+                                        rx={handleSize / 3}
+                                        fill="#ffffff"
+                                        stroke="#6d5efc"
+                                        strokeWidth={2 / Math.max(stageMetrics.scale, 0.01)}
+                                        style={{ cursor: getOverlayResizeCursor(handle) }}
+                                        onPointerDown={(event) =>
+                                          handleOverlayResizePointerDown(
+                                            overlay.id,
+                                            handle,
+                                            event,
+                                          )
+                                        }
+                                      />
+                                    </g>
+                                  );
+                                })
+                              : null}
                           </g>
                         );
                       })}
 
                       {activeTool === "crop" && cropRect ? (
                         <>
-                          <rect
-                            x={0}
-                            y={0}
-                            width={baseImage.width}
-                            height={baseImage.height}
+                          <path
+                            data-testid="image-editor-crop-outside-mask"
+                            d={`M 0 0 H ${baseImage.width} V ${baseImage.height} H 0 Z M ${cropRect.x} ${cropRect.y} H ${cropRect.x + cropRect.width} V ${cropRect.y + cropRect.height} H ${cropRect.x} Z`}
                             fill="rgba(15,23,42,0.12)"
+                            fillRule="evenodd"
+                            clipRule="evenodd"
+                            pointerEvents="none"
                           />
                           <rect
+                            data-testid="image-editor-crop-rect"
                             x={cropRect.x}
                             y={cropRect.y}
                             width={cropRect.width}
@@ -3100,6 +3896,33 @@ export function CanvasImageEditorModal({
                             stroke="#6d5efc"
                             strokeWidth={3}
                           />
+                          {CROP_RESIZE_HANDLES.map((handle) => {
+                            const center = getCropHandleCenter(handle, cropRect);
+                            const handleSize =
+                              CROP_HANDLE_VISUAL_SIZE_PX / Math.max(stageMetrics.scale, 0.01);
+                            return (
+                              <g
+                                key={handle}
+                                data-testid="image-editor-crop-handle"
+                                data-handle={handle}
+                              >
+                                <rect
+                                  data-testid={`image-editor-crop-handle-${handle}`}
+                                  aria-hidden="true"
+                                  x={center.x - handleSize / 2}
+                                  y={center.y - handleSize / 2}
+                                  width={handleSize}
+                                  height={handleSize}
+                                  rx={handleSize / 3}
+                                  fill="#ffffff"
+                                  stroke="#6d5efc"
+                                  strokeWidth={2 / Math.max(stageMetrics.scale, 0.01)}
+                                  pointerEvents="all"
+                                  style={{ cursor: getCropResizeCursor(handle) }}
+                                />
+                              </g>
+                            );
+                          })}
                         </>
                       ) : null}
                     </svg>
@@ -3126,7 +3949,7 @@ export function CanvasImageEditorModal({
                             event.preventDefault();
                             setEditingTextId(null);
                           }
-                          if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+                          if (event.key === "Enter") {
                             event.preventDefault();
                             setEditingTextId(null);
                           }
@@ -3175,13 +3998,15 @@ export function CanvasImageEditorModal({
             </div>
           </div>
 
-          <div className="flex w-[288px] shrink-0 flex-col border-l border-slate-200 bg-[#fbfbfc]">
+          <div
+            data-testid="editor-sticker-panel"
+            className="flex w-[360px] shrink-0 flex-col border-l border-slate-200 bg-[#fbfbfc]"
+          >
             <div className="border-b border-slate-200 px-4 py-4">
-              <div className="text-center text-lg font-semibold text-slate-900">贴图</div>
               <button
                 type="button"
                 aria-label="本地上传"
-                className={`${MODAL_RADIUS_CLASS} mt-4 flex w-full items-center justify-between border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50`}
+                className={`${MODAL_RADIUS_CLASS} flex w-full items-center justify-between border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50`}
                 onClick={() => fileInputRef.current?.click()}
               >
                 <span className="inline-flex items-center gap-2">
@@ -3200,59 +4025,99 @@ export function CanvasImageEditorModal({
                   event.target.value = "";
                 }}
               />
-              <div className="mt-3 flex items-center justify-between gap-3 rounded-[10px] bg-slate-100 p-1.5">
-                <div
-                  className={`${MODAL_RADIUS_CLASS} inline-flex items-center bg-slate-800 px-3 py-2 text-sm font-semibold text-white`}
-                >
-                  官方图库
-                </div>
-                <span className="pr-2 text-xs font-medium text-slate-500">
-                  已切换为本地受控图库
-                </span>
-              </div>
             </div>
 
-            <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
-              <div className="flex items-center gap-1 overflow-x-auto pb-2">
-                {stickerLibrary.map((category) => (
-                  <button
-                    key={category.id}
-                    type="button"
-                    aria-pressed={activeStickerCategory === category.id}
-                    className={`${MODAL_RADIUS_CLASS} shrink-0 border px-3 py-1.5 text-sm font-medium transition-colors ${
-                      activeStickerCategory === category.id
-                        ? "border-slate-900 bg-slate-100 text-slate-900"
-                        : "border-transparent bg-transparent text-slate-500 hover:text-slate-900"
-                    }`}
-                    onClick={() => {
-                      setActiveStickerCategory(category.id);
-                      setActiveStickerPage(0);
-                    }}
-                  >
-                    {category.label}
-                  </button>
-                ))}
+            <div className="scrollbar-hover-gutter min-h-0 flex-1 overflow-y-auto px-4 py-4">
+              <div className="mb-2 flex items-center gap-1">
+                <button
+                  type="button"
+                  aria-label="向左滚动贴图一级分类"
+                  data-testid="editor-sticker-category-scroll-left"
+                  className={`${MODAL_RADIUS_CLASS} inline-flex h-8 w-8 shrink-0 items-center justify-center text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900`}
+                  onClick={() => scrollStickerStrip("category", -1)}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+                <div
+                  ref={stickerCategoryStripRef}
+                  data-testid="editor-sticker-category-strip"
+                  data-default-visible-count="3"
+                  className="scrollbar-hidden flex w-[254px] flex-none items-center gap-1 overflow-x-auto"
+                >
+                  {stickerLibrary.map((category) => (
+                    <button
+                      key={category.id}
+                      type="button"
+                      aria-pressed={activeStickerCategory === category.id}
+                      className={`${MODAL_RADIUS_CLASS} w-[82px] flex-none truncate border px-3 py-1.5 text-center text-sm font-medium transition-colors ${
+                        activeStickerCategory === category.id
+                          ? "border-slate-900 bg-slate-900 text-white"
+                          : "border-transparent bg-transparent text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+                      }`}
+                      onClick={() => {
+                        setActiveStickerCategory(category.id);
+                        setActiveStickerPage(0);
+                      }}
+                    >
+                      {category.label}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  aria-label="向右滚动贴图一级分类"
+                  data-testid="editor-sticker-category-scroll-right"
+                  className={`${MODAL_RADIUS_CLASS} inline-flex h-8 w-8 shrink-0 items-center justify-center text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900`}
+                  onClick={() => scrollStickerStrip("category", 1)}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
               </div>
 
-              <div className="flex items-center gap-1 overflow-x-auto pb-4">
-                {stickerSubcategories.map((subcategory) => (
-                  <button
-                    key={subcategory.id}
-                    type="button"
-                    aria-pressed={activeStickerSubcategoryId === subcategory.id}
-                    className={`${MODAL_RADIUS_CLASS} shrink-0 border px-3 py-1.5 text-sm transition-colors ${
-                      activeStickerSubcategoryId === subcategory.id
-                        ? "border-slate-300 bg-white text-slate-900"
-                        : "border-transparent bg-transparent text-slate-500 hover:text-slate-900"
-                    }`}
-                    onClick={() => {
-                      setActiveStickerSubcategoryId(subcategory.id);
-                      setActiveStickerPage(0);
-                    }}
-                  >
-                    {subcategory.label}
-                  </button>
-                ))}
+              <div className="mb-4 flex items-center gap-1">
+                <button
+                  type="button"
+                  aria-label="向左滚动贴图二级分类"
+                  data-testid="editor-sticker-subcategory-scroll-left"
+                  className={`${MODAL_RADIUS_CLASS} inline-flex h-8 w-8 shrink-0 items-center justify-center text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900`}
+                  onClick={() => scrollStickerStrip("subcategory", -1)}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+                <div
+                  ref={stickerSubcategoryStripRef}
+                  data-testid="editor-sticker-subcategory-strip"
+                  data-default-visible-count="3"
+                  className="scrollbar-hidden flex w-[254px] flex-none items-center gap-1 overflow-x-auto"
+                >
+                  {stickerSubcategories.map((subcategory) => (
+                    <button
+                      key={subcategory.id}
+                      type="button"
+                      aria-pressed={activeStickerSubcategoryId === subcategory.id}
+                      className={`${MODAL_RADIUS_CLASS} w-[82px] flex-none truncate px-1 py-1.5 text-center text-sm font-medium transition-colors ${
+                        activeStickerSubcategoryId === subcategory.id
+                          ? "text-slate-900"
+                          : "text-slate-500 hover:text-slate-900"
+                      }`}
+                      onClick={() => {
+                        setActiveStickerSubcategoryId(subcategory.id);
+                        setActiveStickerPage(0);
+                      }}
+                    >
+                      {subcategory.label}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  aria-label="向右滚动贴图二级分类"
+                  data-testid="editor-sticker-subcategory-scroll-right"
+                  className={`${MODAL_RADIUS_CLASS} inline-flex h-8 w-8 shrink-0 items-center justify-center text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900`}
+                  onClick={() => scrollStickerStrip("subcategory", 1)}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
               </div>
 
               {officialStickerLibraryLoadError && !usingPersistedStickerLibrary ? (
@@ -3262,18 +4127,57 @@ export function CanvasImageEditorModal({
               ) : null}
 
               <div className="grid grid-cols-3 gap-2">
-                {pagedStickerItems.map((item) => (
+                {pagedStickerItems.map((item, index) => (
                   <button
                     key={item.id}
                     type="button"
                     aria-label={`插入贴图 ${item.label}`}
-                    className={`${MODAL_RADIUS_CLASS} group overflow-hidden border border-slate-200 bg-white transition-colors hover:border-slate-300`}
+                    className={`${MODAL_RADIUS_CLASS} group overflow-hidden border border-slate-200 bg-white transition-colors [contain-intrinsic-size:86px_86px] [content-visibility:auto] hover:border-slate-300`}
                     onClick={() => insertSticker(item)}
+                    onMouseEnter={(event) => {
+                      const bounds = event.currentTarget.getBoundingClientRect();
+                      setHoveredStickerPreview({
+                        alt: item.label,
+                        originalSrc: item.originalSrc,
+                        src: item.src,
+                        left: Math.max(
+                          12,
+                          bounds.left - EDITOR_STICKER_HOVER_PREVIEW_SIZE - 12,
+                        ),
+                        top: Math.max(12, bounds.top),
+                      });
+                    }}
+                    onMouseLeave={() => setHoveredStickerPreview(null)}
                   >
                     <div className="aspect-square bg-[linear-gradient(180deg,#ffffff_0%,#f5f6f8_100%)] p-2">
                       <img
                         src={item.src}
                         alt={item.label}
+                        loading={index < 6 ? "eager" : "lazy"}
+                        decoding="async"
+                        fetchPriority={index < 6 ? "high" : "auto"}
+                        sizes="86px"
+                        onError={(event) => {
+                          const fallbackSrc = item.originalSrc;
+                          if (
+                            fallbackSrc &&
+                            event.currentTarget.getAttribute("src") !== fallbackSrc
+                          ) {
+                            const runningInJsdom =
+                              typeof navigator !== "undefined" &&
+                              navigator.userAgent.toLowerCase().includes("jsdom");
+                            if (!runningInJsdom) {
+                              console.info("[canvas-image-editor] official sticker thumbnail failed; falling back to original asset", {
+                                id: item.id,
+                                label: item.label,
+                              });
+                            }
+                            event.currentTarget.setAttribute("src", fallbackSrc);
+                            return;
+                          }
+
+                          event.currentTarget.dataset.loadError = "true";
+                        }}
                         className="h-full w-full object-contain transition-transform duration-200 group-hover:scale-[1.04]"
                       />
                     </div>
@@ -3326,6 +4230,29 @@ export function CanvasImageEditorModal({
           </div>
         </div>
       </div>
+      {hoveredStickerPreview ? (
+        <img
+          data-testid="editor-sticker-hover-preview"
+          src={hoveredStickerPreview.src}
+          alt={`${hoveredStickerPreview.alt} preview`}
+          className={`${MODAL_RADIUS_CLASS} pointer-events-none fixed z-[110] border border-slate-200 bg-white object-contain p-3 shadow-[0_22px_60px_rgba(15,23,42,0.22)]`}
+          style={{
+            left: hoveredStickerPreview.left,
+            top: hoveredStickerPreview.top,
+            width: `${EDITOR_STICKER_HOVER_PREVIEW_SIZE}px`,
+            height: `${EDITOR_STICKER_HOVER_PREVIEW_SIZE}px`,
+          }}
+          onError={(event) => {
+            const fallbackSrc = hoveredStickerPreview.originalSrc;
+            if (
+              fallbackSrc &&
+              event.currentTarget.getAttribute("src") !== fallbackSrc
+            ) {
+              event.currentTarget.setAttribute("src", fallbackSrc);
+            }
+          }}
+        />
+      ) : null}
     </div>,
     document.body,
   );

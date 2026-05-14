@@ -30,6 +30,7 @@ type AddGalleryAssetRow = {
   asset_url: string;
   height: number;
   id: string;
+  source_thumb_url: string | null;
   title: string;
   width: number;
 };
@@ -64,6 +65,7 @@ function mapAddGalleryAssetRow(asset: AddGalleryAssetRow): OfficialGalleryItem {
   return {
     id: asset.id,
     label: asset.title,
+    thumbnailUrl: asset.source_thumb_url ?? asset.asset_url,
     url: asset.asset_url,
     width: asset.width,
     height: asset.height,
@@ -162,7 +164,7 @@ export function createAddGalleryService(options: {
       const assetsResult = await client
         .from("add_gallery_assets")
         .select(
-          "id, category_id, subtype_id, title, asset_url, width, height, sort_order, is_active, created_at, updated_at",
+          "id, category_id, subtype_id, title, asset_url, source_thumb_url, width, height, sort_order, is_active, created_at, updated_at",
           {
             count: "exact",
           },

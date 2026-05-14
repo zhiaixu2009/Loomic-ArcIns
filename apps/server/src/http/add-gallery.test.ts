@@ -123,6 +123,8 @@ describe("registerAddGalleryRoutes", () => {
         {
           id: "asset-1",
           label: "建筑效果图 默认 1",
+          thumbnailUrl:
+            "http://127.0.0.1:54321/storage/v1/object/public/add-gallery-thumbs/architecture-render/default/asset-1.webp",
           url: "http://127.0.0.1:54321/storage/v1/object/public/add-gallery-assets/architecture-render/default/asset-1.png",
           width: 1600,
           height: 900,
@@ -165,6 +167,8 @@ describe("registerAddGalleryRoutes", () => {
         {
           id: "asset-1",
           label: "建筑效果图 默认 1",
+          thumbnailUrl:
+            "http://127.0.0.1:54321/storage/v1/object/public/add-gallery-thumbs/architecture-render/default/asset-1.webp",
           url: "http://127.0.0.1:54321/storage/v1/object/public/add-gallery-assets/architecture-render/default/asset-1.png",
           width: 1600,
           height: 900,

@@ -14,14 +14,31 @@ const {
   fetchProjectMock,
   replaceMock,
   resetMockCanvasApi,
+  addFilesMock,
   updateSceneMock,
+  createExcalidrawImageElementMock,
+  exportToBlobMock,
 } = vi.hoisted(() => ({
   fetchCanvasMock: vi.fn(),
   fetchImageBlobWithFallbackMock: vi.fn(),
   fetchProjectMock: vi.fn(),
   replaceMock: vi.fn(),
   resetMockCanvasApi: vi.fn(),
+  addFilesMock: vi.fn(),
   updateSceneMock: vi.fn(),
+  createExcalidrawImageElementMock: vi.fn(() => ({
+    id: "merged-image-1",
+    type: "image",
+    x: 10,
+    y: 12,
+    width: 280,
+    height: 80,
+    fileId: "merged-file-1",
+    isDeleted: false,
+  })),
+  exportToBlobMock: vi.fn(() =>
+    Promise.resolve(new Blob(["merged"], { type: "image/png" })),
+  ),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -73,9 +90,14 @@ vi.mock("../src/lib/server-api", () => ({
 }));
 
 vi.mock("../src/lib/canvas-elements", () => ({
+  createExcalidrawImageElement: createExcalidrawImageElementMock,
   fetchImageBlobWithFallback: fetchImageBlobWithFallbackMock,
   insertImageOnCanvas: vi.fn(),
   insertVideoOnCanvas: vi.fn(),
+}));
+
+vi.mock("@excalidraw/excalidraw", () => ({
+  exportToBlob: exportToBlobMock,
 }));
 
 vi.mock("../src/lib/studio-routes", () => ({
@@ -162,6 +184,16 @@ vi.mock("../src/components/canvas-editor", () => ({
           locked: true,
           isDeleted: false,
         },
+        {
+          id: "text-1",
+          type: "text",
+          x: 230,
+          y: 56,
+          width: 60,
+          height: 32,
+          text: "Note",
+          isDeleted: false,
+        },
       ] as Array<Record<string, any>>,
     });
 
@@ -205,6 +237,16 @@ vi.mock("../src/components/canvas-editor", () => ({
               locked: true,
               isDeleted: false,
             },
+            {
+              id: "text-1",
+              type: "text",
+              x: 230,
+              y: 56,
+              width: 60,
+              height: 32,
+              text: "Note",
+              isDeleted: false,
+            },
           ],
         };
         updateSceneMock.mockClear();
@@ -217,7 +259,7 @@ vi.mock("../src/components/canvas-editor", () => ({
         getAppState: () => sceneRef.current.appState,
         getSceneElements: () => sceneRef.current.elements,
         getFiles: () => ({}),
-        addFiles: vi.fn(),
+        addFiles: addFilesMock,
         updateScene: updateSceneMock.mockImplementation((scene: any) => {
           if (scene.appState) {
             sceneRef.current.appState = {
@@ -329,6 +371,40 @@ vi.mock("../src/components/canvas-editor", () => ({
           }
         >
           open multi image menu
+        </button>
+        <button
+          type="button"
+          data-testid="mock-open-mixed-image-text-menu"
+          onClick={() =>
+            props.onContextMenuRequest?.({
+              x: 88,
+              y: 96,
+              selectedElements: [
+                {
+                  id: "image-1",
+                  type: "image",
+                  x: 10,
+                  y: 12,
+                  width: 120,
+                  height: 80,
+                  storageUrl: "https://example.com/reference-1.png",
+                  locked: false,
+                },
+                {
+                  id: "text-1",
+                  type: "text",
+                  x: 230,
+                  y: 56,
+                  width: 60,
+                  height: 32,
+                  text: "Note",
+                  locked: false,
+                },
+              ],
+            })
+          }
+        >
+          open mixed image text menu
         </button>
       </div>
     );
@@ -765,6 +841,110 @@ describe("CanvasPage context menu mode", () => {
           }),
         ]),
       }),
+    );
+  });
+
+  it("clears the live selection after grouping a mixed image selection", async () => {
+    renderWithToast(<CanvasPage />);
+
+    await waitFor(() => {
+      expect(fetchCanvasMock).toHaveBeenCalledWith("token-canvas", "canvas-1");
+    });
+
+    await userEvent.click(screen.getByTestId("mock-open-mixed-image-text-menu"));
+
+    const menu = screen.getByTestId("canvas-context-menu");
+    const groupButton = menu.querySelector(
+      'button[data-action-id="group-selection"]',
+    ) as HTMLButtonElement | null;
+    expect(groupButton).not.toBeNull();
+
+    await userEvent.click(groupButton!);
+
+    const lastUpdateScenePayload = updateSceneMock.mock.calls.at(-1)?.[0];
+    expect(lastUpdateScenePayload).toEqual(
+      expect.objectContaining({
+        appState: expect.objectContaining({
+          selectedElementIds: {},
+        }),
+      }),
+    );
+    expect(lastUpdateScenePayload.elements).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "image-1",
+          groupIds: expect.arrayContaining([expect.any(String)]),
+        }),
+        expect.objectContaining({
+          id: "text-1",
+          groupIds: expect.arrayContaining([expect.any(String)]),
+        }),
+      ]),
+    );
+  });
+
+  it("merges mixed image and text selections into one image layer and clears selection", async () => {
+    renderWithToast(<CanvasPage />);
+
+    await waitFor(() => {
+      expect(fetchCanvasMock).toHaveBeenCalledWith("token-canvas", "canvas-1");
+    });
+
+    await userEvent.click(screen.getByTestId("mock-open-mixed-image-text-menu"));
+
+    const menu = screen.getByTestId("canvas-context-menu");
+    const mergeButton = menu.querySelector(
+      'button[data-action-id="merge-selection"]',
+    ) as HTMLButtonElement | null;
+    expect(mergeButton).not.toBeNull();
+
+    await userEvent.click(mergeButton!);
+
+    await waitFor(() => {
+      expect(exportToBlobMock).toHaveBeenCalledTimes(1);
+    });
+
+    expect(exportToBlobMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        elements: expect.arrayContaining([
+          expect.objectContaining({ id: "image-1" }),
+          expect.objectContaining({ id: "text-1" }),
+        ]),
+        files: {},
+        mimeType: "image/png",
+      }),
+    );
+    expect(addFilesMock).toHaveBeenCalledWith([
+      expect.objectContaining({
+        dataURL: expect.stringMatching(/^data:image\/png;base64,/),
+        mimeType: "image/png",
+      }),
+    ]);
+    expect(createExcalidrawImageElementMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        x: 10,
+        y: 12,
+        width: 280,
+        height: 80,
+        title: "合并图层",
+        source: "uploaded",
+      }),
+    );
+
+    const lastUpdateScenePayload = updateSceneMock.mock.calls.at(-1)?.[0];
+    expect(lastUpdateScenePayload).toEqual(
+      expect.objectContaining({
+        appState: expect.objectContaining({
+          selectedElementIds: {},
+        }),
+      }),
+    );
+    expect(lastUpdateScenePayload.elements).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: "image-1", isDeleted: true }),
+        expect.objectContaining({ id: "text-1", isDeleted: true }),
+        expect.objectContaining({ id: "merged-image-1", type: "image" }),
+      ]),
     );
   });
 });

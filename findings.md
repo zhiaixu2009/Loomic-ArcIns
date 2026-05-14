@@ -2523,3 +2523,437 @@
 - Regression proof now exists at two layers:
   - unit/regression: `apps/web/test/page-transition.test.tsx`
   - runtime/browser: authenticated `/home` now reports `scrollbarGutter = stable` and remains vertically scrollable
+
+## 2026-04-25 Add Official Gallery UI Findings
+
+- The current add-gallery database/API model is two-level only:
+  - first level: add gallery categories such as `建筑效果图`, `室内效果图`, `景观效果图`
+  - second level: subtypes such as `办公园区`, `文化建筑`, `酒店`
+  - assets live under subtypes
+- There is no reliable third-level taxonomy in the current local data, so the UI must not render a fake third level or show zero-count third-level labels.
+- `默认` is a real imported subtype used by sync data, but it is not part of the target Jianzhuxuezhang visible subtype UI. It should be hidden from the subtype row while remaining usable as an internal fallback for default-only categories.
+- The visible mismatch is caused by frontend rendering choices in `apps/web/src/components/canvas-tool-menu.tsx`, not by the backend API:
+  - oversized top tab cards with icons/descriptions
+  - extra official-gallery title/refresh row
+  - horizontal scroll controls around the category row
+  - stock/status summary row
+  - subtype count badges
+  - image card captions
+- Performance-oriented bounded fix:
+  - reduce the first page size for the modal grid
+  - add native image `loading="lazy"` and `decoding="async"`
+  - keep pagination instead of loading the full subtype at once
+
+## 2026-04-25 Add Gallery Infinite Scroll + Image Editor Findings
+
+- The add-gallery modal already had the correct service/API pagination state:
+  - `activeOfficialGalleryHasMore`
+  - `activeOfficialGallerySubtypeLoading`
+  - `loadOfficialGallerySubtypeData(..., { append: true })`
+  - `mergeOfficialGalleryItems(...)`
+- The user-facing mismatch was the trigger, not the data model:
+  - the UI required a bottom `加载更多` button
+  - scroll-near-bottom is sufficient to call the existing append path
+  - the scroll region is `data-testid="architecture-add-dialog-body"`, so the handler belongs on that body rather than on the grid
+- The modal scrollbar issue is a gutter/styling issue:
+  - `scrollbar-gutter: stable` preserves layout width and prevents jump
+  - transparent thumb by default keeps the UI visually quiet
+  - hover/focus/data-scrolling styles expose the thumb only during interaction
+- The editor sticker gallery mismatch was frontend-only:
+  - the persisted editor official gallery data was already rendering
+  - the extra `官方图库 / 已切换为本地受控图库` row was redundant after the header-local-upload decision
+  - native horizontal scrollbars in category strips should be hidden and replaced by arrow scroll controls
+- Preview zoom can be implemented by shrinking the SVG `viewBox` around the pointer, without changing export dimensions or image/crop state.
+- For editor tools:
+  - line/arrow overlays must keep signed width/height so drag direction remains the semantic endpoint
+  - hitboxes can still use normalized `getOverlayBounds(...)`
+  - text overlays should remain single-line until multiline text rendering/export is deliberately implemented
+  - crop handles were functionally implicit through hit zones, but visible handles are required for discoverability
+  - `pointerleave` is not a stable end condition for drawing; `pointercancel` plus `pointerup` is the bounded fix
+
+## 2026-04-26 Add Gallery Performance Findings
+
+- Fresh browser inspection against Docker runtime showed `添加 -> 官方图库` itself did not render a `贴图` text node.
+- The only live `贴图` header found in this flow was the image-editor right gallery heading in `apps/web/src/components/canvas/canvas-image-editor-modal.tsx`.
+- Add-gallery image browsing already used `thumbnailUrl ?? item.url`, `loading="lazy"`, and `decoding="async"`, so the slow path was not a regression to original full-size browsing URLs.
+- The performance mismatch versus the editor gallery was batch weight:
+  - add-gallery loaded and mounted `30` items per waterfall batch
+  - editor gallery uses `15` items per page
+  - add-gallery infinite scroll keeps appending into a growing DOM list
+- A bounded fix can retain the required waterfall interaction while adopting the editor-gallery cadence:
+  - reduce add-gallery batches to `15`
+  - prioritize only the first visible images
+  - keep later images lazy
+  - add browser render containment to off-screen cards
+- Runtime evidence after the fix:
+  - initial add-gallery image count: `15`
+  - first 6 images: `loading=eager`, `fetchpriority=high`, `decoding=async`
+  - 7th image and later: `loading=lazy`, `fetchpriority=auto`
+  - scroll-to-bottom appended the next batch and raised the count to `30`
+
+## 2026-04-26 Editor Gallery Performance Correction
+
+- User clarified the previous performance target was the image-editor right gallery, not the left-toolbar add gallery.
+- Corrected root cause:
+  - editor official-gallery API did not expose `source_thumb_url`, so the editor grid browsed original Supabase Storage URLs
+  - editor sticker mapping used the same `item.url` for grid preview and insertion
+  - the standalone right-header `贴图` title lived in `CanvasImageEditorModal`
+  - add-gallery had been over-optimized in the wrong place and needed to return to 30-item waterfall batches
+- Stable corrected behavior:
+  - `/api/official-gallery/subtypes/.../items` returns `thumbnailUrl` while preserving `url` as the original local asset URL
+  - editor grid browses `thumbnailUrl ?? url`, prioritizes the first 6 visible thumbnails, lazily loads later thumbnails, and inserts `originalSrc ?? src`
+  - add-gallery uses `limit=30`, lazy/async thumbnails, no `fetchpriority`, no visible `加载更多` button, and scroll-threshold waterfall append
+- Browser evidence:
+  - add-gallery changed subtype initial count: `30`; after scroll: `60`; status `已展示 60 / 86 张本地图库图片`
+  - editor gallery image count: `15`
+  - editor first image: `resize,w_480`, `loading=eager`, `fetchpriority=high`, `naturalWidth=480`
+  - editor seventh image: `loading=lazy`, `fetchpriority=auto`
+  - inserted editor sticker href: local Supabase Storage original under `/storage/v1/object/public/official-gallery-assets/...`
+
+## 2026-04-26 Image Editor Tool Regression Findings
+
+- The middle-button pan defect was not a missing browser event:
+  - real browser instrumentation showed middle drag emits `pointerdown` with `button=1` and `buttons=4`, followed by `pointermove` events with `buttons=4`
+  - the component dropped those events because `handleStagePointerDown` returned for every non-left button
+  - after adding a `PreviewPanInteraction`, the runtime `viewBox` changes on both wheel zoom and middle-button drag
+- The editor-gallery missing previews were caused by thumbnail-source reliability, not missing database rows:
+  - server and shared contracts now expose `thumbnailUrl`
+  - the local original `url` still points to Supabase Storage and is usable for insertion
+  - third-party `thumbnailUrl` values can fail in Chromium, especially Huaban-hosted assets
+  - the stable UI behavior is per-image fallback from `thumbnailUrl` to `originalSrc`, while keeping insertion on the original local asset
+- The text tool needed a state transition, not another hit-test rule:
+  - `beginTextOverlay(...)` successfully created and selected the text overlay
+  - it left `activeTool` as `text`, so every subsequent stage click created another text overlay
+  - the correct interaction is to switch back to `selection` after the first placement while leaving `editingTextId` active
+- The crop preview problem was an SVG compositing issue:
+  - a transparent crop rect over a full grey rect does not cut a transparent hole
+  - an even-odd path is the correct bounded fix for grey-discarded-area preview
+  - handle visual size and hit size must be expressed in screen pixels and converted by `stageMetrics.scale`, otherwise zoom state changes perceived handle usability
+- The arrow tool should be treated as a stroke-only shape:
+  - SVG `markerEnd` creates a filled triangular head and complicates color consistency
+  - Canvas export previously filled a triangular head separately
+  - rendering/exporting the head as two stroked line segments keeps the arrow visually open and lets stroke color control both shaft and head
+  - the arrow toolbar should hide fill-mode controls and expose only stroke color plus stroke width
+## 2026-04-26 Image Editor Zoom / Toolbar / Crop / Sticker Transform Findings
+
+- The editor preview zoom defect had two separate root causes:
+  - the minimum zoom constant still clamped at `1`, so the initial state could not zoom out
+  - after allowing `zoom < 1`, repeated wheel events could move the preview focus outside the source image because the focus point was not bounded to the image rect
+- Stable zoom rule after the fix:
+  - allow `viewBox` to expand beyond the image when `zoom < 1`
+  - keep the zoom focus bounded to the image rect, so the image center remains reachable and visible even at `0.25`
+  - handle real browser wheel input through a non-passive native listener; React `onWheel` is only a fallback because Chromium reports `Unable to preventDefault inside passive event listener invocation` when `preventDefault()` is called from the React wheel path
+- Tool sizing should be authored in screen pixels and persisted in image units:
+  - stroke width `5px` becomes `5 / stageMetrics.scale` image units
+  - text size `34px` becomes `34 / stageMetrics.scale` image units
+  - rendering/export can continue to use image units, while the on-screen result remains stable across source image resolutions
+- Default drawing color is now frozen as `#ff0000` for shape, arrow, doodle, and text tools.
+- Doodle is a stroke-only editing mode and should share the same floating toolbar contract as arrows:
+  - stroke color
+  - stroke width
+  - no fill controls
+- The crop handle bug came from parsing handle direction with `includes(...)` on full strings like `resize-n-1`:
+  - every handle string contains `e` and `s` because of the `resize-` prefix
+  - direction parsing must strip the prefix and read only the real direction segment (`n`, `ne`, `e`, etc.)
+  - this prevents top handles from changing width or collapsing height
+- Sticker insertion now has a distinct transform contract:
+  - insert into `selection` mode immediately
+  - show corner handles only for selected stickers
+  - drag moves the sticker overlay
+  - corner resize keeps aspect ratio and respects a screen-pixel minimum size converted into image units
+- Runtime browser evidence showed the final state is clean:
+  - `zoomApprox=0.25`, image center visible
+  - doodle/arrow/text remain red and screen-based
+  - hover preview is `344px x 344px`
+  - crop exposes `12` handles and top handle drag keeps width stable
+  - sticker drag and resize both mutate the SVG overlay
+  - console errors/warnings were empty after the non-passive wheel listener fix
+## 2026-04-27 Local Runtime Start Program Findings
+
+- After a full machine reboot, `supabase start` can return failure while the local Postgres container is still legitimately recovering.
+- The observed DB logs showed startup/fync recovery rather than permanent data corruption, so deleting volumes or resetting Supabase would have been the wrong first move.
+- The stable operational rule is to wait through a bounded Supabase readiness window and verify `supabase status` before generating the Loomic Docker env file.
+- Startup knowledge should not live as scattered concrete commands in `AGENTS.md`. The memory file now points agents to `docs/scripts/startprogram`, while that directory owns the actual runnable start/status/stop entry points and their README index.
+- Legacy `scripts/windows` and `scripts/wsl` files are retained as compatibility wrappers only, so older notes do not immediately fail but the canonical source of truth is the new docs startprogram directory.
+
+## 2026-04-27 Image Editor Anchored Zoom / Selection Transform Findings
+
+- The current editor zoom drift was caused by treating the pointer image point as the new preview center on every wheel event. Stable wheel zoom must instead preserve the same image point under the current cursor ratio, then derive the next preview center from that invariant.
+- The `zoom === 1` fast path is unsafe in an editor that supports pan. Returning `previewBaseRect` at natural zoom discards user pan state and creates an unexpected auto-center jump; all zoom levels need to flow through the same `center -> visibleRect` calculation.
+- The double-background issue was not a layout-container bug. The stage SVG itself still carried `bg-white`, rounded corners, and a shadow while the editor viewport already provided the intended grey background.
+- Shape flyout parity requires separating shape primitives from the dedicated arrow tool. `SHAPE_OPTIONS` should not include `arrow` when the left toolbar already exposes an independent `箭头` tool.
+- Selection state and drawing state need separate visibility semantics: newly drawn shape/arrow/doodle overlays can remain selected for immediate adjustment; their dashed selection outline must be hidden while the pointer is still drawing; once drawing completes, the same selected overlay may show the dashed outline and resize handles.
+- Resize should be an overlay transform capability, not a sticker-only branch. Rectangle, ellipse, line, arrow, doodle, and sticker can all be resized from the selected bounds; doodle points and signed line/arrow endpoints need proportional remapping into the resized bounds.
+- If a resize handle is visible for the currently selected overlay, the handle should respond even if the active tool is still the just-used drawing tool. Otherwise the UI displays an affordance that silently does nothing.
+- Real-browser validation confirmed the corrected zoom behavior:
+  - left wheel zoom: `0 0 1788 824` -> `57.5299805501528 49.43931741505344 1515.2542372881358 698.3050847457628`
+  - right wheel zoom: -> `252.7994763140423 91.33704403798009 1284.1137604136743 591.7839701235278`
+  - zooming back near natural size preserved pan: `-199.82822865642436 -5.780387287523865 1819.889116232532 838.6961027827775`
+- Real-browser validation also confirmed shape resize handles are not decorative: a selected rectangle widened from `278.45297953284637` to `437.5689678373301` after dragging the southeast handle.
+## 2026-04-27 Image Editor Draw Completion / Resize Cursor Findings
+
+- The follow-up selection regression is caused by the split between `selectedOverlayId` and `selectionHiddenOverlayId`:
+  - drawing shape / arrow / doodle creates the overlay and immediately stores its id as `selectedOverlayId`
+  - drawing temporarily hides the visible selection outline through `selectionHiddenOverlayId`
+  - pointer-up clears only the hidden-outline flag, so the new overlay becomes visibly selected immediately after drawing
+- The correct user-facing state is stricter than the previous slice:
+  - while drawing, shape / arrow / doodle should not show dashed selection chrome
+  - after drawing completes, the newly drawn object should remain non-selected
+  - only an explicit【选择】tool click on the overlay should show the dashed outline and resize handles
+- Resize drift comes from aspect-ratio preservation inside `resizeRectFromHandle(...)`:
+  - the old code selected one scale from the largest horizontal/vertical delta
+  - the dragged handle's opposite axis was then derived from that scale rather than from the current pointer
+  - this is why the handle could visibly detach from the mouse during off-aspect drags
+- The stable correction is anchor-based free corner resize:
+  - keep the opposite corner fixed
+  - compute width and height directly from the current pointer coordinate
+  - clamp only against the minimum screen-size threshold converted into image units
+- Cursor affordance needs to exist on both surfaces:
+  - each visible handle carries `nwse-resize` or `nesw-resize`
+  - the stage keeps the same cursor while the handle drag is active, because pointer capture can move events away from the handle node
+- In-app browser verification covered visible interaction states:
+  - arrow/shape/doodle draw completion produced `0` selection outlines and `0` resize handles
+  - selecting a drawn arrow produced `1` outline and `4` handles
+  - SE/NE handle styles reported `nwse-resize` / `nesw-resize`
+  - console errors stayed at `0`
+
+## 2026-04-27 Image Editor Multi-Move Resize Snapshot Findings
+
+- The remaining handle-resize speed bug was not caused by the anchor math in `resizeRectFromHandle(...)`; that function already mapped the dragged corner to the current pointer.
+- The real root cause was state compounding across multiple browser `pointermove` events:
+  - `ResizeOverlayInteraction` saved `originRect`, but not the original overlay object.
+  - The resize branch used the current React state overlay for each frame.
+  - For `line`, `arrow`, and `doodle`, `resizeOverlayToRect(...)` remaps points from `originRect` into `nextRect`, so feeding it an already-resized overlay causes cumulative scaling.
+- This explains the user-visible symptom precisely:
+  - a single synthetic pointermove can look correct
+  - a real browser drag emits multiple pointermoves
+  - each intermediate move compounds the previous transformed geometry, so the visual resize appears too fast and can feel locked to the first movement direction
+- The stable pattern should match Excalidraw-style transform semantics:
+  - pointer down freezes the source element/overlay snapshot
+  - each pointermove derives the current result from that snapshot plus current pointer coordinates
+  - never use the previous transformed frame as the source of the next transformed frame
+- Real-browser proof after the fix:
+  - `shape-line`: final handle delta `dx=0`, `dy=-0.015625`
+  - `arrow`: final handle delta `dx=0`, `dy=-0.015625`
+  - `doodle`: final handle delta `dx=0`, `dy=-0.015625`
+  - console errors: `0`
+
+## 2026-04-27 Image Editor Overlay Move Snapshot Findings
+
+- The selected-overlay move jump was the same architectural class as the previous resize compounding bug:
+  - `DragOverlayInteraction` stored pointer start and a normalized bounds origin, but not the pointer-down overlay snapshot.
+  - For negative-direction `line` / `arrow`, overlay `x/y` are semantic endpoints and can differ from normalized bounds `x/y`; subtracting `overlay.x - origin.x` or `overlay.y - origin.y` injected the endpoint direction into move delta.
+  - For `doodle`, each `pointermove` applied the total pointer delta to the already-translated point list, so multi-move drags compounded intermediate motion.
+- Main-canvas / Excalidraw-style move semantics should be reused conceptually:
+  - freeze the source overlay at pointer down
+  - compute `delta = currentPoint - startPoint`
+  - derive the current frame as `translateOverlay(originOverlay, delta)`
+  - never derive movement from the previous transformed frame
+- Real-browser reproduction before the fix:
+  - dragging a selected negative-direction arrow visually down/right moved the arrow by `x +73.77` but `y -82.62` image units, confirming a jump opposite the pointer's vertical direction.
+- Text editing was verified separately:
+  - current runtime allowed place -> type -> outside click -> double-click re-edit -> type -> SVG text sync.
+  - The durable regression is now in tests because future pointer/selection changes could still break the text edit lifecycle.
+- Real-browser proof after the fix:
+  - negative-direction arrow move expected image delta `103.27868852459015 / 53.114754098360656`; actual `x1/y1/x2/y2` deltas matched exactly.
+  - doodle multi-step move expected image delta `88.52459016393442 / 44.26229508196721`; actual first-point delta matched exactly.
+  - text edit lifecycle produced SVG text `浏览器文字` after initial typing and `复编成功` after double-click re-edit.
+  - console errors: `0`
+
+## 2026-04-27 Image Editor Text Focus / Double-Click Re-Edit Follow-Up
+
+- Fresh real-browser verification found two text lifecycle gaps that were hidden by simplified jsdom event dispatch:
+  - after placing text with a real browser click, the SVG text appeared but the textarea did not remain visible
+  - after outside blur, double-clicking the text hitbox did not re-open the textarea
+- Placement root cause:
+  - the text overlay was created on stage `pointerdown`
+  - `editingTextId` caused the textarea to focus before the same browser click had finished
+  - the following `pointerup/click` could immediately blur the textarea
+- Re-edit root cause:
+  - text hitbox double-click was going through selected-overlay drag setup
+  - the first `pointerdown` captured the pointer to the stage
+  - browser instrumentation showed the hitbox received only two `pointerdown` events, not the expected click/dblclick events
+- Stable correction:
+  - newly placed text defers textarea focus until the matching placement `pointerup`
+  - text hitbox re-edit is recognized from two close pointerdowns on the same overlay, so it works even when pointer capture prevents click/dblclick delivery
+- Real-browser proof after the follow-up:
+  - negative-direction arrow movement still matched expected image delta
+  - text placement opened a textarea and synced `初次文字验证` to SVG
+  - double-clicking the text hitbox re-opened the textarea and synced `复编浏览器验证` to SVG
+  - console errors: `0`
+## 2026-04-27 Image Editor Crop / Gallery Tag Findings
+
+- The crop button defect was not a rendering-only issue:
+  - `handleApplyCrop(...)` needed to commit a bounded crop rectangle and reset preview zoom/center so the post-crop `viewBox` immediately reflects the applied crop.
+  - Real-browser proof after the fix: dragging the top midpoint then pressing toolbar `裁剪` removed the crop overlay and changed the SVG `viewBox` to `0 154.55080049261085 1788 669.4491995073892`.
+- The crop handle model had drifted from the latest product requirement:
+  - code still carried the previous 12-handle identifiers (`resize-n-1`, `resize-n-2`, etc.)
+  - the required model is now exactly 8 handles: 4 corners plus 4 side midpoints
+  - simple midpoint names (`resize-n/e/s/w`) make axis constraints explicit and testable
+- The shape style toolbar issue was purely UI state leakage:
+  - the stroke/fill mode toggle group was still rendered for shape mode
+  - the requested toolbar should expose only stroke color and line width
+- Gallery label truncation and half-visible labels had two separate causes:
+  - `flex-1` strip width exposed partial extra tags when the right panel had leftover width
+  - browser `offsetLeft` was relative to a higher positioning ancestor, so raw offsets made one arrow click jump by a much larger amount
+- Stable gallery scrolling invariant:
+  - strip width should equal whole tag widths plus gaps (`254px` for 3 category tags; `340px` for 4 subcategory tags)
+  - scroll targets should be computed relative to the first tag before calling `scrollTo(...)`
+- Real-browser proof after the fix:
+  - category strip client width `254`, subcategory strip client width `340`
+  - before one right-arrow click: `总平素材`, `植物配景`, `人物配景` were fully visible
+  - after one right-arrow click: `植物配景`, `人物配景`, `交通配景` were fully visible
+  - console errors: `0`
+
+## 2026-04-28 Image Editor Gallery Data / Cursor / Crop Boundary Findings
+
+- The latest editor gallery label defect was a stale width configuration:
+  - first-level category strip already used `data-default-visible-count="3"` and `w-[254px]`
+  - second-level subcategory strip still used `data-default-visible-count="4"` and `w-[340px]`
+  - right panel width was still `440px`, which made the 3-tag rhythm feel inconsistent
+- The stage cursor issue was state modeling, not CSS inheritance:
+  - the SVG stage only set a cursor while `activeOverlayResizeHandle` was set
+  - tool selection state (`hand`, `text`, `crop`, `shape`, `arrow`, `freedraw`) had no cursor mapping
+  - crop resize state also had no active cursor state
+- The crop post-apply wheel defect came from reusing initial-preview zoom semantics after a crop was committed:
+  - zoom-out below `1` should be allowed for an uncropped full image
+  - once `cropDraftRect` differs from the full image, the committed crop rect becomes the visual boundary
+  - `visibleRect` and wheel-derived next rect must be clamped to that crop boundary to avoid revealing original pixels
+- The `人物配景` / `交通配景` wrong-image defect is persisted local data pollution:
+  - DB rows had correct `source_tag` values such as `免抠-青年人`, `免抠-汽车`, and `免抠-自行车`
+  - top active assets under multiple unrelated subtypes were identical source assets such as trees, chickens, ducks, moons, furniture, and packaging materials
+  - the STSQ sync path accepted browser-search results without semantic quality gates
+- STSQ direct API sampling was unstable in the container:
+  - `免抠-青年人` returned `400 USED_OUT_OF_TIMES`
+  - other STSQ direct requests timed out or also exhausted quota
+  - the safe fix is to fail closed on suspicious results rather than persisting whatever the remote search returns
+- Scoped cleanup is required for targeted official-gallery sync:
+  - previous cleanup compared all active IDs against the current run IDs
+  - category/subtype-targeted sync could therefore deactivate unrelated rows unless `--skip-cleanup` was used
+  - `--skip-cleanup` avoids collateral damage but leaves stale wrong rows active, so scoped cleanup is the stable middle path
+- Real-browser proof after this fix:
+  - editor sticker panel width `360px`
+  - category and subcategory strips both `254px` with default visible count `3`
+  - tool cursors: `grab`, `text`, and `crosshair` as expected
+  - crop handle cursors: `ns`, `ew`, and diagonal resize cursors
+  - post-crop wheel zoom stayed within the applied crop bounds
+  - `人物配景/青年` showed person assets; `交通配景` defaulted to non-empty `自行车` assets
+  - console errors: `0`
+
+## 2026-04-29 Official Editor Gallery Missing/Low Asset Resync Findings
+
+- Local DB audit showed the affected active counts before repair:
+  - `总平素材/户型总平`: `0`
+  - `人物配景/青年`: `10`
+  - `人物配景/人群`: `10`
+  - `植物配景/攀爬植物`: `0`
+  - `交通配景/汽车`: `0`
+  - `交通配景/摩托车`: `0`
+  - `交通配景/直升机`: `0`
+- The category/subtype rows were present and active, so the issue was missing/polluted asset rows rather than missing taxonomy.
+- Direct container requests to official `image/search` and `queryByTag` still returned `400 API_ILLEGAL_REQUEST`; the same requests succeeded in the logged-in official browser page. A durable sync path therefore needs browser-authenticated capture or another official-context fetch mechanism.
+- Official browser evidence:
+  - `户型总平` returned `20` assets on each of pages `0`, `1`, and `2`.
+  - `写实植物-攀爬类植物` returned `0` assets on pages `0` and `1`.
+  - STSQ searches for `汽车`, `摩托车`, and `直升机` produced non-traffic polluted pages and no accepted assets under semantic filtering.
+  - STSQ searches for `青年` and `人群` produced enough accepted people assets to backfill each subtype to 60 rows.
+- Data import evidence:
+  - `户型总平`: `60` downloaded / `60` prepared / `0` skipped.
+  - `青年`: final rerun `60` reused / `60` prepared / `0` skipped.
+  - `人群`: final rerun `60` reused / `60` prepared / `0` skipped.
+- A real-browser UI check caught that generic people matching was still too broad for future syncs. The durable fix is subtype-specific people matching:
+  - `青年` accepts signals such as `青年`, `青年人`, `年轻`, `时尚人物`, `运动人物`, `旅行人物`, `学习人物`, `商务人物`, and `模特`.
+  - `青年` rejects `小孩`, `儿童`, `孩子`, `老人`, `老年`, `亚洲人物-儿童`, and `欧洲复古人物-小孩`.
+- Final DB evidence:
+  - `总平素材/户型总平`, `人物配景/青年`, and `人物配景/人群` each have `60` active stored assets with active sort order `0..59`.
+  - `人物配景/青年` active rows matching `小孩|儿童|老人|老年` returned `0`.
+  - `植物配景/攀爬植物`, `交通配景/汽车`, `交通配景/摩托车`, and `交通配景/直升机` remain empty by design.
+- Real-browser proof:
+  - Local page title was `Loomic`.
+  - Imported Storage images loaded with real dimensions: `户型总平 1093x743`, `青年 3983x2424`, `人群 1037x607`.
+  - Console error count was `0`.
+
+## 2026-04-29 Official Editor Gallery STSQ Endpoint Findings
+
+- The earlier assumption that `交通配景/汽车`, `交通配景/摩托车`, and `交通配景/直升机` had no trustworthy official assets was wrong because the script was checking the wrong STSQ path.
+- 建筑学长 editor sticker tabs use `wallpaper.soutushenqi.com/api/wallpaper/reference` for `sourceType=STSQ`, not JZXZ `api/image/search`.
+- The public official browser request succeeds only with official browser context; the same signed URL from the Docker container without that context returns `400 API_ILLEGAL_REQUEST`.
+- The official STSQ wallpaper payload is intentionally sparse:
+  - most rows contain only `largeUrl`, `thumbUrl`, `width`, and `height`
+  - many rows do not include a remote `id`
+  - URL path tokens such as `car_cutout`, `motorcycle_cutout`, `helicopter_cutout`, and `aerial_view_people_cutout` are therefore the most reliable semantic quality signal
+- The local importer must not call `String(remoteAsset.id)` for STSQ rows when `id` is missing; using `null` allows the shared asset-id helper to derive a stable URL-hash identity.
+- Current verified local DB counts after repair:
+  - `交通配景/汽车=112`
+  - `交通配景/自行车=46`
+  - `交通配景/摩托车=117`
+  - `交通配景/轮船=65`
+  - `交通配景/直升机=52`
+  - `交通配景/飞机=76`
+  - `人物配景/鸟瞰=58`
+- Current verified contamination counts after repair:
+  - `人物配景/鸟瞰` tree leakage: `0`
+  - `交通配景` non-traffic path leakage: `0`
+- The editor-gallery label UI is now aligned with the latest user direction:
+  - first-level row displays three complete tags
+  - second-level row displays three complete text-only tags
+  - arrow scrolling advances by one full `82px + 4px` label slot and does not leave half-visible labels
+- Remaining data-sync risk:
+  - `汽车` has additional official pages beyond the first captured `120` rows
+  - a full mirror should use an authenticated browser-context fetch path, not unauthenticated container fetch and not the legacy STSQ search fallback
+
+## 2026-04-29 Canvas Mixed Selection / Context Menu Findings
+
+- Mixed canvas selections were not treated as multi-selection toolbar candidates:
+  - `selectedCanvasImage` is intentionally `null` unless exactly one image is selected.
+  - `showMultiImageSelectionActionBar` previously required `multiSelectedCanvasImages.length > 1`.
+  - Therefore `image + text` or `image + freedraw` had neither the single-image toolbar nor the multi-selection toolbar, so `创建组合` and `合并图层` disappeared.
+- The context-menu scrollbar came from the menu component itself:
+  - `CanvasContextMenu` used `max-h-[min(520px,calc(100vh-2rem))]` plus `overflow-y-auto`.
+  - With dense action inventories this creates an internal menu scrollbar instead of a compact grouped panel.
+- A stable grouping model can be derived from action ids:
+  - clipboard, layer ordering, conversation, composition, state, file/view, and destructive actions form separate groups.
+- Rendering separators at group boundaries keeps page-level action arrays unchanged while matching the requested grouped right-click presentation.
+
+## 2026-04-29 Canvas Mixed Selection Group/Merge Follow-Up Findings
+
+- The selected-effect residue after `创建编组` had two layers:
+  - Excalidraw native `appState.selectedElementIds` stayed populated unless the grouping helper cleared it in `updateScene(...)`.
+  - React page state still held `selectedCanvasElements` and a left-origin selection flag, so the custom floating action bar could stay visible even when the native scene mutation succeeded.
+- Mixed layer merge should not be image-count based:
+  - `image + text`, `image + freedraw`, and `image + shape` are valid layer compositions even when there is only one selected image.
+  - The correct guard is at least two selected scene elements.
+- The correct merge renderer is Excalidraw `exportToBlob(...)`:
+  - it preserves text, freedraw, shape, arrow, and image rendering consistently with the canvas
+  - it avoids the old scratch-canvas limitation that only drew image bitmaps
+- Real-browser proof used the current live scene rather than seeded test DOM:
+  - live elements were `text + freedraw + freedraw + image`
+  - the `image + text` pair rendered the real floating action bar
+  - `创建编组` cleared selection and assigned matching group IDs
+  - `合并图层` replaced the selected image/text pair with one merged image layer and cleared selection
+  - the scene was restored and reloaded back to the original four visible elements with no console errors
+
+## 2026-05-01 Main Canvas Shape/Doodle Selection Toolbar Findings
+
+- The selected shape/doodle style toolbar is implemented in `apps/web/src/components/canvas-tool-menu.tsx`, not in the image-editor modal.
+- The toolbar positioning root cause was `buildCanvasSelectionToolbarStyle(...)`:
+  - it computed the preferred top as `objectTop - 96`.
+  - if that value was less than `16`, it fell back to `objectBottom + 12`.
+  - this preserved viewport visibility but placed the toolbar below selected artwork, causing the visual obstruction reported by the user.
+- The stable interaction rule for main-canvas selected shape/doodle objects is:
+  - style controls belong in the floating toolbar.
+  - sizing belongs to native selection handles.
+  - therefore W/H number fields should not be present in the style toolbar.
+- The compact selected-object toolbar can use a smaller offset than the old two-row toolbar:
+  - after removing W/H, a `72px` top offset keeps normal cases above the selected object.
+  - near the viewport top, clamping to `16px` is better than falling below the object.
+- RED verification confirmed the old behavior precisely:
+  - selected-shape toolbar still contained the `形状宽度` spinbutton.
+  - a near-top shape with `y=32` produced toolbar `top=164px`, which was below the object.
+- Real-browser validation created and deleted a temporary rectangle on the live canvas:
+  - selected toolbar text after the fix was only `描边 / 填充 / 清除填充 / 线宽 / 2`.
+  - real DOM counts for `形状宽度` and `形状高度` were both `0`.
+  - the toolbar top was `188px` for an object drawn from about `y=260`, showing the toolbar above the object.
+- Separate observation:
+  - refreshing/closing a canvas tab can emit `CanvasEditor.useEffect.flushBeforeUnload` `Failed to fetch`.
+  - this appears to be an autosave-beforeunload path and should be tracked separately from the toolbar repair if it becomes user-visible.

@@ -235,6 +235,50 @@ describe("CanvasContextMenu", () => {
     expect(onMerge).toHaveBeenCalledTimes(1);
   });
 
+  it("groups dense selection actions with light separators without owning a scrollbar", () => {
+    render(
+      <div className="relative">
+        <CanvasContextMenu
+          open
+          mode="single-image"
+          position={{ x: 360, y: 180 }}
+          onClose={vi.fn()}
+          actions={[
+            { id: "copy-selection", label: "Copy", onSelect: vi.fn() },
+            { id: "paste-selection", label: "Paste", onSelect: vi.fn() },
+            { id: "move-forward", label: "Move forward", onSelect: vi.fn() },
+            { id: "move-backward", label: "Move backward", onSelect: vi.fn() },
+            { id: "move-front", label: "Move front", onSelect: vi.fn() },
+            { id: "move-back", label: "Move back", onSelect: vi.fn() },
+            { id: "attach-selection", label: "Send", onSelect: vi.fn() },
+            { id: "group-selection", label: "Group", onSelect: vi.fn() },
+            { id: "ungroup-selection", label: "Ungroup", onSelect: vi.fn() },
+            { id: "merge-selection", label: "Merge", onSelect: vi.fn() },
+            { id: "toggle-visibility", label: "Toggle visible", onSelect: vi.fn() },
+            { id: "lock-selection", label: "Lock", onSelect: vi.fn() },
+            { id: "export-selection", label: "Export", onSelect: vi.fn() },
+            {
+              id: "delete-selection",
+              label: "Delete",
+              danger: true,
+              onSelect: vi.fn(),
+            },
+          ]}
+        />
+      </div>,
+    );
+
+    const menu = screen.getByRole("menu");
+    expect(menu.className).not.toContain("overflow-y-auto");
+    expect(menu.className).not.toContain("max-h-[");
+
+    const separators = screen.getAllByTestId("canvas-context-menu-separator");
+    expect(separators).toHaveLength(6);
+    for (const separator of separators) {
+      expect(separator).toHaveClass("bg-slate-200");
+    }
+  });
+
   it("repositions the menu back into the viewport when the requested anchor would push it under the bottom edge", async () => {
     const originalInnerHeight = window.innerHeight;
     Object.defineProperty(window, "innerHeight", {

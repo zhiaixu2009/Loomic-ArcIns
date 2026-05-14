@@ -67,6 +67,7 @@ export const projectCreateResponseSchema = z.object({
 export const officialGalleryItemSchema = z.object({
   id: z.string().min(1),
   label: z.string().min(1),
+  thumbnailUrl: z.string().url().optional(),
   url: z.string().url(),
   width: z.number().int().positive(),
   height: z.number().int().positive(),

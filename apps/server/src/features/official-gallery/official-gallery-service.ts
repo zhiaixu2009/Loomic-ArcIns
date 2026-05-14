@@ -24,7 +24,7 @@ type OfficialGalleryLibrarySubtypeRow = Pick<
 >;
 type OfficialGalleryListAssetRow = Pick<
   OfficialGalleryAssetRow,
-  "asset_url" | "height" | "id" | "title" | "width"
+  "asset_url" | "height" | "id" | "source_thumb_url" | "title" | "width"
 >;
 
 const OFFICIAL_GALLERY_QUERY_FAILED_MESSAGE = "Unable to load official gallery.";
@@ -54,9 +54,12 @@ export class OfficialGalleryServiceError extends Error {
 }
 
 function mapOfficialGalleryAssetRow(asset: OfficialGalleryListAssetRow): OfficialGalleryItem {
+  const thumbnailUrl = asset.source_thumb_url?.trim() || undefined;
+
   return {
     id: asset.id,
     label: asset.title,
+    ...(thumbnailUrl ? { thumbnailUrl } : {}),
     url: asset.asset_url,
     width: asset.width,
     height: asset.height,
@@ -155,7 +158,7 @@ export function createOfficialGalleryService(options: {
       const assetsResult = await client
         .from("official_gallery_assets")
         .select(
-          "id, category_id, subtype_id, title, asset_url, width, height, sort_order, is_active, created_at, updated_at",
+          "id, category_id, subtype_id, title, asset_url, source_thumb_url, width, height, sort_order, is_active, created_at, updated_at",
           {
             count: "exact",
           },

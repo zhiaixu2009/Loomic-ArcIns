@@ -3924,3 +3924,740 @@
     - `node D:\\97-CodingProject\\Loomic-ArcIns\\node_modules\\.pnpm\\typescript@5.9.3\\node_modules\\typescript\\lib\\tsc.js -p D:\\97-CodingProject\\Loomic-ArcIns\\apps\\web\\tsconfig.json --noEmit`
   - real-browser runtime proof:
     - authenticated `/home` check reported `scrollbarGutter = stable` on the transition wrapper while the route remained vertically scrollable
+
+## 2026-04-25 Add Official Gallery UI Repair
+
+- Started a bounded repair for the left-toolbar Add modal official gallery.
+- Confirmed the regression scope is already represented in `apps/web/test/canvas-tool-menu.test.tsx`:
+  - hidden `默认`
+  - no refresh/header/stock rows
+  - no horizontal category scroll controls
+  - image-only cards
+  - lazy/async image loading
+  - page size `42`
+- Root-cause hypothesis:
+  - the local add-gallery data is two-level, but the frontend renders imported `默认` subtypes and extra operational chrome as visible product UI
+  - the UI therefore diverges from Jianzhuxuezhang's Add official gallery and makes categories appear empty or over-structured
+- Next step:
+  - update `apps/web/src/components/canvas-tool-menu.tsx` to sort/filter categories and subtypes for display without changing the database/API contract
+
+## 2026-04-25 Add Infinite Scroll + Image Editor Interaction Repair
+
+- Continued from the add-gallery UI repair and expanded the bounded scope to the user's latest four requirements.
+- Wrote regression coverage before implementation:
+  - updated `apps/web/test/canvas-tool-menu.test.tsx`
+    - asserts no `加载更多官方图库图片` button
+    - simulates scrolling the add modal body near the bottom
+    - asserts the second add-gallery page is loaded via `offset: 1`
+    - asserts the add modal body uses `scrollbar-hover-gutter`
+    - asserts pagination status prefers page `totalCount`
+  - added `apps/web/test/canvas-image-editor-modal.test.tsx`
+    - editor gallery header/status cleanup
+    - category/subcategory arrow controls and hidden scrollbar classes
+    - preview wheel zoom changes SVG `viewBox`
+    - arrow direction remains bottom-right to top-left
+    - text input normalizes newline to single-line text
+    - crop tool renders eight handles
+    - doodle stroke continues after pointer leave
+- Red evidence:
+  - first targeted Docker test run failed on missing add scrollbar class, missing editor arrow controls, unchanged wheel viewBox, missing crop handles, and premature/missing drawing interaction behavior.
+- Implemented fixes:
+  - `apps/web/src/app/globals.css`
+    - added `scrollbar-hover-gutter`
+    - added `scrollbar-hidden`
+  - `apps/web/src/components/canvas-tool-menu.tsx`
+    - added add-gallery body scroll threshold handler
+    - removed the load-more button
+    - added active scrolling data attribute for scrollbar visibility
+    - fixed pagination total count preference
+  - `apps/web/src/components/canvas/canvas-image-editor-modal.tsx`
+    - removed editor gallery status block
+    - added category/subcategory arrow scroll controls
+    - added wheel zoom state and viewBox adjustment
+    - preserved signed line/arrow dimensions
+    - normalized text overlays to single-line input
+    - added visible crop handles
+    - replaced pointer-leave finalization with pointer-cancel handling
+    - wrapped pointer capture/release as best-effort to avoid `NotFoundError` on cancelled or synthetic pointer sequences
+    - moved preview wheel handling to a native `{ passive: false }` SVG wheel listener
+- Verification completed in container:
+  - `pnpm exec vitest run --dir . test/canvas-tool-menu.test.tsx test/canvas-image-editor-modal.test.tsx --reporter=dot`
+    - result: `2` files / `21` tests passed
+  - `pnpm --filter @loomic/web typecheck`
+    - result: passed
+  - `pnpm exec vitest run --dir . test/canvas-page-selection-action-bar.test.tsx test/canvas-tool-menu.test.tsx test/canvas-image-editor-modal.test.tsx --reporter=dot`
+    - result: `3` files / `40` tests passed / `4` skipped
+    - note: this page-level bundle still includes existing intentional stderr logs from simulated failure tests
+- Real-browser Docker verification:
+  - opened `http://127.0.0.1:3000/canvas?id=c2d39249-5f0f-42eb-b462-23c2f56e8886&studio=architecture`
+  - `添加 -> 官方图库`:
+    - `beforeButtons: 30`
+    - `afterButtons: 60`
+    - `loadMoreButton: false`
+    - `statusBefore: 已展示 30 / 311 张本地图库图片`
+    - `statusAfter: 已展示 60 / 311 张本地图库图片`
+    - `scrollbarGutter: stable`
+    - `scrollbarWidth: thin`
+  - `图片编辑 -> 贴图`:
+    - `localUploadButtons: 1`
+    - `hasOfficialStatusCopy: false`
+    - first-level and second-level arrows present
+    - category strips use `scrollbar-hidden`
+    - selected first-level category has black fill and white text
+    - wheel zoom changed the SVG viewBox
+  - editor tool smoke script:
+    - `arrowDirectionOk: true`
+    - `textNormalized: true`
+    - `cropHandles: 8`
+    - `doodleContinuedAfterLeave: true`
+- Documentation:
+  - appended the required dated bug-fix record to `docs/bug-fix-log.md`
+  - screenshot artifacts:
+    - `D:/97-CodingProject/Loomic-ArcIns/.tmp/browser-add-gallery-verified.png`
+    - `D:/97-CodingProject/Loomic-ArcIns/.tmp/browser-image-editor-verified.png`
+
+## 2026-04-26 Add Gallery Performance + Header Cleanup
+
+- Investigated the user's latest add-gallery performance and `贴图` header report with code search, subagent code review, database/runtime checks, and real browser inspection.
+- Root-cause evidence:
+  - `添加 -> 官方图库` did not contain a `贴图` text node in the live DOM.
+  - the standalone `贴图` heading was still present in `CanvasImageEditorModal`'s right gallery header.
+  - add-gallery browsing already used thumbnail URLs, but it still loaded/mounted `30` cards per batch while the editor gallery uses `15`.
+  - add-gallery infinite-scroll appends into a growing DOM list, so smaller batches and render containment are the safest bounded improvement without reintroducing a visible `加载更多` button.
+- Wrote failing regressions first:
+  - `apps/web/test/canvas-tool-menu.test.tsx`
+    - add gallery should not render `贴图`
+    - first add-gallery request should use `limit: 15`
+    - first visible image should use `loading="eager"` and `fetchpriority="high"`
+  - `apps/web/test/canvas-image-editor-modal.test.tsx`
+    - editor gallery should no longer render the `贴图` header
+  - `apps/web/test/canvas-page-selection-action-bar.test.tsx`
+    - page-level editor opening path should no longer expose the `贴图` header
+- Red evidence in Docker:
+  - `pnpm exec vitest run --dir . test/canvas-tool-menu.test.tsx test/canvas-image-editor-modal.test.tsx test/canvas-page-selection-action-bar.test.tsx --reporter=dot`
+  - result before implementation: `3` expected failures on `贴图` still present and add-gallery first image still `loading="lazy"`
+- Implemented fixes:
+  - `apps/web/src/components/canvas-tool-menu.tsx`
+    - `OFFICIAL_GALLERY_PAGE_SIZE` changed from `30` to `15`
+    - first 6 images get `loading="eager"` and `fetchPriority="high"`
+    - later images remain lazy/auto priority
+    - gallery cards now use `content-visibility: auto` with `contain-intrinsic-size`
+  - `apps/web/src/components/canvas/canvas-image-editor-modal.tsx`
+    - removed the standalone `贴图` heading
+    - compacted the `本地上传` button by removing the old top margin
+- Green verification in Docker:
+  - `pnpm exec vitest run --dir . test/canvas-tool-menu.test.tsx test/canvas-image-editor-modal.test.tsx test/canvas-page-selection-action-bar.test.tsx --reporter=dot`
+  - result: `3` files passed, `40` tests passed, `4` skipped
+  - `pnpm --filter @loomic/web typecheck`
+  - result: passed
+- Real-browser Docker verification:
+  - reloaded `http://127.0.0.1:3000/canvas?id=c2d39249-5f0f-42eb-b462-23c2f56e8886&studio=architecture`
+  - opened `添加 -> 官方图库`
+  - initial image count was `15`
+  - `hasStickerText: false`
+  - first 6 images were eager/high-priority/async and loaded at `naturalWidth: 480`
+  - 7th image was lazy/auto-priority/async
+  - first card computed `contentVisibility: auto`
+  - scroll-to-bottom raised image count to `30` and kept newly appended images lazy/auto-priority
+  - screenshot artifact: `D:/97-CodingProject/Loomic-ArcIns/.tmp/browser-add-gallery-performance-verified.png`
+- Documentation:
+  - appended the required bug-fix record to `docs/bug-fix-log.md`.
+
+## 2026-04-26 Editor Gallery Performance Correction
+
+- Resumed after the user clarified scope:
+  - unwanted `贴图` text is the image-editor right gallery header
+  - performance optimization belongs to 【编辑】图库
+  - 【添加】图库 must return to its original 30-item waterfall/infinite-scroll cadence
+- Confirmed corrected implementation state:
+  - `apps/server/src/features/official-gallery/official-gallery-service.ts` selects `source_thumb_url` and maps it to `thumbnailUrl`
+  - `apps/web/src/components/canvas/canvas-image-editor-modal.tsx` uses thumbnail URLs for browsing and `originalSrc` for insertion
+  - editor first 6 visible thumbnails use eager/high-priority loading; later thumbnails remain lazy/auto
+  - editor right header no longer renders standalone `贴图`
+  - `apps/web/src/components/canvas-tool-menu.tsx` has `OFFICIAL_GALLERY_PAGE_SIZE = 30` and add-gallery images are lazy/async without `fetchPriority`
+- Fresh container verification:
+  - `pnpm --filter @loomic/server exec vitest run src/features/official-gallery/official-gallery-service.test.ts --reporter=dot --pool forks`
+    - result: `1` file / `1` test passed
+  - `pnpm exec vitest run --dir . test/canvas-tool-menu.test.tsx test/canvas-image-editor-modal.test.tsx test/canvas-page-selection-action-bar.test.tsx --reporter=dot`
+    - result: `3` files passed, `40` tests passed, `4` skipped
+  - `pnpm --filter @loomic/server typecheck`
+    - result: passed
+  - `pnpm --filter @loomic/web typecheck`
+    - result: passed
+  - runtime probes:
+    - `http://127.0.0.1:3001/api/health => {"ok":true,...}`
+    - `http://127.0.0.1:3000/home => HTTP/1.1 200 OK`
+- Fresh browser verification:
+  - add-gallery subtype initial count `30`, after scroll `60`, no load-more button, first image lazy/async/no `fetchpriority`
+  - editor gallery `15` images, no exact standalone `贴图` text node, first image thumbnail eager/high, seventh lazy/auto
+  - editor sticker insertion added local original URL from `official-gallery-assets`
+  - screenshot saved at `D:/97-CodingProject/Loomic-ArcIns/.tmp/browser-editor-gallery-performance-verified.png`
+- Documentation:
+  - appended corrective dated bug-fix entry to `docs/bug-fix-log.md`
+  - updated `findings.md`, `progress.md`, and `task_plan.md` so the superseding correction is visible after the earlier mistaken add-gallery optimization note
+
+## 2026-04-26 Image Editor Tool Regression Repair
+
+- Started a new bounded repair for the image-editor modal defects reported by the user:
+  - editor gallery needs middle-button panning in addition to wheel zoom
+  - editor gallery thumbnails need fallback from unstable third-party `thumbnailUrl` to local original `url`
+  - text tool must leave add mode after placing one text overlay
+  - crop tool needs a discarded-area grey mask and stable handles
+  - arrow tool must render an open stroked arrowhead and expose only stroke color / stroke width controls
+- Subagent audit confirmed the editor gallery blank-preview root cause:
+  - server now returns `source_thumb_url` as `thumbnailUrl`
+  - many Huaban thumbnail URLs fail in Chromium with `ERR_BLOCKED_BY_ORB` or nonstandard status
+  - local original `asset_url` still loads, so the front-end needs per-image fallback instead of treating the data row as broken
+- Corrected the newly added modal regression tests so they query the actual Chinese button names (`文字`, `裁剪`, `箭头`) rather than legacy mojibake strings before rerunning the Docker red test.
+- Completed the production fix in `apps/web/src/components/canvas/canvas-image-editor-modal.tsx`:
+  - added middle-button / hand-tool preview panning
+  - added editor-gallery image fallback from failed thumbnail URL to local original URL
+  - switched the text tool back to selection after the first placement
+  - replaced crop overlay with an even-odd discarded-area mask and scale-stable handles
+  - replaced triangular arrow markers with open stroked arrowheads and removed arrow fill controls
+- Fresh Docker verification:
+  - `pnpm exec vitest run --dir . test/canvas-image-editor-modal.test.tsx --reporter=dot`
+    - result: `1` file passed / `11` tests passed
+  - `pnpm exec vitest run --dir . test/canvas-page-selection-action-bar.test.tsx test/canvas-tool-menu.test.tsx test/canvas-image-editor-modal.test.tsx --reporter=dot`
+    - result: `3` files passed / `45` tests passed / `4` skipped
+  - `pnpm --filter @loomic/web typecheck`
+    - result: passed
+- Fresh real-browser Docker validation after restarting `loomic-arcins-web-1`:
+  - page: `http://127.0.0.1:3000/canvas?id=56b30185-bd03-4bef-afdc-345d08593ec2&studio=architecture`
+  - editor middle pan changed `viewBox` after wheel zoom and middle-button drag
+  - `植物配景`: `15` images, `0` broken previews, `9` fallback-to-local images
+  - `城市建筑`: `15` images, `0` broken previews, `15` fallback-to-local images
+  - text tool stayed at `1` text element after a second canvas click
+  - crop mask existed with `evenodd`, `8` handles, minimum handle width around `11.99px`
+  - arrow had no `marker-end`, open head `fill=none`, no fill toggle, and stroke color changed both shaft and head to `#00ff00`
+- Documentation:
+  - appended a dated bug-fix record to `docs/bug-fix-log.md`
+  - updated `findings.md`, `progress.md`, and `task_plan.md`
+
+## 2026-04-26 Image Editor Zoom / Toolbar / Sticker Transform Follow-up
+
+- Started a new bounded repair for the latest image-editor defects:
+  - initial preview must zoom out below 1x down to 0.25
+  - freedraw needs the same floating stroke color / width controls as stroke-only tools
+  - shape / freedraw / arrow / text sizing must be based on current screen display scale rather than raw image resolution
+  - editor gallery category strips need wider default visibility plus 4x hover preview
+  - crop needs 12 draggable handles
+  - inserted official-gallery stickers need draggable and scalable transform behavior
+- Current root-cause hypothesis:
+  - `PREVIEW_ZOOM_MIN` is still `1`, so wheel-down at initial state clamps to the full image.
+  - `topToolbar` explicitly excludes doodles and only handles crop, shape/arrow, and text.
+  - stroke width and text size are stored/rendered directly in image coordinates.
+  - crop handle constants and hit testing only cover 8 positions.
+  - sticker insertion selects the overlay but does not provide transform handles, and active tool state can leave users outside selection semantics.
+- Next step:
+  - add failing regressions in `apps/web/test/canvas-image-editor-modal.test.tsx`, verify red in Docker, then implement the bounded component fix.
+
+## 2026-04-26 Image Editor Zoom / Toolbar / Sticker Transform Follow-up Closure
+
+- Status: complete.
+- Production changes completed in `apps/web/src/components/canvas/canvas-image-editor-modal.tsx`:
+  - initial preview can zoom out to `0.25`
+  - zoom-out focus is bounded to the image rect so repeated wheel events cannot push the `viewBox` away from the image
+  - wheel handling uses a `passive: false` native listener to avoid Chromium passive-listener console errors
+  - doodle now has the same floating stroke color / width toolbar as stroke-only tools
+  - shape, arrow, doodle, and text defaults are red (`#ff0000`)
+  - stroke width and text size are authored as screen pixels and converted to image units using the current stage scale
+  - editor gallery category strips expose `3` first-level labels and `4` second-level labels by default
+  - sticker thumbnails expose a `344px x 344px` hover preview
+  - crop exposes `12` handles and parses only the handle direction segment after `resize-`
+  - inserted gallery stickers switch to selection mode and can be dragged plus corner-resized
+- Test changes completed in `apps/web/test/canvas-image-editor-modal.test.tsx`:
+  - added regression coverage for zoom-out clamp and viewBox drift prevention
+  - added regression coverage for red/screen-based styling
+  - added regression coverage for 12 crop handles, side-handle drag, and width stability
+  - added regression coverage for wider gallery category strips, hover preview, and sticker drag/resize
+- Fresh Docker verification:
+  - focused modal test:
+    - command: `wsl.exe --cd /mnt/d/97-CodingProject/Loomic-ArcIns -e docker exec loomic-arcins-web-1 sh -lc "cd /app/apps/web && pnpm exec vitest run --dir . test/canvas-image-editor-modal.test.tsx --reporter=dot"`
+    - result: `1` file passed, `16` tests passed
+  - bounded regression:
+    - command: `wsl.exe --cd /mnt/d/97-CodingProject/Loomic-ArcIns -e docker exec loomic-arcins-web-1 sh -lc "cd /app/apps/web && pnpm exec vitest run --dir . test/canvas-page-selection-action-bar.test.tsx test/canvas-tool-menu.test.tsx test/canvas-image-editor-modal.test.tsx --reporter=dot"`
+    - result: `3` files passed, `50` tests passed, `4` skipped
+  - web typecheck:
+    - command: `wsl.exe --cd /mnt/d/97-CodingProject/Loomic-ArcIns -e docker exec loomic-arcins-web-1 sh -lc "cd /app && pnpm --filter @loomic/web typecheck"`
+    - result: passed
+- Fresh real-browser Docker verification:
+  - page: `http://127.0.0.1:3000/canvas?id=56b30185-bd03-4bef-afdc-345d08593ec2&studio=architecture`
+  - opened an existing canvas image through the real selected-image action bar
+  - final browser values:
+    - `zoomApprox: 0.25`
+    - `viewBox.width: 7152`
+    - `imageCenterStillVisible: true`
+    - doodle toolbar `#ff0000 / 5px`
+    - doodle and arrow `screenStrokePx: 5`
+    - text `screenFontPx: 34`
+    - category default visible count `3`
+    - subcategory default visible count `4`
+    - hover preview `344 x 344`
+    - crop handle count `12`
+    - crop top handle drag preserved width and reduced height without collapse
+    - sticker drag and resize both updated overlay geometry
+    - console errors/warnings: `<no console messages found>`
+  - screenshot artifact:
+    - `D:/97-CodingProject/Loomic-ArcIns/.tmp/browser-image-editor-final-verified.png`
+- Documentation:
+  - appended the required dated bug-fix record to `docs/bug-fix-log.md`
+  - updated `findings.md`, `progress.md`, and `task_plan.md`
+
+## 2026-04-27 Image Editor Text Focus / Re-Edit Follow-Up
+
+- Status: complete.
+- Real-browser follow-up finding:
+  - the prior overlay move fix was correct, but real browser validation exposed that text placement focus could be lost during the same pointer gesture
+  - text hitbox double-click was also unreliable because pointer capture on the first pointerdown prevented normal click/dblclick delivery back to the hitbox
+- Production fix:
+  - deferred newly placed text textarea focus until the matching stage pointerup
+  - added pointerdown-pair detection for text hitbox re-edit so the second close pointerdown enters edit mode even when click/dblclick is swallowed by pointer capture
+- Verification:
+  - Docker focused modal test passed with `29` tests
+  - Docker bounded canvas/editor regression passed with `63` passed / `4` skipped
+  - Docker web typecheck passed
+  - real browser validation passed for negative arrow move, text placement edit, outside blur, text hitbox double-click re-edit, SVG sync, and console errors `0`
+- Artifact:
+  - `D:/97-CodingProject/Loomic-ArcIns/.tmp/image-editor-move-text-recheck.png`
+
+## 2026-04-27 Image Editor Overlay Move Snapshot Repair
+
+- Started from the user's in-app browser comments:
+  - 【箭头】等工具绘制的图形在【选择】工具移动时会出现鼠标跳跃。
+  - 【文字】仍然不可编辑，需要参考主画板文字交互。
+- Runtime / context:
+  - Re-read `docs/scripts/startprogram/README.md`.
+  - Confirmed runtime through `docs/scripts/startprogram/status-local-runtime.ps1`: keepalive running, Docker active, Supabase healthy, `loomic-arcins-server-1` healthy, Web 3000 and API 3001 reachable.
+- Root-cause investigation:
+  - Real browser reproduced the selected negative-direction arrow move jump: a visually down/right drag produced `x +73.77` but `y -82.62` image-unit movement.
+  - Code inspection showed `DragOverlayInteraction` stored only `startPoint` and normalized bounds `origin`, then mixed current overlay state into every `pointermove`.
+  - For negative-direction `arrow/line`, semantic endpoint `x/y` differs from normalized bounds `x/y`; for `doodle`, current-state translation compounded every intermediate pointermove.
+  - Text placement / typing / blur / double-click re-edit worked in the current runtime, so text was covered as a regression and revalidated in browser rather than changed blindly.
+- TDD RED:
+  - Added negative-direction arrow movement regression.
+  - Added doodle multi-pointermove movement regression.
+  - Added realistic `userEvent.dblClick` text re-edit regression.
+  - Docker RED produced expected failures before the production fix: `2 failed | 26 passed`.
+- Production fix:
+  - Replaced `DragOverlayInteraction.origin` with `originOverlay`.
+  - Pointer down now stores the source overlay snapshot.
+  - Pointermove now applies `translateOverlay(interaction.originOverlay, delta)` for the matching overlay.
+- Verification:
+  - Docker focused modal test passed: `28` tests passed.
+  - Docker bounded canvas/editor regression passed: `62` passed / `4` skipped.
+  - Docker web typecheck passed.
+  - `git diff --check` passed with only existing CRLF warnings.
+- Real-browser verification:
+  - refreshed `http://127.0.0.1:3000/canvas?id=56b30185-bd03-4bef-afdc-345d08593ec2&studio=architecture`
+  - opened the real image editor from a selected canvas image
+  - negative-direction arrow move expected and actual deltas matched exactly: `103.27868852459015 / 53.114754098360656`
+  - doodle multi-step move expected and actual deltas matched exactly: `88.52459016393442 / 44.26229508196721`
+  - text placement, typing, outside blur, double-click re-edit, and SVG text update worked; final SVG text was `复编成功`
+  - browser console error count: `0`
+  - screenshot artifact: `D:/97-CodingProject/Loomic-ArcIns/.tmp/browser-image-editor-drag-text-green.png`
+- Documentation:
+  - appended the required dated bug-fix record to `docs/bug-fix-log.md`
+  - updated `findings.md`, `progress.md`, and `task_plan.md`
+## 2026-04-27 Start Program Consolidation
+
+- Started after a Windows reboot report from the user.
+- First startup attempt through the existing Windows wrapper failed because `supabase_db_loomic` was temporarily `unhealthy` while Postgres was still starting and fsyncing data after reboot.
+- Root-cause evidence:
+  - Docker service was `active`.
+  - keepalive was running.
+  - Supabase DB logs repeatedly showed `the database system is starting up` and `syncing data directory (fsync)`.
+  - Waiting without deleting volumes allowed `supabase_db_loomic` to become `healthy`; API health and Web home then returned successfully.
+- Implementation completed:
+  - added `docs/scripts/startprogram` as the canonical local runtime entry/index directory
+  - added Windows start/status/stop entry scripts under that directory
+  - added WSL start/status/stop/keepalive/env helper scripts under that directory
+  - updated old `scripts/windows` and `scripts/wsl` runtime scripts into compatibility wrappers that delegate to `docs/scripts/startprogram`
+  - rewrote `AGENTS.md` local runtime memory to reference the new directory index and avoid embedding concrete startup script details
+- Verification completed:
+  - new `docs/scripts/startprogram` status entry reported keepalive running, Docker active, Supabase core containers healthy, `loomic-arcins-server-1` healthy, Web 3000 and API 3001 reachable
+  - new `docs/scripts/startprogram` start entry completed successfully against the recovered runtime
+  - legacy `scripts/windows/status-local-runtime.ps1` compatibility wrapper completed successfully and delegated to the new directory
+  - WSL shell syntax check passed for the new WSL scripts and compatibility wrappers
+  - in-app browser opened `http://127.0.0.1:3000/home` with title `Loomic` and `0` console errors
+
+## 2026-04-27 Image Editor Anchored Zoom / Selection Transform Repair
+
+- Continued from the previous red-test handoff for the image-editor defects reported through in-app browser comments.
+- Production changes completed in `apps/web/src/components/canvas/canvas-image-editor-modal.tsx`:
+  - wheel zoom now derives the next preview center from the invariant that the image point under the cursor remains under that cursor
+  - natural zoom no longer forces `previewBaseRect`, so pan state is preserved when zooming back near 1x
+  - middle/hand pan uses the same center-clamping helper as wheel zoom
+  - stage SVG no longer renders its own white rounded shadow background
+  - shape flyout no longer includes the arrow tool
+  - drawing shape/arrow/doodle hides the dashed selection outline until pointer up/cancel
+  - selected non-text overlays now share selection outline plus four corner resize handles
+  - resize transforms now support sticker, rectangle, ellipse, line, arrow, and doodle overlays
+  - visible resize handles respond for the currently selected overlay even immediately after drawing
+- Test changes completed in `apps/web/test/canvas-image-editor-modal.test.tsx`:
+  - added anchored zoom regression
+  - added no auto-center regression around natural zoom
+  - asserted stage SVG has no white background / rounded / shadow class
+  - asserted shape flyout does not duplicate arrow
+  - added text edit lifecycle regression
+  - added drawing-state selection-outline and selected overlay resize-handle regression
+- Verification completed in Docker:
+  - focused modal test: `1` file passed, `21` tests passed
+  - bounded regression: `3` files passed, `55` tests passed, `4` skipped
+  - web typecheck: passed
+- Real-browser verification completed in the in-app browser:
+  - page: `http://127.0.0.1:3000/canvas?id=56b30185-bd03-4bef-afdc-345d08593ec2&studio=architecture`
+  - stage class: `block overflow-visible`
+  - left/right wheel zoom produced stable viewBox progression without cursor-side drift
+  - zooming back near natural size did not reset `x` to `0`
+  - shape flyout contained rectangle/circle/line while arrow count in the dialog stayed `1`
+  - rectangle resize handle changed width from `278.45297953284637` to `437.5689678373301`
+  - arrow and doodle selected states each exposed `4` resize handles
+  - text placement/external click/double-click edit lifecycle worked
+  - browser console errors: `0`
+  - screenshot artifact: `D:/97-CodingProject/Loomic-ArcIns/.tmp/browser-image-editor-zoom-selection-verified.png`
+- Documentation:
+  - appended the required bug-fix record to `docs/bug-fix-log.md`
+  - updated `findings.md`, `progress.md`, and `task_plan.md`
+
+## 2026-04-27 Image Editor Draw Completion / Resize Handle Follow-up
+
+- Started follow-up from the user's in-app browser diff comment on the `箭头` tool.
+- Root-cause investigation so far:
+  - shape / arrow / doodle drawing sets the newly created overlay as `selectedOverlayId`
+  - pointer-up clears `selectionHiddenOverlayId`, which makes the dashed selection outline visible immediately after drawing
+  - overlay resize currently derives a locked aspect-ratio scale from the largest pointer delta, so the dragged corner can visually drift away from the mouse
+  - resize handle nodes do not expose directional cursor styles
+- TDD RED work in progress:
+  - updated `apps/web/test/canvas-image-editor-modal.test.tsx` to require draw-completed shape / arrow / doodle overlays to stay unselected until the selection tool clicks them
+  - added a regression requiring resize handles to show diagonal cursors and the southeast handle to stay under the pointer during an off-aspect drag
+- RED evidence:
+  - Docker focused modal test failed before the production fix with `2 failed | 20 passed`
+  - failures matched the intended regressions: selection outline remained after draw completion, and resize handles had no directional cursor style
+- Production fix in progress:
+  - drawing shape / arrow / doodle now clears the selected overlay on pointer-up / cancel
+  - overlay resize handles now expose diagonal resize cursors
+  - active resize drag keeps the stage cursor in the same directional resize mode
+  - corner resize now uses the opposite corner as the anchor and maps the dragged corner directly to the current pointer instead of aspect-locking through the largest delta
+- GREEN evidence:
+  - Docker focused modal test passed after the fix: `22` tests passed
+- Bounded verification:
+  - Docker canvas/editor regression passed: `3` files passed, `56` tests passed, `4` skipped
+  - Docker web typecheck passed
+- In-app browser verification:
+  - page: `http://127.0.0.1:3000/canvas?id=56b30185-bd03-4bef-afdc-345d08593ec2&studio=architecture`
+  - arrow draw completion: selection outline `0`, resize handles `0`
+  - arrow selected through 【选择】: selection outline `1`, resize handles `4`
+  - SE/NE handle cursor styles: `nwse-resize` / `nesw-resize`
+  - shape and doodle draw completion: selection outline `0`, resize handles `0`
+  - browser console errors: `0`
+  - screenshot artifact: `D:/97-CodingProject/Loomic-ArcIns/.tmp/browser-image-editor-selection-resize-followup-verified.png`
+- Documentation:
+  - appended the required dated record to `docs/bug-fix-log.md`
+  - updated `findings.md`, `progress.md`, and `task_plan.md`
+
+## 2026-04-27 Image Editor Multi-Move Resize Snapshot Repair
+
+- Started from the user's follow-up that【形状】【箭头】【涂鸦】resize handles still felt wrong in the editor: scaling moved too fast and seemed to lock to the first drag direction.
+- Re-read the active planning files and runtime/startprogram index, then confirmed the Docker runtime was up through `docs/scripts/startprogram/status-local-runtime.ps1`.
+- Minor command note:
+  - one ad-hoc Docker quote probe failed with `Syntax error: Unterminated quoted string`
+  - one ad-hoc diff-inspection `Select-String` pipeline had a PowerShell argument parsing error and was rerun with `-SimpleMatch`
+  - it did not affect runtime state; subsequent Docker test/typecheck/status commands used stable direct command forms and passed
+- Root-cause investigation:
+  - focused on `CanvasImageEditorModal` resize-overlay state
+  - compared against the main canvas / Excalidraw transform model, where transforms are derived from pointer-down source state
+  - real browser reproduction showed an existing arrow SE handle moved far beyond the final pointer after a multi-step drag, matching compounding behavior
+- TDD RED:
+  - added a regression in `apps/web/test/canvas-image-editor-modal.test.tsx` that drags the SE handle outward and then back inward in the same interaction
+  - covered `shape-line`, `arrow`, and `doodle`
+  - Docker RED produced expected failures before the production fix: `1` file failed; `arrow` and `doodle` showed about `114px` final pointer drift
+- Production fix:
+  - added `originOverlay` to `ResizeOverlayInteraction`
+  - pointer down stores the source overlay snapshot alongside `originRect`
+  - pointermove now calls `resizeOverlayToRect(interaction.originOverlay, interaction.originRect, nextRect)` instead of resizing the already-transformed current overlay
+- GREEN / verification:
+  - Docker focused modal test passed: `25` tests passed
+  - Docker bounded canvas/editor regression passed: `59` passed / `4` skipped
+  - Docker web typecheck passed
+  - `git diff --check` passed with only existing CRLF warnings
+- Real-browser verification:
+  - refreshed `http://127.0.0.1:3000/canvas?id=56b30185-bd03-4bef-afdc-345d08593ec2&studio=architecture`
+  - opened the real image editor from a selected canvas image
+  - created and selected `shape-line`, `arrow`, and `doodle`
+  - dragged each SE handle outward and then back inward
+  - final handle deltas:
+    - `shape-line dx=0 dy=-0.015625`
+    - `arrow dx=0 dy=-0.015625`
+    - `doodle dx=0 dy=-0.015625`
+  - browser console error count: `0`
+  - screenshot artifact: `D:/97-CodingProject/Loomic-ArcIns/.tmp/browser-image-editor-resize-snapshot-green.png`
+- Documentation:
+  - appended the required dated bug-fix record to `docs/bug-fix-log.md`
+  - updated `findings.md`, `progress.md`, and `task_plan.md`
+## Latest Update: 2026-04-27 Image Editor Crop / Gallery Tag Follow-Up
+
+- Status: complete for the latest image-editor crop, toolbar, and gallery category defects.
+- Scope closed:
+  - shape style toolbar no longer shows the left stroke/fill mode switch group
+  - crop tool now renders exactly 8 handles: four corners plus four edge midpoints
+  - crop edge midpoint handles are constrained to the expected axis
+  - pressing the crop toolbar button commits the crop and updates the visible image region
+  - editor gallery category strips use fixed complete-tag widths and arrow scrolling advances by exactly one full tag boundary
+- Root-cause decisions:
+  - the crop apply action must reset preview zoom/center after writing the bounded crop rectangle
+  - old segmented crop handle ids made the 8-handle midpoint behavior harder to reason about and were removed
+  - gallery scrolling must use offsets relative to the first tag, because raw `offsetLeft` is not relative to the scroll strip in the real browser layout
+  - strip widths should be deterministic whole-tag widths rather than flex leftover widths
+- Verification evidence:
+  - Docker focused modal test: RED first with `7 failed | 26 passed`, then GREEN with `33 passed`
+  - Docker bounded regression: `67 passed / 4 skipped`
+  - Docker web typecheck: passed
+  - real-browser validation: toolbar controls correct, crop handle count `8`, crop apply updated viewBox, category/subcategory strips were `254px` / `340px`, one arrow click shifted from `总平素材/植物配景/人物配景` to `植物配景/人物配景/交通配景`, console errors `0`
+- Artifact:
+  - `D:/97-CodingProject/Loomic-ArcIns/image-editor-gallery-crop-verification.png`
+
+## Latest Update: 2026-04-28 Image Editor Gallery Data / Cursor / Crop Boundary Follow-Up
+
+- Status: complete for the latest in-app browser diff comments.
+- Scope closed:
+  - editor sticker panel now adapts to 3 complete tags and uses `w-[360px]`
+  - first-level and second-level editor sticker category strips both expose 3 complete tags by default
+  - left editor tools now update the image editor stage cursor (`抓手=grab`, `文字=text`, drawing/crop tools `crosshair`)
+  - crop handles now show directional resize cursors
+  - committed crops now constrain wheel zoom to the crop bounds, so original uncropped pixels cannot reappear
+  - STSQ official-gallery sync now rejects obvious cross-category pollution before persistence
+  - targeted official-gallery sync cleanup is scoped to the target categories/subtypes/assets instead of global
+  - local Supabase official-gallery data was cleaned for polluted `人物配景` and `交通配景` rows
+- Root-cause decisions:
+  - initial full-image zoom-out and post-crop zoom-out need different bounds semantics
+  - crop handle cursor affordance belongs on the visible handle hit target and on active crop resize state
+  - editor category UI should preserve whole-label tag widths rather than relying on panel leftover space
+  - STSQ remote search is not trustworthy enough to persist unvalidated results
+  - missing local correct assets should remain empty rather than being replaced by fabricated or cross-class assets
+- Verification evidence:
+  - Docker focused modal test: RED first with `5 failed | 29 passed`, then GREEN with `34 passed`
+  - Docker server official-gallery tests: RED first with `2` helper failures, then GREEN with `19 passed`
+  - Docker bounded canvas/editor regression: `68 passed / 4 skipped`
+  - Docker web typecheck: passed
+  - Docker server typecheck: passed
+  - `git diff --check`: passed with only existing CRLF warnings
+  - in-app browser validation: gallery widths, tool cursors, crop handle cursors, post-crop wheel bounds, cleaned people/traffic gallery content, and console errors `0`
+- Data repair evidence:
+  - local DB deactivated `466` polluted active rows under `人物配景` / `交通配景`
+  - local DB reordered `34` remaining active rows after cleanup
+  - post-cleanup query found no active tree/chicken/duck/moon/furniture leakage titles in those two categories
+- Artifact:
+  - `D:/97-CodingProject/Loomic-ArcIns/.tmp/image-editor-latest-comments-verified.png`
+
+## 2026-04-29 Official Editor Gallery Missing/Low Asset Resync
+
+- Continued after the previous crash using the handoff summary and planning files.
+- Confirmed runtime health through `docs/scripts/startprogram/status-local-runtime.ps1`:
+  - keepalive running
+  - Docker active
+  - Supabase containers healthy
+  - `loomic-arcins-server-1` healthy
+  - `http://127.0.0.1:3000/home => 200`
+  - `http://127.0.0.1:3001/api/health => 200`
+- Audited local DB counts and confirmed missing/low subtypes:
+  - `总平素材/户型总平=0`
+  - `人物配景/青年=10`
+  - `人物配景/人群=10`
+  - `植物配景/攀爬植物=0`
+  - `交通配景/汽车=0`
+  - `交通配景/摩托车=0`
+  - `交通配景/直升机=0`
+- Rechecked 建筑学长 official browser data:
+  - `户型总平` returned three pages of 20 assets.
+  - `写实植物-攀爬类植物` returned 0 assets.
+  - traffic searches for `汽车` / `摩托车` / `直升机` remained polluted and produced no semantically accepted traffic assets.
+  - people searches for `青年` / `人群` produced enough accepted assets to backfill each subtype.
+- Imported `总平素材/户型总平` from captured browser responses:
+  - downloaded `60`
+  - prepared `60`
+  - skipped `0`
+- Captured and imported `人物配景/青年` and `人物配景/人群`:
+  - final rerun reused all `60` rows per subtype
+  - skipped `0`
+  - scoped stale cleanup did not affect unrelated subtypes
+- Added TDD regression to `apps/server/src/features/official-gallery/official-gallery-sync.test.ts`:
+  - RED: focused sync test failed with `1 failed | 19 passed` because `青年` accepted child and elder assets.
+  - GREEN: focused sync test passed with `20` tests after the quality-gate fix.
+- Updated `apps/server/src/features/official-gallery/official-gallery-sync.ts`:
+  - added subtype-specific STSQ people positive keywords
+  - added subtype-specific reject keywords for youth/elder/child cross-leakage
+- Re-ran targeted import after tightening the importer:
+  - `青年`: prepared `60`, reused `60`, skipped `0`, stale deactivated `0`
+  - `人群`: prepared `60`, reused `60`, skipped `0`, stale deactivated `0`
+- Final DB verification:
+  - `总平素材/户型总平`: `60` active stored assets, active sort `0..59`
+  - `人物配景/青年`: `60` active stored assets, active sort `0..59`
+  - `人物配景/人群`: `60` active stored assets, active sort `0..59`
+  - `青年` active child/elder contamination query returned `0` rows
+  - `攀爬植物`, `汽车`, `摩托车`, and `直升机` remain `0` active assets by design
+- Final Docker verification:
+  - `pnpm --filter @loomic/server exec vitest run src/features/official-gallery/official-gallery-sync.test.ts src/features/official-gallery/official-gallery-service.test.ts src/http/official-gallery.test.ts --reporter=dot`
+  - Result: `3` files passed, `24` tests passed
+  - `pnpm --filter @loomic/server typecheck`
+  - Result: passed
+- Real-browser validation:
+  - reloaded `http://127.0.0.1:3000/canvas?id=0a1dc7cd-098b-4dda-af76-dc24063f4b16&studio=architecture`
+  - title was `Loomic`
+  - imported Storage images loaded with dimensions `1093x743`, `3983x2424`, and `1037x607`
+  - console error count was `0`
+- Stopped the temporary local capture endpoint after use.
+- Appended the required bug-fix record to `docs/bug-fix-log.md` and updated `task_plan.md`, `findings.md`, and `progress.md`.
+
+## 2026-04-29 Official Editor Gallery STSQ Wallpaper Reference Repair
+
+- Continued from the latest user confirmation that `交通配景` does have official material on 建筑学长 and that `人物配景/鸟瞰` must match official bird-view people assets.
+- Confirmed the root cause with the real logged-in official browser:
+  - official config maps `人物配景/鸟瞰` to `tag=免抠-鸟瞰人`, `sourceType=STSQ`
+  - official config maps `交通配景` to STSQ tags such as `免抠-汽车`, `免抠-摩托车`, and `免抠-直升机`
+  - official editor STSQ calls use `https://wallpaper.soutushenqi.com/api/wallpaper/reference`
+  - direct container fetch without official browser context still returns `400 API_ILLEGAL_REQUEST`
+- Updated `scripts/sync-jzxz-official-gallery.ts` so editor STSQ imports use `wallpaper/reference` semantics and can import real-browser-captured responses through `--stsq-response-dir` inside Docker.
+- Updated helper tests with current signatures and kept the regression that prevents STSQ editor tabs from using legacy `image/search` or `images_by_text`.
+- Captured official `wallpaper/reference` responses in the real browser and imported them through the Docker web container:
+  - `交通配景/汽车`: `112` active assets
+  - `交通配景/自行车`: `46` active assets, with `1` official source image skipped because the remote image returned `404`
+  - `交通配景/摩托车`: `117` active assets
+  - `交通配景/轮船`: `65` active assets
+  - `交通配景/直升机`: `52` active assets
+  - `交通配景/飞机`: `76` active assets
+  - `人物配景/鸟瞰`: `58` active assets
+- Verified database contamination guards:
+  - `人物配景/鸟瞰` tree leakage count: `0`
+  - `交通配景` non-traffic path leakage count: `0`
+- Real-browser editor-gallery verification:
+  - second-level labels are text-only with `border: 0px`
+  - category and subcategory strips are `254px`, showing three complete labels
+  - one right-arrow click moves the subtype strip by `86px`, with no half-visible tag
+  - `人物配景/鸟瞰` thumbnails are `aerial_view_people_cutout` and load at `480x480`
+  - after a fresh reload, local page console error count is `0`
+- Fresh Docker verification completed:
+  - server official-gallery tests: `3` files, `26` tests passed
+  - web image-editor modal tests: `1` file, `35` tests passed
+  - web typecheck passed
+  - server typecheck passed
+  - `git diff --check` passed with only existing CRLF warnings
+
+## 2026-04-29 Canvas Mixed Selection / Context Menu Repair
+
+- Started the new canvas interaction repair after user reported:
+  - box-selecting mixed canvas elements such as image + doodle or image + text should expose the same floating `创建组合` and `合并图层` actions as multi-image selection.
+  - the canvas right-click menu should not show a scrollbar and should group actions with light gray separators.
+- Confirmed project rules for this run:
+  - final runtime and verification must stay in the Docker/container environment.
+  - browser entry remains `http://127.0.0.1:3000/home`.
+  - every bug fix must append a record to `docs/bug-fix-log.md`.
+- Initial code search located the likely implementation points:
+  - `apps/web/src/app/canvas/page.tsx`
+  - `apps/web/src/components/canvas/canvas-selection-action-bar.tsx`
+  - `apps/web/src/components/canvas/canvas-context-menu.tsx`
+  - `apps/web/test/canvas-page-selection-action-bar.test.tsx`
+  - `apps/web/test/canvas-page-context-menu.test.tsx`
+- Confirmed local runtime health through `docs/scripts/startprogram/status-local-runtime.ps1`:
+  - keepalive running
+  - Docker active
+  - Supabase containers healthy
+  - `loomic-arcins-server-1` healthy
+  - `http://127.0.0.1:3000/home => 200`
+  - `http://127.0.0.1:3001/api/health => 200`
+- Added RED coverage before production changes:
+  - mixed `image + text` and `image + freedraw` selections should show the floating `创建组合`, `合并图层`, and send-to-chat actions rather than single-image edit actions.
+  - dense context menus should not own `overflow-y-auto` / max-height scrollbar behavior and should expose six light group separators for the single-image action inventory.
+- RED verification in Docker:
+  - `pnpm exec vitest run --dir . test/canvas-page-selection-action-bar.test.tsx test/canvas-context-menu.test.tsx --reporter=dot`
+  - Result: `2` files failed as expected, with `3` failing assertions for missing mixed-selection actions and the old `overflow-y-auto` menu class.
+- Implemented the fix:
+  - `apps/web/src/app/canvas/page.tsx` now treats left-origin multi-element selections containing at least one image as multi-selection toolbar candidates.
+  - `apps/web/src/components/canvas/canvas-context-menu.tsx` now derives separators from action-id groups and uses `overflow-hidden` instead of an internal `overflow-y-auto` scrollbar.
+- GREEN verification in Docker:
+  - focused toolbar/menu tests: `2` files passed, `26` tests passed, `4` skipped.
+  - page context-menu/context-actions tests: `2` files passed, `17` tests passed.
+  - `pnpm --filter @loomic/web typecheck`: passed.
+  - `git diff --check`: passed with only existing LF/CRLF warnings.
+- Real-browser validation:
+  - reloaded `http://127.0.0.1:3000/canvas?id=0a1dc7cd-098b-4dda-af76-dc24063f4b16&studio=architecture`; title was `Loomic`.
+  - real canvas selection showed one `canvas-selection-action-bar` with `创建编组`, `合并图层`, and `发送至对话`.
+  - real blank-canvas context menu had no `overflow-y-auto` or max-height scrollbar class and rendered `2` light gray separators.
+  - console error count: `0`.
+- Appended the required record to `docs/bug-fix-log.md` and updated `task_plan.md` / `findings.md`.
+
+## 2026-04-29 Canvas Mixed Selection Group/Merge Follow-Up
+
+- Started follow-up after user reported:
+  - in the mixed-selection scenario, both `创建编组` and `合并图层` should clear the selected effect after finishing.
+  - current `image + doodle/shape/text` selections cannot be merged into one layer.
+- Root-cause investigation target:
+  - `handleGroupSelectedImages` currently delegates to `groupSelectedCanvasElements(api)` and does not explicitly clear page selection state.
+  - `groupSelectedCanvasElements(api)` updates grouped elements but does not clear `appState.selectedElementIds`.
+  - `handleMergeSelection` currently filters to selected image elements with `fileId` and requires at least two images, so mixed selections with one image plus text/freedraw/shape are ignored.
+- Added RED coverage before production changes:
+  - floating action bar should disappear after grouping mixed `image + text`.
+  - grouping from a mixed context-menu selection should clear live `selectedElementIds`.
+  - merging `image + text` should export both selected elements, create a merged image layer, delete the originals, and clear live `selectedElementIds`.
+
+## 2026-04-29 Canvas Mixed Selection Group/Merge Follow-Up Completion
+
+- Continued the main-canvas mixed-selection follow-up after the user reported that grouping/merging should cancel selection and that `image + doodle/shape/text` could not merge.
+- Confirmed root causes:
+  - `groupSelectedCanvasElements(api)` grouped elements but left `appState.selectedElementIds` populated.
+  - page-level selection UI state remained populated after grouping.
+  - `handleMergeSelection()` only accepted two or more selected image elements, so one image plus text/freedraw/shape was ignored.
+  - the old scratch-canvas merge path could not render Excalidraw text/freedraw/shape layers.
+- Implemented fixes:
+  - grouping now clears Excalidraw `selectedElementIds`
+  - `clearCanvasSelectionUiState()` clears context menu state, selected elements, and floating action-bar origin
+  - mixed layer merge now exports all selected scene elements through Excalidraw `exportToBlob(...)`
+  - merged originals are deleted, the new image layer is inserted, and selection UI is cleared
+- Docker verification completed:
+  - runtime status script: keepalive running, Docker active, Supabase healthy, server healthy, web `3000/home` and API `3001/api/health` both `200`
+  - `pnpm exec vitest run --dir . test/canvas-page-selection-action-bar.test.tsx test/canvas-page-context-menu.test.tsx --reporter=dot`: `2` files passed, `33` tests passed, `4` skipped
+  - `pnpm exec vitest run --dir . test/canvas-context-actions.test.ts test/canvas-context-menu.test.tsx --reporter=dot`: `2` files passed, `13` tests passed
+  - `pnpm --filter @loomic/web typecheck`: passed
+  - `git diff --check`: passed with only existing LF/CRLF warnings
+- Real-browser validation completed on `http://127.0.0.1:3000/canvas?id=0a1dc7cd-098b-4dda-af76-dc24063f4b16&studio=architecture`:
+  - title was `Loomic`
+  - live scene had `1` image, `1` text, and `2` freedraw elements
+  - `image + text` selection showed `创建编组`, `合并图层`, and `发送至对话`
+  - `创建编组` cleared native selection and floating action bar, and applied one shared group ID to image/text
+  - `合并图层` deleted original image/text, inserted one merged image, cleared native selection, and removed the floating action bar
+  - validation scene was restored to the original four visible elements and reloaded successfully
+  - console error count was `0`
+- Appended the required record to `docs/bug-fix-log.md`.
+
+## 2026-05-01 Main Canvas Shape/Doodle Selection Toolbar Repair
+
+- Continued after the user reported that the main-canvas selected shape/doodle floating style toolbar:
+  - should not show W/H controls.
+  - should sit above the selected object instead of below or over the middle of it.
+- Confirmed the root cause in `apps/web/src/components/canvas-tool-menu.tsx`:
+  - `buildCanvasSelectionToolbarStyle(...)` used a below-object fallback when the preferred top anchor was near the viewport top.
+  - the selected shape toolbar card rendered `形状宽度` and `形状高度` number inputs.
+- Added RED regression coverage in `apps/web/test/canvas-tool-menu.test.tsx` before production changes:
+  - selected shapes must not render `形状宽度` / `形状高度`.
+  - near-top selected shapes must keep the toolbar above the object.
+  - selected freedraw/doodle toolbars must not render shape dimension controls.
+- RED Docker run:
+  - `pnpm exec vitest run --dir . test/canvas-tool-menu.test.tsx --reporter=dot`
+  - Result: failed as expected with `2` assertions: old W input present, and near-top toolbar `top` was `164px` instead of above object `y=32`.
+- Implemented the fix:
+  - removed below-object fallback from `buildCanvasSelectionToolbarStyle(...)`.
+  - removed selected-shape W/H inputs and the now-unused dimension-change handler.
+  - limited selected shape toolbar updates to style fields only.
+- GREEN Docker verification:
+  - focused `canvas-tool-menu` test: `1` file passed, `16` tests passed.
+  - bounded regression with `canvas-page-selection-action-bar`: `2` files passed, `38` tests passed, `4` skipped.
+  - `pnpm --filter @loomic/web typecheck`: passed.
+  - `git diff --check`: passed with only existing LF/CRLF warnings.
+- Real-browser validation in the Codex in-app browser:
+  - current canvas URL remained `http://127.0.0.1:3000/canvas?id=0a1dc7cd-098b-4dda-af76-dc24063f4b16&studio=architecture`.
+  - real selected rectangle toolbar reported `data-mode="selection"` and `data-anchor="canvas-selection"`.
+  - toolbar style was `left: 460px; top: 188px;` after drawing from about `y=260`, confirming it sat above the object.
+  - toolbar text was `描边 / 填充 / 清除填充 / 线宽 / 2`.
+  - `形状宽度` and `形状高度` counts were both `0`.
+  - deleted the temporary validation rectangle afterward; toolbar count returned to `0`.
+- Appended the required bug-fix record to `docs/bug-fix-log.md`.

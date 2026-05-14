@@ -9,12 +9,11 @@ import {
   memo,
   type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
+  type UIEvent as ReactUIEvent,
 } from "react";
 import { createPortal } from "react-dom";
 import {
   ArrowUpRight,
-  ChevronLeft,
-  ChevronRight,
   Circle,
   Diamond,
   Hand,
@@ -46,6 +45,7 @@ import { insertImageOnCanvas, isVideoUrl } from "../lib/canvas-elements";
 import type {
   OfficialGalleryCategory,
   OfficialGalleryItem,
+  OfficialGallerySubtype,
 } from "@loomic/shared";
 import {
   loadAddGalleryLibrary,
@@ -152,8 +152,6 @@ type OfficialGallerySubtypeCacheEntry = {
 type AddModalTabDefinition = {
   id: AddModalTab;
   label: string;
-  description: string;
-  icon: React.ComponentType<{ className?: string }>;
 };
 type ShapeToolbarStyle = {
   strokeColor: string;
@@ -277,24 +275,123 @@ const ADD_MODAL_TABS: AddModalTabDefinition[] = [
   {
     id: "local-upload",
     label: "本地上传",
-    description: "从本地文件快速插入参考图",
-    icon: ImageUp,
   },
   {
     id: "official-gallery",
     label: "官方图库",
-    description: "从本地受控图库挑选稳定素材",
-    icon: Sparkles,
   },
   {
     id: "my-creations",
     label: "我的创作",
-    description: "复用近期整理过的创作样例",
-    icon: Pencil,
   },
 ];
 
-const OFFICIAL_GALLERY_PAGE_SIZE = 60;
+const OFFICIAL_GALLERY_PAGE_SIZE = 30;
+const OFFICIAL_GALLERY_INFINITE_SCROLL_THRESHOLD = 280;
+const ADD_GALLERY_DEFAULT_SUBTYPE_LABEL = "默认";
+const ADD_GALLERY_CATEGORY_DISPLAY_ORDER = [
+  "建筑效果图",
+  "室内效果图",
+  "景观效果图",
+  "城市效果图",
+  "彩平参考图",
+  "拼贴效果图",
+  "插画效果图",
+  "竞赛效果图",
+  "夜景效果图",
+  "平立剖参考",
+  "室内平面图",
+];
+const ADD_GALLERY_SUBTYPE_DISPLAY_ORDER_BY_CATEGORY: Record<string, string[]> = {
+  建筑效果图: [
+    "办公园区",
+    "文化建筑",
+    "酒店",
+    "商业综合体",
+    "学校",
+    "幼儿园",
+    "体育馆",
+    "售楼部",
+    "会所",
+    "商业街",
+    "商业门头",
+    "医院",
+    "工业厂房",
+    "交通建筑",
+    "文旅",
+  ],
+};
+
+function getAddGalleryDisplayOrderIndex(order: string[], label: string) {
+  const index = order.indexOf(label.trim());
+  return index === -1 ? Number.POSITIVE_INFINITY : index;
+}
+
+function sortAddGalleryCategories(categories: OfficialGalleryCategory[]) {
+  return categories
+    .map((category, originalIndex) => ({
+      category,
+      orderIndex: getAddGalleryDisplayOrderIndex(
+        ADD_GALLERY_CATEGORY_DISPLAY_ORDER,
+        category.label,
+      ),
+      originalIndex,
+    }))
+    .sort((left, right) => {
+      if (left.orderIndex !== right.orderIndex) {
+        return left.orderIndex - right.orderIndex;
+      }
+
+      return left.originalIndex - right.originalIndex;
+    })
+    .map(({ category }) => category);
+}
+
+function sortAddGallerySubtypes(
+  categoryLabel: string,
+  subtypes: OfficialGallerySubtype[],
+) {
+  const displayOrder = ADD_GALLERY_SUBTYPE_DISPLAY_ORDER_BY_CATEGORY[categoryLabel.trim()] ?? [];
+
+  return subtypes
+    .map((subtype, originalIndex) => ({
+      subtype,
+      orderIndex: getAddGalleryDisplayOrderIndex(displayOrder, subtype.label),
+      originalIndex,
+    }))
+    .sort((left, right) => {
+      if (left.orderIndex !== right.orderIndex) {
+        return left.orderIndex - right.orderIndex;
+      }
+
+      return left.originalIndex - right.originalIndex;
+    })
+    .map(({ subtype }) => subtype);
+}
+
+function isDefaultAddGallerySubtype(subtype: OfficialGallerySubtype) {
+  return subtype.label.trim() === ADD_GALLERY_DEFAULT_SUBTYPE_LABEL;
+}
+
+function getVisibleAddGallerySubtypes(category: OfficialGalleryCategory) {
+  const sortedSubtypes = sortAddGallerySubtypes(category.label, category.subtypes);
+  const nonDefaultSubtypes = sortedSubtypes.filter(
+    (subtype) => !isDefaultAddGallerySubtype(subtype),
+  );
+  const nonEmptySubtypes = nonDefaultSubtypes.filter((subtype) => subtype.assetCount > 0);
+
+  return nonEmptySubtypes.length > 0 ? nonEmptySubtypes : nonDefaultSubtypes;
+}
+
+function getPreferredAddGallerySubtype(category: OfficialGalleryCategory) {
+  const visibleSubtypes = getVisibleAddGallerySubtypes(category);
+  if (visibleSubtypes[0]) {
+    return visibleSubtypes[0];
+  }
+
+  const sortedSubtypes = sortAddGallerySubtypes(category.label, category.subtypes);
+  return sortedSubtypes.find((subtype) => subtype.assetCount > 0) ?? sortedSubtypes[0] ?? null;
+}
 
 function buildOfficialGallerySeedItemIndex(
   library: Array<{
@@ -625,14 +722,13 @@ function buildCanvasSelectionToolbarStyle(args: {
   const viewportHeight =
     typeof window === "undefined" ? 900 : window.innerHeight;
   const centerX = (args.x + args.width / 2 + args.scrollX) * args.zoom;
-  const anchorTop = (args.y + args.scrollY) * args.zoom - 96;
-  const fallbackBelowTop =
-    (args.y + args.height + args.scrollY) * args.zoom + 12;
+  // Keep the selection toolbar above the object; falling below covers the selected artwork.
+  const anchorTop = (args.y + args.scrollY) * args.zoom - 72;
 
   return {
     left: clamp(centerX, 40, Math.max(40, viewportWidth - 40)),
     top: clamp(
-      anchorTop < 16 ? fallbackBelowTop : anchorTop,
+      anchorTop,
       16,
       Math.max(16, viewportHeight - 112),
     ),
@@ -726,6 +822,7 @@ export function CanvasToolMenu({
     useState<string>("");
   const [activeOfficialGallerySubtype, setActiveOfficialGallerySubtype] =
     useState<string>("");
+  const [addDialogBodyScrolling, setAddDialogBodyScrolling] = useState(false);
   const [activeMyCreationSource, setActiveMyCreationSource] =
     useState<MyCreationSourceId>("ai-drawing");
   const [shapeToolbarStyle, setShapeToolbarStyle] = useState<ShapeToolbarStyle>(() =>
@@ -738,6 +835,7 @@ export function CanvasToolMenu({
     useState<SelectedShapeToolbarState | null>(null);
   const [selectedTextElement, setSelectedTextElement] =
     useState<SelectedTextToolbarState | null>(null);
+  const addDialogScrollResetTimerRef = useRef<number | null>(null);
 
   // Image generator state
   const [activeGeneratorId, setActiveGeneratorId] = useState<string | null>(null);
@@ -797,7 +895,6 @@ export function CanvasToolMenu({
   const activeVideoPlayerIdRef = useRef(activeVideoPlayerId);
   activeVideoPlayerIdRef.current = activeVideoPlayerId;
   const railRef = useRef<HTMLDivElement | null>(null);
-  const officialGalleryCategoryStripRef = useRef<HTMLDivElement | null>(null);
 
   // Track previous generating element IDs to avoid re-renders when nothing changed
   const prevGeneratingKeyRef = useRef("");
@@ -1164,11 +1261,7 @@ export function CanvasToolMenu({
   );
 
   const applySelectedShapeUpdate = useCallback(
-    (
-      nextValues: Partial<
-        ShapeToolbarStyle & Pick<SelectedShapeToolbarState, "width" | "height">
-      >,
-    ) => {
+    (nextValues: Partial<ShapeToolbarStyle>) => {
       if (!excalidrawApi?.updateScene || !selectedShapeElement) {
         return;
       }
@@ -1181,14 +1274,6 @@ export function CanvasToolMenu({
         strokeWidth:
           nextValues.strokeWidth ?? selectedShapeElement.strokeWidth,
       });
-      const nextWidth =
-        typeof nextValues.width === "number"
-          ? Math.max(1, Math.round(nextValues.width))
-          : selectedShapeElement.width;
-      const nextHeight =
-        typeof nextValues.height === "number"
-          ? Math.max(1, Math.round(nextValues.height))
-          : selectedShapeElement.height;
       const nextElements = (excalidrawApi.getSceneElements?.() ?? []).map(
         (element: any) => {
           if (element.isDeleted || element.id !== selectedShapeElement.id) {
@@ -1200,8 +1285,6 @@ export function CanvasToolMenu({
             strokeColor: nextStyle.strokeColor,
             backgroundColor: nextStyle.backgroundColor,
             strokeWidth: nextStyle.strokeWidth,
-            width: nextWidth,
-            height: nextHeight,
             roughness: 0,
             strokeStyle: "solid",
             fillStyle: "solid",
@@ -1212,8 +1295,6 @@ export function CanvasToolMenu({
       setSelectedShapeElement({
         ...selectedShapeElement,
         ...nextStyle,
-        width: nextWidth,
-        height: nextHeight,
       });
       setShapeToolbarStyle(nextStyle);
       excalidrawApi.updateScene({
@@ -1334,17 +1415,6 @@ export function CanvasToolMenu({
     [applySelectedTextUpdate, excalidrawApi, selectedTextElement, textToolbarStyle],
   );
 
-  const handleSelectedShapeDimensionChange = useCallback(
-    (dimension: "width" | "height", value: number) => {
-      if (!selectedShapeElement || Number.isNaN(value)) {
-        return;
-      }
-
-      applySelectedShapeUpdate({ [dimension]: value });
-    },
-    [applySelectedShapeUpdate, selectedShapeElement],
-  );
-
   const handleCreateImageGenerator = useCallback(() => {
     if (!excalidrawApi) return;
     const elementId = createImageGeneratorElement(excalidrawApi);
@@ -1452,7 +1522,7 @@ export function CanvasToolMenu({
     };
   }, [shapeFlyoutOpen]);
 
-useEffect(() => {
+  useEffect(() => {
     if (!addModalOpen) {
       return;
     }
@@ -1469,6 +1539,14 @@ useEffect(() => {
       document.removeEventListener("keydown", handleKeyDown);
     };
   }, [addModalOpen]);
+
+  useEffect(() => {
+    return () => {
+      if (addDialogScrollResetTimerRef.current !== null) {
+        window.clearTimeout(addDialogScrollResetTimerRef.current);
+      }
+    };
+  }, []);
 
   const loadOfficialGalleryData = useCallback(
     async (options?: { force?: boolean }) => {
@@ -1668,10 +1746,16 @@ useEffect(() => {
     officialGallerySubtypeCache,
   ]);
 
+  const sortedOfficialGalleryLibrary = useMemo(
+    () => sortAddGalleryCategories(officialGalleryLibrary),
+    [officialGalleryLibrary],
+  );
+
   useEffect(() => {
     const nextCategory =
-      officialGalleryLibrary.find((category) => category.id === activeOfficialGalleryCategory) ??
-      officialGalleryLibrary[0];
+      sortedOfficialGalleryLibrary.find(
+        (category) => category.id === activeOfficialGalleryCategory,
+      ) ?? sortedOfficialGalleryLibrary[0];
 
     if (!nextCategory) {
       return;
@@ -1682,9 +1766,10 @@ useEffect(() => {
       return;
     }
 
+    const sortedSubtypes = sortAddGallerySubtypes(nextCategory.label, nextCategory.subtypes);
     const nextSubtype =
-      nextCategory.subtypes.find((subtype) => subtype.id === activeOfficialGallerySubtype) ??
-      nextCategory.subtypes[0];
+      sortedSubtypes.find((subtype) => subtype.id === activeOfficialGallerySubtype) ??
+      getPreferredAddGallerySubtype(nextCategory);
 
     if (nextSubtype && nextSubtype.id !== activeOfficialGallerySubtype) {
       setActiveOfficialGallerySubtype(nextSubtype.id);
@@ -1692,26 +1777,48 @@ useEffect(() => {
   }, [
     activeOfficialGalleryCategory,
     activeOfficialGallerySubtype,
-    officialGalleryLibrary,
+    sortedOfficialGalleryLibrary,
   ]);
 
   const activeOfficialGalleryCategoryRecord = useMemo(
     () =>
-      officialGalleryLibrary.find((category) => category.id === activeOfficialGalleryCategory) ??
-      officialGalleryLibrary[0] ??
+      sortedOfficialGalleryLibrary.find(
+        (category) => category.id === activeOfficialGalleryCategory,
+      ) ??
+      sortedOfficialGalleryLibrary[0] ??
       null,
-    [activeOfficialGalleryCategory, officialGalleryLibrary],
+    [activeOfficialGalleryCategory, sortedOfficialGalleryLibrary],
+  );
+  const activeOfficialSubtypeRecords = useMemo(
+    () =>
+      activeOfficialGalleryCategoryRecord
+        ? sortAddGallerySubtypes(
+            activeOfficialGalleryCategoryRecord.label,
+            activeOfficialGalleryCategoryRecord.subtypes,
+          )
+        : [],
+    [activeOfficialGalleryCategoryRecord],
   );
   const activeOfficialSubtypeOptions = useMemo(
-    () => activeOfficialGalleryCategoryRecord?.subtypes ?? [],
+    () =>
+      activeOfficialGalleryCategoryRecord
+        ? getVisibleAddGallerySubtypes(activeOfficialGalleryCategoryRecord)
+        : [],
     [activeOfficialGalleryCategoryRecord],
   );
   const activeOfficialGallerySubtypeRecord = useMemo(
     () =>
-      activeOfficialSubtypeOptions.find((subtype) => subtype.id === activeOfficialGallerySubtype) ??
-      activeOfficialSubtypeOptions[0] ??
-      null,
-    [activeOfficialGallerySubtype, activeOfficialSubtypeOptions],
+      activeOfficialSubtypeRecords.find(
+        (subtype) => subtype.id === activeOfficialGallerySubtype,
+      ) ??
+      (activeOfficialGalleryCategoryRecord
+        ? getPreferredAddGallerySubtype(activeOfficialGalleryCategoryRecord)
+        : null),
+    [
+      activeOfficialGalleryCategoryRecord,
+      activeOfficialGallerySubtype,
+      activeOfficialSubtypeRecords,
+    ],
   );
   const activeOfficialGallerySubtypeCacheEntry = useMemo(
     () =>
@@ -1735,8 +1842,8 @@ useEffect(() => {
     activeOfficialGallerySubtypeHasLoaded &&
     activeOfficialGallerySubtypeCacheEntry?.nextOffset != null;
   const activeOfficialGalleryTotalCount =
-    activeOfficialGallerySubtypeRecord?.assetCount ??
     activeOfficialGallerySubtypeCacheEntry?.totalCount ??
+    activeOfficialGallerySubtypeRecord?.assetCount ??
     0;
   const activeMyCreationItems = MY_CREATION_SAMPLE_ITEMS[activeMyCreationSource] ?? [];
 
@@ -1751,17 +1858,27 @@ useEffect(() => {
   const handleSelectOfficialGalleryCategory = useCallback(
     (categoryId: string) => {
       const nextSubtypeId =
-        officialGalleryLibrary.find((category) => category.id === categoryId)?.subtypes[0]?.id ??
+        getPreferredAddGallerySubtype(
+          sortedOfficialGalleryLibrary.find((category) => category.id === categoryId) ?? {
+            id: categoryId,
+            label: "",
+            subtypes: [],
+          },
+        )?.id ??
         "";
 
       setActiveOfficialGalleryCategory(categoryId);
       setActiveOfficialGallerySubtype(nextSubtypeId);
     },
-    [officialGalleryLibrary],
+    [sortedOfficialGalleryLibrary],
   );
 
   const handleLoadMoreOfficialGalleryItems = useCallback(() => {
-    if (!activeOfficialGallerySubtype || !activeOfficialGalleryHasMore) {
+    if (
+      !activeOfficialGallerySubtype ||
+      !activeOfficialGalleryHasMore ||
+      activeOfficialGallerySubtypeLoading
+    ) {
       return;
     }
 
@@ -1771,30 +1888,48 @@ useEffect(() => {
   }, [
     activeOfficialGalleryHasMore,
     activeOfficialGallerySubtype,
+    activeOfficialGallerySubtypeLoading,
     loadOfficialGallerySubtypeData,
   ]);
 
-  const handleScrollOfficialGalleryCategories = useCallback(
-    (direction: "left" | "right") => {
-      const strip = officialGalleryCategoryStripRef.current;
-      if (!strip) {
+  const handleOfficialGalleryBodyScroll = useCallback(
+    (event: ReactUIEvent<HTMLDivElement>) => {
+      const target = event.currentTarget;
+
+      setAddDialogBodyScrolling(true);
+      if (addDialogScrollResetTimerRef.current !== null) {
+        window.clearTimeout(addDialogScrollResetTimerRef.current);
+      }
+      addDialogScrollResetTimerRef.current = window.setTimeout(() => {
+        setAddDialogBodyScrolling(false);
+        addDialogScrollResetTimerRef.current = null;
+      }, 900);
+
+      if (
+        activeAddTab !== "official-gallery" ||
+        !activeOfficialGalleryHasMore ||
+        activeOfficialGallerySubtypeLoading
+      ) {
         return;
       }
 
-      const delta = direction === "left" ? -240 : 240;
-      console.log("[canvas-tool-menu] scroll official gallery categories", {
-        direction,
-        delta,
+      const remaining =
+        target.scrollHeight - target.scrollTop - target.clientHeight;
+      if (remaining > OFFICIAL_GALLERY_INFINITE_SCROLL_THRESHOLD) {
+        return;
+      }
+
+      console.info("[canvas-tool-menu] official gallery reached infinite-scroll threshold", {
+        remaining,
       });
-
-      if (typeof strip.scrollBy === "function") {
-        strip.scrollBy({ left: delta, behavior: "smooth" });
-        return;
-      }
-
-      strip.scrollLeft += delta;
+      handleLoadMoreOfficialGalleryItems();
     },
-    [],
+    [
+      activeAddTab,
+      activeOfficialGalleryHasMore,
+      activeOfficialGallerySubtypeLoading,
+      handleLoadMoreOfficialGalleryItems,
+    ],
   );
 
   const handleInsertGalleryImage = useCallback(
@@ -2260,42 +2395,6 @@ useEffect(() => {
           </span>
         </label>
 
-        {selectedShapeElement ? (
-          <div className="flex items-center gap-3">
-            <label className="flex items-center gap-2 text-[11px] font-medium text-slate-500">
-              <span>W</span>
-              <input
-                aria-label="形状宽度"
-                type="number"
-                min={1}
-                value={Math.round(selectedShapeElement.width)}
-                onChange={(event) =>
-                  handleSelectedShapeDimensionChange(
-                    "width",
-                    Number(event.currentTarget.value),
-                  )
-                }
-                className="h-8 w-20 rounded-[8px] border border-slate-200 bg-white px-2 text-sm text-slate-900 outline-none transition-colors focus:border-slate-400"
-              />
-            </label>
-            <label className="flex items-center gap-2 text-[11px] font-medium text-slate-500">
-              <span>H</span>
-              <input
-                aria-label="形状高度"
-                type="number"
-                min={1}
-                value={Math.round(selectedShapeElement.height)}
-                onChange={(event) =>
-                  handleSelectedShapeDimensionChange(
-                    "height",
-                    Number(event.currentTarget.value),
-                  )
-                }
-                className="h-8 w-20 rounded-[8px] border border-slate-200 bg-white px-2 text-sm text-slate-900 outline-none transition-colors focus:border-slate-400"
-              />
-            </label>
-          </div>
-        ) : null}
       </div>
     );
 
@@ -2354,20 +2453,19 @@ const renderAddModal = () => {
           <button
             type="button"
             aria-label="关闭添加素材窗口"
-            className="absolute right-6 top-5 z-10 inline-flex h-10 w-10 items-center justify-center rounded-[12px] border border-slate-200 bg-white text-slate-500 transition-colors hover:border-slate-300 hover:text-slate-900"
+            className="absolute right-5 top-3 z-10 inline-flex h-9 w-9 items-center justify-center rounded-[10px] border border-slate-200 bg-white text-slate-500 transition-colors hover:border-slate-300 hover:text-slate-900"
             onClick={closeAddModal}
           >
             <X className="h-4 w-4" />
           </button>
 
-          <div className="border-b border-slate-200 bg-[linear-gradient(180deg,rgba(248,250,252,0.98),rgba(255,255,255,0.98))] px-6 pb-5 pt-6 pr-20">
+          <div className="border-b border-slate-200 bg-white px-6 py-3 pr-16">
             <div
               role="tablist"
               aria-label="添加素材分类"
-              className="grid gap-3 sm:grid-cols-3"
+              className="flex flex-wrap items-center justify-center gap-1"
             >
               {ADD_MODAL_TABS.map((tab) => {
-                const Icon = tab.icon;
                 const selected = activeAddTab === tab.id;
 
                 return (
@@ -2379,30 +2477,14 @@ const renderAddModal = () => {
                     aria-selected={selected}
                     aria-controls={`add-material-panel-${tab.id}`}
                     id={`add-material-tab-${tab.id}`}
-                    className={`group flex min-h-[88px] items-start gap-3 rounded-[14px] border px-4 py-3 text-left transition-all ${
+                    className={`h-10 rounded-full px-5 text-sm font-medium transition-colors ${
                       selected
-                        ? "border-slate-900 bg-white shadow-[0_14px_32px_rgba(15,23,42,0.08)]"
-                        : "border-slate-200 bg-slate-50/80 hover:border-slate-300 hover:bg-white"
+                        ? "bg-slate-900 text-white"
+                        : "bg-transparent text-slate-500 hover:bg-slate-100 hover:text-slate-900"
                     }`}
                     onClick={() => handleAddTabSelect(tab.id)}
                   >
-                    <span
-                      className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] transition-colors ${
-                        selected
-                          ? "bg-slate-900 text-white"
-                          : "bg-white text-slate-600 group-hover:bg-slate-100"
-                      }`}
-                    >
-                      <Icon className="h-4 w-4" />
-                    </span>
-                    <span className="min-w-0">
-                      <span className="block text-sm font-semibold text-slate-900">
-                        {tab.label}
-                      </span>
-                      <span aria-hidden="true" className="mt-1 block text-xs leading-5 text-slate-500">
-                        {tab.description}
-                      </span>
-                    </span>
+                    {tab.label}
                   </button>
                 );
               })}
@@ -2412,7 +2494,9 @@ const renderAddModal = () => {
           <div
             data-testid="architecture-add-dialog-body"
             data-scroll-region="true"
-            className="min-h-0 flex-1 overflow-y-auto px-6 py-5"
+            data-scrolling={addDialogBodyScrolling ? "true" : undefined}
+            className="scrollbar-hover-gutter min-h-0 flex-1 overflow-y-auto px-6 py-5"
+            onScroll={handleOfficialGalleryBodyScroll}
           >
             {activeAddTab === "local-upload" ? (
               <div
@@ -2477,88 +2561,36 @@ const renderAddModal = () => {
                 aria-labelledby="add-material-tab-official-gallery"
                 className="grid gap-4"
               >
-                <div className="flex flex-wrap items-center justify-between gap-3 rounded-[16px] border border-slate-200 bg-slate-50/80 px-4 py-3">
-                  <div>
-                    <div className="text-sm font-semibold text-slate-900">官方图库</div>
-                    <p className="mt-1 text-xs leading-5 text-slate-500">
-                      图片与分类均来自本地数据库和本地存储，不再依赖前端硬编码常量。
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    className="inline-flex h-10 items-center gap-2 rounded-[10px] border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition-colors hover:border-slate-300 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
-                    onClick={() => void loadOfficialGalleryData({ force: true })}
-                    disabled={officialGalleryLoading}
-                  >
-                    <Sparkles className="h-4 w-4" />
-                    刷新图库
-                  </button>
-                </div>
                 {officialGalleryLoadError ? (
                   <div className="rounded-[12px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
                     {officialGalleryLoadError}
                   </div>
                 ) : null}
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    aria-label="向左滚动官方图库分类"
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-[8px] border border-slate-200 bg-white text-slate-600 transition-colors hover:bg-slate-100"
-                    onClick={() => handleScrollOfficialGalleryCategories("left")}
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                  </button>
-                  <div
-                    ref={officialGalleryCategoryStripRef}
-                    data-testid="official-gallery-category-strip"
-                    className="flex flex-1 gap-2 overflow-x-auto py-1"
-                  >
-                    {officialGalleryLibrary.map((category) => {
-                      const selected = activeOfficialGalleryCategoryRecord?.id === category.id;
-                      return (
-                        <button
-                          key={category.id}
-                          type="button"
-                          aria-pressed={selected}
-                          className={`shrink-0 rounded-[8px] border px-3 py-2 text-sm font-medium transition-colors ${
-                            selected
-                              ? "border-slate-900 bg-slate-900 text-white"
-                              : "border-slate-200 bg-white text-slate-700 hover:bg-slate-100"
-                          }`}
-                          onClick={() => handleSelectOfficialGalleryCategory(category.id)}
-                        >
-                          {category.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  <button
-                    type="button"
-                    aria-label="向右滚动官方图库分类"
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-[8px] border border-slate-200 bg-white text-slate-600 transition-colors hover:bg-slate-100"
-                    onClick={() => handleScrollOfficialGalleryCategories("right")}
-                  >
-                    <ChevronRight className="h-4 w-4" />
-                  </button>
+                <div
+                  data-testid="official-gallery-category-strip"
+                  className="flex flex-wrap items-center gap-x-5 gap-y-2"
+                >
+                  {sortedOfficialGalleryLibrary.map((category) => {
+                    const selected = activeOfficialGalleryCategoryRecord?.id === category.id;
+                    return (
+                      <button
+                        key={category.id}
+                        type="button"
+                        aria-pressed={selected}
+                        className={`h-8 rounded-full px-3 text-sm font-medium transition-colors ${
+                          selected
+                            ? "bg-slate-900 text-white"
+                            : "bg-transparent text-slate-600 hover:bg-slate-100 hover:text-slate-950"
+                        }`}
+                        onClick={() => handleSelectOfficialGalleryCategory(category.id)}
+                      >
+                        {category.label}
+                      </button>
+                    );
+                  })}
                 </div>
-                {activeOfficialGallerySubtypeRecord ? (
-                  <div className="flex flex-wrap items-center justify-between gap-3 rounded-[14px] border border-slate-200 bg-white px-4 py-3">
-                    <div>
-                      <div className="text-sm font-semibold text-slate-900">
-                        {activeOfficialGalleryCategoryRecord?.label ?? "官方图库"} /{" "}
-                        {activeOfficialGallerySubtypeRecord.label}
-                      </div>
-                      <p className="mt-1 text-xs leading-5 text-slate-500">
-                        当前子类已同步 {activeOfficialGalleryItems.length} /{" "}
-                        {activeOfficialGalleryTotalCount} 张图片，按分页逐步加载。
-                      </p>
-                    </div>
-                    <div className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-600">
-                      本地库存 {activeOfficialGalleryTotalCount} 张
-                    </div>
-                  </div>
-                ) : null}
-                <div className="flex flex-wrap gap-2">
+                {activeOfficialSubtypeOptions.length > 0 ? (
+                  <div className="flex flex-wrap gap-x-5 gap-y-2">
                   {activeOfficialSubtypeOptions.map((subtype) => {
                     const selected = activeOfficialGallerySubtypeRecord?.id === subtype.id;
                     return (
@@ -2566,32 +2598,29 @@ const renderAddModal = () => {
                         key={subtype.id}
                         type="button"
                         aria-pressed={selected}
-                        className={`rounded-[8px] border px-3 py-2 text-sm font-medium transition-colors ${
+                        className={`h-8 rounded-full px-1 text-sm transition-colors ${
                           selected
-                            ? "border-slate-900 bg-slate-100 text-slate-900"
-                            : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                            ? "font-semibold text-slate-950"
+                            : "font-normal text-slate-500 hover:text-slate-900"
                         }`}
                         onClick={() => setActiveOfficialGallerySubtype(subtype.id)}
                       >
-                        <span>{subtype.label}</span>
-                        <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-500">
-                          {subtype.assetCount}
-                        </span>
+                        {subtype.label}
                       </button>
                     );
                   })}
-                </div>
+                  </div>
+                ) : null}
                 {((officialGalleryLoading && officialGalleryLibrary.length === 0) ||
                   (activeOfficialGallerySubtypeLoading &&
                     activeOfficialGalleryItems.length === 0)) ? (
-                  <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-6">
-                    {Array.from({ length: 6 }).map((_, index) => (
+                  <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-5 xl:grid-cols-7">
+                    {Array.from({ length: 14 }).map((_, index) => (
                       <div
                         key={`official-gallery-loading-${index}`}
-                        className="overflow-hidden rounded-[14px] border border-slate-200 bg-white p-3"
+                        className="overflow-hidden rounded-[10px] bg-slate-100"
                       >
-                        <div className="aspect-[4/3] animate-pulse rounded-[10px] bg-slate-100" />
-                        <div className="mt-3 h-3 w-2/3 animate-pulse rounded bg-slate-100" />
+                        <div className="aspect-[4/3] animate-pulse bg-slate-200/70" />
                       </div>
                     ))}
                   </div>
@@ -2635,47 +2664,46 @@ const renderAddModal = () => {
                   <div className="grid gap-4">
                     <div
                       data-testid="official-gallery-grid"
-                      className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-6"
+                      className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-5 xl:grid-cols-7"
                     >
                       {activeOfficialGalleryItems.map((item, index) => (
                         <button
                           key={item.id}
                           type="button"
                           aria-label={`插入官方图库图片 ${item.label}`}
-                          className="group overflow-hidden rounded-[14px] border border-slate-200 bg-white text-left shadow-[0_8px_20px_rgba(15,23,42,0.04)] transition-all hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-[0_18px_28px_rgba(15,23,42,0.08)]"
+                          className="group overflow-hidden rounded-[10px] bg-slate-100 text-left transition-transform hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-900"
                           onClick={() => handleInsertOfficialGalleryImage(item, index)}
                         >
                           <div className="aspect-[4/3] overflow-hidden bg-slate-100">
                             <img
-                              src={item.url}
+                              src={item.thumbnailUrl ?? item.url}
                               alt={item.label}
+                              loading="lazy"
+                              decoding="async"
+                              sizes="(min-width: 1280px) 150px, (min-width: 768px) 20vw, 33vw"
                               className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-[1.02]"
                             />
-                          </div>
-                          <div className="border-t border-slate-100 px-3 py-2.5">
-                            <p className="truncate text-sm font-medium text-slate-800">
-                              {item.label}
-                            </p>
-                            <p className="mt-1 text-xs text-slate-500">点击后直接插入当前画板</p>
                           </div>
                         </button>
                       ))}
                     </div>
                     <div className="flex flex-wrap items-center justify-between gap-3 rounded-[14px] border border-slate-200 bg-slate-50/70 px-4 py-3">
-                      <div className="text-sm text-slate-500">
+                      <div
+                        data-testid="official-gallery-pagination-status"
+                        className="text-sm text-slate-500"
+                      >
                         已展示 {activeOfficialGalleryItems.length} / {activeOfficialGalleryTotalCount}{" "}
                         张本地图库图片
                       </div>
-                      {activeOfficialGalleryHasMore ? (
-                        <button
-                          type="button"
-                          aria-label="加载更多官方图库图片"
-                          className="inline-flex h-10 items-center justify-center rounded-[10px] border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
-                          onClick={handleLoadMoreOfficialGalleryItems}
-                          disabled={activeOfficialGallerySubtypeLoading}
-                        >
-                          {activeOfficialGallerySubtypeLoading ? "加载中..." : "加载更多"}
-                        </button>
+                      {activeOfficialGallerySubtypeLoading && activeOfficialGalleryHasMore ? (
+                        <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-500">
+                          <span className="h-2 w-2 animate-pulse rounded-full bg-slate-400" />
+                          正在继续加载
+                        </div>
+                      ) : activeOfficialGalleryHasMore ? (
+                        <div className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-500">
+                          向下滚动继续加载
+                        </div>
                       ) : (
                         <div className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-500">
                           当前子类已全部加载

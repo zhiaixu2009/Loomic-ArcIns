@@ -271,6 +271,72 @@ vi.mock("../src/components/canvas-editor", () => ({
         </button>
         <button
           type="button"
+          data-testid="mock-select-image-and-text"
+          onClick={() => {
+            props.onSelectionIntent?.("left");
+            props.onViewportChange?.({
+              scrollX: 0,
+              scrollY: 0,
+              zoom: 1,
+            });
+            props.onSelectionChange?.([
+              {
+                id: "image-1",
+                type: "image",
+                x: 160,
+                y: 120,
+                width: 240,
+                height: 160,
+                storageUrl: "https://example.com/reference-1.png",
+              },
+              {
+                id: "text-1",
+                type: "text",
+                x: 420,
+                y: 160,
+                width: 180,
+                height: 48,
+              },
+            ]);
+          }}
+        >
+          select image and text
+        </button>
+        <button
+          type="button"
+          data-testid="mock-select-image-and-freedraw"
+          onClick={() => {
+            props.onSelectionIntent?.("left");
+            props.onViewportChange?.({
+              scrollX: 0,
+              scrollY: 0,
+              zoom: 1,
+            });
+            props.onSelectionChange?.([
+              {
+                id: "image-1",
+                type: "image",
+                x: 160,
+                y: 120,
+                width: 240,
+                height: 160,
+                storageUrl: "https://example.com/reference-1.png",
+              },
+              {
+                id: "freedraw-1",
+                type: "freedraw",
+                x: 380,
+                y: 110,
+                width: 180,
+                height: 120,
+              },
+            ]);
+          }}
+        >
+          select image and freedraw
+        </button>
+        <button
+          type="button"
           data-testid="mock-select-canvas-rectangle"
           onClick={() => {
             props.onSelectionIntent?.("left");
@@ -502,7 +568,7 @@ describe("CanvasPage selection action bar", () => {
     expect(
       screen.getByRole("dialog", { name: "图片编辑" }),
     ).toBeInTheDocument();
-    expect(screen.getByText("贴图")).toBeInTheDocument();
+    expect(screen.queryByText("贴图")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "AI转换" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "AI添加" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "AI消除" })).toBeInTheDocument();
@@ -772,6 +838,54 @@ describe("CanvasPage selection action bar", () => {
     expect(
       screen.getByRole("button", { name: "发送至对话" }),
     ).toBeInTheDocument();
+  });
+
+  it.each([
+    ["mock-select-image-and-text", "image plus text"],
+    ["mock-select-image-and-freedraw", "image plus freedraw"],
+  ])(
+    "shows group and merge actions for a mixed %s canvas selection",
+    async (selectionTestId) => {
+      const user = userEvent.setup();
+
+      renderWithToast(<CanvasPage />);
+
+      await waitFor(() => {
+        expect(fetchCanvasMock).toHaveBeenCalledWith("token-canvas", "canvas-1");
+      });
+
+      await user.click(screen.getByTestId(selectionTestId));
+
+      expect(
+        screen.getByRole("button", { name: "创建编组" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "合并图层" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "发送至对话" }),
+      ).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "编辑" })).toBeNull();
+    },
+  );
+
+  it("clears the floating action bar after grouping a mixed image selection", async () => {
+    const user = userEvent.setup();
+
+    renderWithToast(<CanvasPage />);
+
+    await waitFor(() => {
+      expect(fetchCanvasMock).toHaveBeenCalledWith("token-canvas", "canvas-1");
+    });
+
+    await user.click(screen.getByTestId("mock-select-image-and-text"));
+    expect(screen.getByTestId("canvas-selection-action-bar")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "创建编组" }));
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("canvas-selection-action-bar")).toBeNull();
+    });
   });
 
   it("opens the architecture large-image viewer with the audited action cluster and immediate download drawer", async () => {
